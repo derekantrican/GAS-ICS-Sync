@@ -32,7 +32,7 @@ var email = ""; //OPTIONAL: If "emailWhenAdded" is set to true, you will need to
 *
 * This program was created by Derek Antrican
 *
-* The code for this program is kept updated here: https://github.com/derekantrican/Google-Apps-Script-Library/tree/master/ICS-ICAL%20Sync
+* The code for this program is kept updated here: https://github.com/derekantrican/GAS-ICS-Sync
 * 
 * If you would like to donate and help Derek keep making awesome programs,
 * you can do that here: https://bulkeditcalendarevents.wordpress.com/donate/
