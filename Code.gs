@@ -16,8 +16,12 @@
 *=========================================
 */
 
-var targetCalendarName = "";           // The name of the Google Calendar you want to add events to
-var sourceCalendarURL = "";            // The ics/ical url that you want to get events from
+// --------------- SETTINGS ---------------
+
+// var targetCalendarName = "" // The name of the Google Calendar you want to add events to
+// var sourceCalendarURL = "" // The ics/ical url that you want to get events from
+
+var sourceCalendars={}
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
