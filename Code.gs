@@ -12,12 +12,15 @@
 // var targetCalendarName = "" // The name of the Google Calendar you want to add events to
 // var sourceCalendarURL = "" // The ics/ical url that you want to get events from
 
-var sourceCalendars={}
+
+var sourceCalendars={
+  CustomName:"ICS/ICAL URL"
+}
 
 
 // Currently global settings are applied to all sourceCalendars.  
 
-var howFrequent = 15; //What interval (minutes) to run this script on to check for new events
+var howFrequent = 30; //What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true; //If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true; // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true; //If you turn this to "true", any event in the calendar not found in the feed will be removed.  
@@ -56,6 +59,17 @@ function Install(){
 }
 
 function main(){
+  
+  /* Some logic that tracks which calendar we left off on in the last execution could
+  help reduce errors and redoing the same calendars if we include logic to detect maxing on quota or execution time */
+
+  for( var calendar in sourceCalendars){
+    Logger.log("Syncing "+ calendar);
+    syncCalendar(calendar, sourceCalendars[calendar]);
+  }
+}
+
+function syncCalendar(targetCalendarName, sourceCalendarURL) {  
   
   //Get URL items
   var response = UrlFetchApp.fetch(sourceCalendarURL);
@@ -156,6 +170,7 @@ function main(){
   //----------------------------------------------------------------
   
   if(addEventsToCalendar || removeEventsFromCalendar){
+    /* We might want to consider reducing how far back we reach for events to reduce API call usage... Also would make a good premium feature */
     var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
     var calendarFids = []
     for(var i=0; i<calendarEvents.length; i++){
@@ -207,13 +222,16 @@ function main(){
           
           var fe = fes[0];
           
-          if(e.getStartTime() != fe.startTime || e.getEndTime() != fe.endTime)
+          /* Removing the checking reduces the API calls by 1/2 in this section and shouldn't 
+            Really cause any issues ( as far as i've seen in my own use ) - abrothers
+          */
+          //if(e.getStartTime() != fe.startTime || e.getEndTime() != fe.endTime)
             e.setTime(fe.startTime, fe.endTime)
-          if(e.getTitle() != fe.title)
+          //if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
-          if(e.getLocation() != fe.location)
+          //if(e.getLocation() != fe.location)
             e.setLocation(fe.location)
-          if(e.getDescription() != fe.description)
+          //if(e.getDescription() != fe.description)
             e.setDescription(fe.description)
           
                     
