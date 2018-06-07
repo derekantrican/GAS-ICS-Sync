@@ -9,8 +9,10 @@
 
 // --------------- SETTINGS ---------------
 
-var targetCalendarName = "" // The name of the Google Calendar you want to add events to
-var sourceCalendarURL = "" // The ics/ical url that you want to get events from
+// var targetCalendarName = "" // The name of the Google Calendar you want to add events to
+// var sourceCalendarURL = "" // The ics/ical url that you want to get events from
+
+var sourceCalendars={}
 
 
 // Currently global settings are applied to all sourceCalendars.  
