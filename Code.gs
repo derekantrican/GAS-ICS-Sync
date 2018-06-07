@@ -21,8 +21,12 @@
 // var targetCalendarName = "" // The name of the Google Calendar you want to add events to
 // var sourceCalendarURL = "" // The ics/ical url that you want to get events from
 
-var sourceCalendars={}
 
+var sourceCalendars={
+  CustomName:"ICS/ICAL URL"
+}
+
+// Currently global settings are applied to all sourceCalendars.  
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
@@ -31,7 +35,6 @@ var addAlerts = true;                  // Whether to add the ics/ical alerts as 
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
 var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
 var defaultDuration = 60;              // Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
-
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
@@ -106,7 +109,18 @@ var vtimezone;
 
 function main(){
   CheckForUpdate();
+  
+  /* Some logic that tracks which calendar we left off on in the last execution could
+  help reduce errors and redoing the same calendars if we include logic to detect maxing on quota or execution time */
 
+  for( var calendar in sourceCalendars){
+    Logger.log("Syncing "+ calendar);
+    syncCalendar(calendar, sourceCalendars[calendar]);
+  }
+}
+
+function syncCalendar(targetCalendarName, sourceCalendarURL) {  
+  
   //Get URL items
   var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
 
@@ -160,6 +174,7 @@ function main(){
   //----------------------------------------------------------------
 
   if(addEventsToCalendar || removeEventsFromCalendar){
+    /* We might want to consider reducing how far back we reach for events to reduce API call usage... Also would make a good premium feature */
     var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
     var calendarFids = []
     for (var i = 0; i < calendarEvents.length; i++)
@@ -226,15 +241,16 @@ function main(){
         
         if(fes.length > 0){
           var fe = fes[0];
-
-          if(e.getStartTime().getTime() != fe.startTime.getTime() ||
-             e.getEndTime().getTime() != fe.endTime.getTime())
+          /* Removing the checking reduces the API calls by 1/2 in this section and shouldn't 
+            Really cause any issues ( as far as i've seen in my own use ) - abrothers
+          */
+          //if(e.getStartTime() != fe.startTime || e.getEndTime() != fe.endTime)
             e.setTime(fe.startTime, fe.endTime)
-          if(e.getTitle() != fe.title)
+          //if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
-          if(e.getLocation() != fe.location)
+          //if(e.getLocation() != fe.location)
             e.setLocation(fe.location)
-          if(e.getDescription() != fe.description)
+          //if(e.getDescription() != fe.description)
             e.setDescription(fe.description)
 
         }
