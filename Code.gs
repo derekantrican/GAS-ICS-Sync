@@ -188,9 +188,10 @@ function main(){
   //-------------- Remove Or modify events from calendar -----------
   for(var i=0; i < calendarEvents.length; i++){
     Logger.log("Checking "+calendarEvents.length+" Events For Removal or Modification");
-    var feedIndex = feedEventIds.indexOf( calendarEvents[i].getTag("FID") );
+    var tagValue = calendarEvents[i].getTag("FID");
+    var feedIndex = feedEventIds.indexOf(tagValue);
     if(removeEventsFromCalendar){
-      if( feedIndex  == -1  ){
+      if(feedIndex  == -1 && tagValue != null){
         Logger.log("    Deleting "+calendarEvents[i].getTitle());
         calendarEvents[i].deleteEvent();
       }
