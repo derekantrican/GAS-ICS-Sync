@@ -88,49 +88,60 @@ function main(){
   var currentEvent;
   var events = [];
   var feedEventIds=[];
+  var item;
 
   for (var i = 0; i < response.length; i++){
-    if (response[i] == "BEGIN:VEVENT"){
+    item = response[i];
+    while (i + 1 < response.length && response[i + 1][0] == " ") {
+      item += response[i + 1].substr(1);
+      i++;
+    }
+    item = item.replace(/\\n/g, "\n")
+               .replace(/\\r/g, "\r")
+               .replace(/\\t/g, "\t")
+               .replace(/\\(.)/g, "$1");
+
+    if (item == "BEGIN:VEVENT"){
       parsingEvent = true;
       currentEvent = new Event();
     }
-    else if (response[i] == "END:VEVENT"){
+    else if (item == "END:VEVENT"){
       if (currentEvent.endTime == null)
         currentEvent.endTime = new Date(currentEvent.startTime.getTime() + defaultDuration * 60 * 1000);
 
       parsingEvent = false;
       events[events.length] = currentEvent;
     }
-    else if (response[i] == "BEGIN:VALARM")
+    else if (item == "BEGIN:VALARM")
       parsingNotification = true;
-    else if (response[i] == "END:VALARM")
+    else if (item == "END:VALARM")
       parsingNotification = false;
     else if (parsingNotification){
       if (addAlerts){
-        if (response[i].includes("TRIGGER"))
-          currentEvent.reminderTimes[currentEvent.reminderTimes.length++] = ParseNotificationTime(response[i].split("TRIGGER:")[1]);
+        if (item.includes("TRIGGER"))
+          currentEvent.reminderTimes[currentEvent.reminderTimes.length++] = ParseNotificationTime(item.split("TRIGGER:")[1]);
       }
     }
     else if (parsingEvent){
-      if (response[i].includes("SUMMARY") && !descriptionAsTitles)
-        currentEvent.title = response[i].split("SUMMARY:")[1];
+      if (item.includes("SUMMARY") && !descriptionAsTitles)
+        currentEvent.title = item.split("SUMMARY:")[1];
 
-      if (response[i].includes("DESCRIPTION") && descriptionAsTitles)
-        currentEvent.title = response[i].split("DESCRIPTION:")[1];
-      else if (response[i].includes("DESCRIPTION"))
-        currentEvent.description = response[i].split("DESCRIPTION:")[1];
+      if (item.includes("DESCRIPTION") && descriptionAsTitles)
+        currentEvent.title = item.split("DESCRIPTION:")[1];
+      else if (item.includes("DESCRIPTION"))
+        currentEvent.description = item.split("DESCRIPTION:")[1];
 
-      if (response[i].includes("DTSTART"))
-        currentEvent.startTime = Moment.moment(GetUTCTime(response[i].split("DTSTART")[1]), "YYYYMMDDTHHmmssZ").toDate();
+      if (item.includes("DTSTART"))
+        currentEvent.startTime = Moment.moment(GetUTCTime(item.split("DTSTART")[1]), "YYYYMMDDTHHmmssZ").toDate();
 
-      if (response[i].includes("DTEND"))
-        currentEvent.endTime = Moment.moment(GetUTCTime(response[i].split("DTEND")[1]), "YYYYMMDDTHHmmssZ").toDate();
+      if (item.includes("DTEND"))
+        currentEvent.endTime = Moment.moment(GetUTCTime(item.split("DTEND")[1]), "YYYYMMDDTHHmmssZ").toDate();
 
-      if (response[i].includes("LOCATION"))
-        currentEvent.location = response[i].split("LOCATION:")[1];
+      if (item.includes("LOCATION"))
+        currentEvent.location = item.split("LOCATION:")[1];
 
-      if (response[i].includes("UID")){
-        currentEvent.id = response[i].split("UID:")[1];
+      if (item.includes("UID")){
+        currentEvent.id = item.split("UID:")[1];
         feedEventIds.push(currentEvent.id);
       }
     }
