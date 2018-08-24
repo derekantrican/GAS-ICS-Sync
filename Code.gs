@@ -24,7 +24,7 @@ var descriptionAsTitles = false; //Whether to use the ics/ical descriptions as t
 var defaultDuration = 60; //Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
 
 var emailWhenAdded = false; //Will email you when an event is added to your calendar
-var email = ""; //OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
+var email = ""; //OPTIONAL: Used to get program updates and used if "emailWhenAdded" is set to true
 
 // ----------------------------------------
 
@@ -54,6 +54,7 @@ function Install(){
 }
 
 function main(){
+  CheckForUpdate();
 
   //Get URL items
   var response = UrlFetchApp.fetch(sourceCalendarURL);
@@ -294,4 +295,18 @@ function GetUTCTime(parameter){
   }
   else
     return parameter;
+}
+
+function CheckForUpdate(){
+  var thisVersion = 1.0;
+  var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
+  var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
+  var latestRelease = regex.exec(html)[0];
+  regex = RegExp("\"(\\d.\\d)\"", "g");
+  var latestVersion = Number(regex.exec(latestRelease)[1]);
+  
+  if (latestVersion > thisVersion){
+    if (email != "")
+      GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
+  }
 }
