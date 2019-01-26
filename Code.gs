@@ -91,6 +91,9 @@ function main(){
   var item;
 
   for (var i = 0; i < response.length; i++){
+    var eventOrganizer = "";
+    var eventSummary = "";
+    
     item = response[i];
     while (i + 1 < response.length && response[i + 1][0] == " ") {
       item += response[i + 1].substr(1);
@@ -106,9 +109,10 @@ function main(){
       currentEvent = new Event();
     }
     else if (item == "END:VEVENT"){
+      currentEvent.title = eventOrganizer + ": " + eventSummary;
       if (currentEvent.endTime == null)
         currentEvent.endTime = new Date(currentEvent.startTime.getTime() + defaultDuration * 60 * 1000);
-
+      
       parsingEvent = false;
       events[events.length] = currentEvent;
     }
@@ -123,8 +127,11 @@ function main(){
       }
     }
     else if (parsingEvent){
+      if (item.includes("ORGANIZER"))
+        eventOrganizer = item.split("ORGANIZER;CN=")[1].split(":")[0] + ": ";
+      
       if (item.includes("SUMMARY") && !descriptionAsTitles)
-        currentEvent.title = item.split("SUMMARY:")[1];
+        eventSummary = item.split("SUMMARY:")[1];
 
       if (item.includes("DESCRIPTION") && descriptionAsTitles)
         currentEvent.title = item.split("DESCRIPTION:")[1];
