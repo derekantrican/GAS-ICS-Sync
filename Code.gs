@@ -89,11 +89,11 @@ function main(){
   var events = [];
   var feedEventIds=[];
   var item;
+  
+  var eventOrganizer = "";
+  var eventSummary = "";
 
   for (var i = 0; i < response.length; i++){
-    var eventOrganizer = "";
-    var eventSummary = "";
-    
     item = response[i];
     while (i + 1 < response.length && response[i + 1][0] == " ") {
       item += response[i + 1].substr(1);
@@ -128,7 +128,7 @@ function main(){
     }
     else if (parsingEvent){
       if (item.includes("ORGANIZER"))
-        eventOrganizer = item.split("ORGANIZER;CN=")[1].split(":")[0] + ": ";
+        eventOrganizer = item.split("ORGANIZER;CN=")[1].split(":")[0];
       
       if (item.includes("SUMMARY") && !descriptionAsTitles)
         eventSummary = item.split("SUMMARY:")[1];
