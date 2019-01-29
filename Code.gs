@@ -77,6 +77,8 @@ function Install(){
   ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
 }
 
+var vtimezone;
+
 function main(){
 
   //Get URL items
@@ -105,7 +107,9 @@ function main(){
   //Use ICAL.js to parse the data
   var jcalData = ICAL.parse(response);
   var component = new ICAL.Component(jcalData);
-  ICAL.TimezoneService.register(component.getFirstSubcomponent("vtimezone"));
+  vtimezone = component.getFirstSubcomponent("vtimezone");
+  if (vtimezone != null)
+    ICAL.TimezoneService.register(vtimezone);
   
   //Map the vevents into custom event objects
   var events = component.getAllSubcomponents("vevent").map(ConvertToCustomEvent);
@@ -148,8 +152,8 @@ function main(){
                                                       description : event.description
                                                      });
         
-        resultEvent.setTag("FID", events[i].id);
-        Logger.log("   Created: "+events[i].id);
+        resultEvent.setTag("FID", event.id);
+        Logger.log("   Created: " + event.id);
         
         for each (var reminder in event.reminderTimes)
           resultEvent.addPopupReminder(reminder / 60);
@@ -214,18 +218,29 @@ function ConvertToCustomEvent(vevent){
   
   if (addOrganizerToTitle){
     var organizer = ParseOrganizerName(vevent.toString());
-    Logger.log(organizer);
+
     if (organizer != null)
       event.title = organizer + ": " + event.title;
   }
   
   event.location = vevent.getFirstPropertyValue('location');
-  event.startTime = vevent.getFirstPropertyValue('dtstart').toJSDate();
-  event.endTime = vevent.getFirstPropertyValue('dtend').toJSDate();
   
-  //If the event is missing an endTime, use the defaultDuration
-  if (event.endTime == null)
+  var dtstart = vevent.getFirstPropertyValue('dtstart');
+  var dtend = vevent.getFirstPropertyValue('dtend');
+  
+  if (vtimezone != null)
+    dtstart.zone = new ICAL.Timezone(vtimezone);
+    
+  event.startTime = dtstart.toJSDate();
+  
+  if (dtend == null)
     event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
+  else{
+    if (vtimezone != null)
+      dtend.zone = new ICAL.Timezone(vtimezone);
+      
+    event.endTime = dtend.toJSDate();
+  }
   
   if (addAlerts){
     var valarms = vevent.getAllSubcomponents('valarm');
