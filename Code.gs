@@ -1,19 +1,23 @@
-/* --------------- HOW TO INSTALL ---------------
+/*
+*=========================================
+*       INSTALLATION INSTRUCTIONS
+*=========================================
 *
 * 1) Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Changes lines 11-20 to be the settings that you want to use
+* 2) Changes lines 19-32 to be the settings that you want to use
 * 3) Click in the menu "Run" > "Run function" > "Install" and authorize the program
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
-* 4) To stop Script from running click in the menu "Edit" > "Current Project's Triggers".  Delete the running trigger.
+*
+*
+* **To stop Script from running click in the menu "Edit" > "Current Project's Triggers".  Delete the running trigger.
+*
+*=========================================
+*               SETTINGS
+*=========================================
 */
 
-// --------------- SETTINGS ---------------
-
-var targetCalendarName = "" // The name of the Google Calendar you want to add events to
-var sourceCalendarURL = "" // The ics/ical url that you want to get events from
-
-
-// Currently global settings are applied to all sourceCalendars.
+var targetCalendarName = ""; // The name of the Google Calendar you want to add events to
+var sourceCalendarURL = ""; // The ics/ical url that you want to get events from
 
 var howFrequent = 15; //What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true; //If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
@@ -27,29 +31,48 @@ var defaultDuration = 60; //Default duration (in minutes) in case the event is m
 var emailWhenAdded = false; //Will email you when an event is added to your calendar
 var email = ""; //OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
-// ----------------------------------------
-
-/* --------------- MISCELLANEOUS ----------
+/*
+*=========================================
+*           ABOUT THE AUTHOR
+*=========================================
 *
 * This program was created by Derek Antrican
-*
-* The code for this program is kept updated here: https://github.com/derekantrican/GAS-ICS-Sync
-*
-* If you would like to donate and help Derek keep making awesome programs,
-* you can do that here: https://bulkeditcalendarevents.wordpress.com/donate/
 *
 * If you would like to see other programs Derek has made, you can check out
 * his website: derekantrican.com or his github: https://github.com/derekantrican
 *
+*=========================================
+*            BUGS/FEATURES
+*=========================================
 *
-* Program was modified by Andrew Brothers
+* Please report any issues at https://github.com/derekantrican/GAS-ICS-Sync/issues
+*
+*=========================================
+*           $$ DONATIONS $$
+*=========================================
+*
+* If you would like to donate and help Derek keep making awesome programs,
+* you can do that here: https://bulkeditcalendarevents.wordpress.com/donate/
+*
+*=========================================
+*             CONTRIBUTORS
+*=========================================
+* Andrew Brothers
 * Github: https://github.com/agentd00nut/
 * Twitter: @abrothers656
+*
+* Joel Balmer
+* Github: https://github.com/JoelBalmer
+*
+* Blackwind
+* Github: https://github.com/blackwind
+*
 */
 
 
-
-//---------------- DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING --------------------
+//=====================================================================================================
+//!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
+//=====================================================================================================
 function Install(){
   ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
 }
@@ -57,21 +80,18 @@ function Install(){
 function main(){
 
   //Get URL items
-  var response = UrlFetchApp.fetch(sourceCalendarURL);
-  response = response.getContentText().split("\r\n");
+  var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
 
   //Get target calendar information
   var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
 
 
-
-
   //------------------------ Error checking ------------------------
-  if(response[0] == "That calendar does not exist.")
+  if(response.includes("That calendar does not exist"))
     throw "[ERROR] Incorrect ics/ical URL";
 
   if(targetCalendar == null){
-      Logger.log("Creating Calendar: "+targetCalendarName);
+      Logger.log("Creating Calendar: " + targetCalendarName);
       targetCalendar = CalendarApp.createCalendar(targetCalendarName);
   }
 
@@ -80,94 +100,29 @@ function main(){
   //----------------------------------------------------------------
 
   //------------------------ Parse events --------------------------
-  //https://en.wikipedia.org/wiki/ICalendar#Technical_specifications
-  //https://tools.ietf.org/html/rfc5545
-  //https://www.kanzaki.com/docs/ical
-
-  var parsingEvent = false;
-  var parsingNotification = false;
-  var currentEvent;
-  var events = [];
   var feedEventIds=[];
-  var item;
+
+  //Use ICAL.js to parse the data
+  var jcalData = ICAL.parse(response);
+  var component = new ICAL.Component(jcalData);
+  ICAL.TimezoneService.register(component.getFirstSubcomponent("vtimezone"));
   
-  var eventOrganizer = "";
-  var eventSummary = "";
-
-  for (var i = 0; i < response.length; i++){
-    item = response[i];
-    while (i + 1 < response.length && response[i + 1][0] == " ") {
-      item += response[i + 1].substr(1);
-      i++;
-    }
-    item = item.replace(/\\n/g, "\n")
-               .replace(/\\r/g, "\r")
-               .replace(/\\t/g, "\t")
-               .replace(/\\(.)/g, "$1");
-
-    if (item == "BEGIN:VEVENT"){
-      parsingEvent = true;
-      currentEvent = new Event();
-    }
-    else if (item == "END:VEVENT"){
-      currentEvent.title = addOrganizerToTitle ? eventOrganizer + ": " + eventSummary : eventSummary;
-      
-      if (currentEvent.endTime == null)
-        currentEvent.endTime = new Date(currentEvent.startTime.getTime() + defaultDuration * 60 * 1000);
-      
-      parsingEvent = false;
-      events[events.length] = currentEvent;
-    }
-    else if (item == "BEGIN:VALARM")
-      parsingNotification = true;
-    else if (item == "END:VALARM")
-      parsingNotification = false;
-    else if (parsingNotification){
-      if (addAlerts){
-        if (item.includes("TRIGGER"))
-          currentEvent.reminderTimes[currentEvent.reminderTimes.length++] = ParseNotificationTime(item.split("TRIGGER:")[1]);
-      }
-    }
-    else if (parsingEvent){
-      if (item.includes("ORGANIZER"))
-        eventOrganizer = item.split("ORGANIZER;CN=")[1].split(":")[0];
-      
-      if (item.includes("SUMMARY") && !descriptionAsTitles)
-        eventSummary = item.split("SUMMARY:")[1];
-
-      if (item.includes("DESCRIPTION") && descriptionAsTitles)
-        currentEvent.title = item.split("DESCRIPTION:")[1];
-      else if (item.includes("DESCRIPTION"))
-        currentEvent.description = item.split("DESCRIPTION:")[1];
-
-      if (item.includes("DTSTART"))
-        currentEvent.startTime = Moment.moment(GetUTCTime(item.split("DTSTART")[1]), "YYYYMMDDTHHmmssZ").toDate();
-
-      if (item.includes("DTEND"))
-        currentEvent.endTime = Moment.moment(GetUTCTime(item.split("DTEND")[1]), "YYYYMMDDTHHmmssZ").toDate();
-
-      if (item.includes("LOCATION"))
-        currentEvent.location = item.split("LOCATION:")[1];
-
-      if (item.includes("UID")){
-        currentEvent.id = item.split("UID:")[1];
-        feedEventIds.push(currentEvent.id);
-      }
-    }
-  }
+  //Map the vevents into custom event objects
+  var events = component.getAllSubcomponents("vevent").map(ConvertToCustomEvent);
+  events.forEach(function(event){ feedEventIds.push(event.id); }); //Populate the list of feedEventIds
   //----------------------------------------------------------------
-
+  
   //------------------------ Check results -------------------------
   Logger.log("# of events: " + events.length);
-  for (var i = 0; i < events.length; i++){
-    Logger.log("Title: " + events[i].title);
-    Logger.log("Id: " + events[i].id);
-    Logger.log("Description: " + events[i].description);
-    Logger.log("Start: " + events[i].startTime);
-    Logger.log("End: " + events[i].endTime);
+  for each (var event in events){
+    Logger.log("Title: " + event.title);
+    Logger.log("Id: " + event.id);
+    Logger.log("Description: " + event.description);
+    Logger.log("Start: " + event.startTime);
+    Logger.log("End: " + event.endTime);
 
-    for (var j = 0; j < events[i].reminderTimes.length; j++)
-      Logger.log("Reminder: " + events[i].reminderTimes[j] + " seconds before");
+    for each (var reminder in event.reminderTimes)
+      Logger.log("Reminder: " + reminder + " seconds before");
 
     Logger.log("");
   }
@@ -176,28 +131,31 @@ function main(){
   if(addEventsToCalendar || removeEventsFromCalendar){
     var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
     var calendarFids = []
-    for(var i=0; i<calendarEvents.length; i++){
+    for (var i = 0; i < calendarEvents.length; i++)
       calendarFids[i] = calendarEvents[i].getTag("FID");
-    }
   }
 
   //------------------------ Add events to calendar ----------------
   if (addEventsToCalendar){
-    Logger.log("Checking "+events.length+" Events for creation")
-    for (var i = 0; i < events.length; i++){
-//      Logger.log("Checking: "+ events[i].id);
-
-      if (calendarFids.indexOf( events[i].id ) == -1 ){
-        var resultEvent = targetCalendar.createEvent(events[i].title, events[i].startTime, events[i].endTime, {location : events[i].location, description : events[i].description });
-
-        resultEvent.setTag("FID", events[i].id)
+    Logger.log("Checking " + events.length + " Events for creation")
+    for each (var event in events){
+      if (calendarFids.indexOf(event.id) == -1){
+        var resultEvent = targetCalendar.createEvent(event.title, 
+                                                     event.startTime,
+                                                     event.endTime,
+                                                     {
+                                                      location : event.location, 
+                                                      description : event.description
+                                                     });
+        
+        resultEvent.setTag("FID", events[i].id);
         Logger.log("   Created: "+events[i].id);
-
-        for (var j = 0; j < events[i].reminderTimes.length; j++)
-          resultEvent.addPopupReminder(events[i].reminderTimes[j] / 60);
-
+        
+        for each (var reminder in event.reminderTimes)
+          resultEvent.addPopupReminder(reminder / 60);
+          
         if (emailWhenAdded)
-          GmailApp.sendEmail(email, "New Event Added", "New event added to calendar \"" + targetCalendarName + "\" at " + events[i].startTime);
+          GmailApp.sendEmail(email, "New Event Added", "New event added to calendar \"" + targetCalendarName + "\" at " + event.startTime);
       }
     }
   }
@@ -205,25 +163,25 @@ function main(){
 
 
 
-  //-------------- Remove Or modify events from calendar -----------
-  for(var i=0; i < calendarEvents.length; i++){
-    Logger.log("Checking "+calendarEvents.length+" Events For Removal or Modification");
+  //-------------- Remove Or modify events from calendar -----------  
+  for (var i = 0; i < calendarEvents.length; i++){
+    Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
     var tagValue = calendarEvents[i].getTag("FID");
     var feedIndex = feedEventIds.indexOf(tagValue);
+    
     if(removeEventsFromCalendar){
       if(feedIndex  == -1 && tagValue != null){
-        Logger.log("    Deleting "+calendarEvents[i].getTitle());
+        Logger.log("    Deleting " + calendarEvents[i].getTitle());
         calendarEvents[i].deleteEvent();
       }
     }
 
     if(modifyExistingEvents){
-      if( feedIndex != -1  ){
+      if(feedIndex != -1){
         var e = calendarEvents[i];
-
         var fes = events.filter(sameEvent, calendarEvents[i].getTag("FID"));
-        if( fes.length > 0){
-
+        
+        if(fes.length > 0){
           var fe = fes[0];
 
           if(e.getStartTime() != fe.startTime || e.getEndTime() != fe.endTime)
@@ -235,7 +193,6 @@ function main(){
           if(e.getDescription() != fe.description)
             e.setDescription(fe.description)
 
-
         }
       }
     }
@@ -244,7 +201,57 @@ function main(){
 
 }
 
+function ConvertToCustomEvent(vevent){
+  var event = new Event();
+  event.id = vevent.getFirstPropertyValue('uid');
+  
+  if (descriptionAsTitles)
+    event.title = vevent.getFirstPropertyValue('description');
+  else{
+    event.title = vevent.getFirstPropertyValue('summary');
+    event.description = vevent.getFirstPropertyValue('description');
+  }
+  
+  if (addOrganizerToTitle){
+    var organizer = ParseOrganizerName(vevent.toString());
+    Logger.log(organizer);
+    if (organizer != null)
+      event.title = organizer + ": " + event.title;
+  }
+  
+  event.location = vevent.getFirstPropertyValue('location');
+  event.startTime = vevent.getFirstPropertyValue('dtstart').toJSDate();
+  event.endTime = vevent.getFirstPropertyValue('dtend').toJSDate();
+  
+  //If the event is missing an endTime, use the defaultDuration
+  if (event.endTime == null)
+    event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
+  
+  if (addAlerts){
+    var valarms = vevent.getAllSubcomponents('valarm');
+    for each (var valarm in valarms){
+      var trigger = valarm.getFirstPropertyValue('trigger').toString();
+      event.reminderTimes[event.reminderTimes.length++] = ParseNotificationTime(trigger);
+    }
+  }
+  
+  return event;
+}
 
+function ParseOrganizerName(veventString){
+  /*A regex match is necessary here because ICAL.js doesn't let us directly
+  * get the "CN" part of an ORGANIZER property. With something like
+  * ORGANIZER;CN="Sally Example":mailto:sally@example.com
+  * VEVENT.getFirstPropertyValue('organizer') returns "mailto:sally@example.com".
+  * Therefore we have to use a regex match on the VEVENT string instead
+  */
+
+  var nameMatch = RegExp("ORGANIZER(?:;|:)CN=(.*?):", "g").exec(veventString);
+  if (nameMatch.length > 1)
+    return nameMatch[1];
+  else
+    return null;
+}
 
 function ParseNotificationTime(notificationString){
   //https://www.kanzaki.com/docs/ical/duration-t.html
@@ -287,20 +294,4 @@ function ParseNotificationTime(notificationString){
 
 function sameEvent(x){
   return x.id == this;
-}
-//function EventExists(calendar, event){
-//
-//  var events = calendar.getEvents(event.startTime, event.endTime, {search : event.id});
-//  return events.length > 0;
-//}
-
-function GetUTCTime(parameter){
-  parameter = parameter.substr(1); //Remove leading ; or : character
-  if (parameter.includes("TZID")){
-    var tzid = parameter.split("TZID=")[1].split(":")[0];
-    var time = parameter.split(":")[1];
-    return Moment.moment.tz(time,tzid).tz("Etc/UTC").format("YYYYMMDDTHHmmss") + "Z";
-  }
-  else
-    return parameter;
 }
