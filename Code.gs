@@ -16,20 +16,20 @@
 *=========================================
 */
 
-var targetCalendarName = ""; // The name of the Google Calendar you want to add events to
-var sourceCalendarURL = ""; // The ics/ical url that you want to get events from
+var targetCalendarName = "";           // The name of the Google Calendar you want to add events to
+var sourceCalendarURL = "";            // The ics/ical url that you want to get events from
 
-var howFrequent = 15; //What interval (minutes) to run this script on to check for new events
-var addEventsToCalendar = true; //If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
-var modifyExistingEvents = true; // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
-var removeEventsFromCalendar = true; //If you turn this to "true", any event in the calendar not found in the feed will be removed.
-var addAlerts = true; //Whether to add the ics/ical alerts as notifications on the Google Calendar events
-var addOrganizerToTitle = false; //Whether to prefix the event name with the event organiser for further clarity 
-var descriptionAsTitles = false; //Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
-var defaultDuration = 60; //Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
+var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
+var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
+var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
+var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
+var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events
+var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
+var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
+var defaultDuration = 60;              // Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
 
-var emailWhenAdded = false; //Will email you when an event is added to your calendar
-var email = ""; //OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
+var emailWhenAdded = false;            // Will email you when an event is added to your calendar
+var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
 /*
 *=========================================
