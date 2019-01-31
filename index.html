@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+  </head>
+  <body onload="init()">
+    <h1>GAS ICS Sync</h1>
+    <p>Google Calendar has an option to sync events from an external ICS/ICAL url, but does this extremely slowly (sometimes as slow as once every 24 hours). The purpose of this program is to do it much quicker</p>
+    <br/>
+    <table>
+      <tr>
+        <td>Target Google calendar name:</td>
+        <td><input type="text" size="100" id="targetCalendarName"></td>
+      </tr>
+      <tr>
+        <td>ICS/ICAL url:</td>
+        <td><input type="text" size="100" id="sourceCalendarURL"></td>
+      </tr>
+      <tr>
+        <td>Frequency to check:</td>
+        <td><input type="number" size="5" id="howFrequent" min="1"> minutes</td>
+      </tr>
+      <tr>
+        <td>Add ICS events to calendar?</td>
+        <td><input type="checkbox" id="addEventsToCalendar"></td>
+      </tr>
+      <tr>
+        <td>Modify existing ICS events?</td>
+        <td><input type="checkbox" id="modifyExistingEvents">(will only modify the events created by this program)</td>
+      </tr>
+      <tr>
+        <td>Remove ICS events from calendar?</td>
+        <td><input type="checkbox" id="removeEventsFromCalendar">(will only modify the events created by this program)</td>
+      </tr>
+      <tr>
+        <td>Add alerts?</td>
+        <td><input type="checkbox" id="addAlerts"></td>
+      </tr>
+      <tr>
+        <td>Add organizer to title?</td>
+        <td><input type="checkbox" id="addOrganizerToTitle"></td>
+      </tr>
+      <tr>
+        <td>Description as titles?</td>
+        <td><input type="checkbox" id="descriptionAsTitles"></td>
+      </tr>
+      <tr>
+        <td>Default event duration:</td>
+        <td><input type="number" size="5" id="defaultDuration" min="1"> minutes</td>
+      </tr>
+      <tr/>
+      <tr>
+        <td>Email when added?</td>
+        <td><input type="checkbox" id="emailWhenAdded"></td>
+      </tr>
+      <tr>
+        <td>Email:</td>
+        <td><input type="text" size="20" id="email"></td>
+      </tr>
+    </table>
+    <br/>
+    <button onclick="start()">Start Iterations</button>    
+    <script>
+    function init(){
+      google.script.run.withSuccessHandler(function(settingsDict){
+        for (var settingName in settingsDict){
+          var settingValue = settingsDict[settingName];
+          console.log(settingName + ": " + settingValue);
+          var relatedElement = document.getElementById(settingName);
+          
+          if (relatedElement != null){
+            if (relatedElement.type == "checkbox")
+              relatedElement.checked = (settingValue == 'true'); //Convert string to boolean
+            else if (relatedElement.type == "text")
+              relatedElement.value = settingValue;
+            else if (relatedElement.type == 'number')
+              relatedElement.value = Number(settingValue);
+          }
+        }
+      }).withFailureHandler(onError).loadAllSettings();
+    }
+    
+    function saveSettingsFromUI(){
+      google.script.run.withSuccessHandler(function(settingNames){
+        console.log(settingNames);
+        for (var i = 0; i < settingNames.length; i++){ //(var settingName in settingNames){
+          console.log(settingNames[i]);
+          var relatedElement = document.getElementById(settingNames[i]);
+          if (relatedElement != null)
+            saveSetting(settingNames[i], relatedElement.value);
+        }
+      }).withFailureHandler(onError).getAllSettingNames();
+    }
+    
+    function saveSetting(settingName, settingValue){
+      google.script.run.withFailureHandler(onError).saveSetting(settingName, settingValue);
+    }
+    
+    function start(){
+      saveSettingsFromUI();
+      
+      google.script.run.withFailureHandler(onError).install();
+    }
+    
+    function onError(error){
+      console.log(error);
+    }
+    </script>
+  </body>
+</html>
+
+
