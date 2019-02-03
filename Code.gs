@@ -73,6 +73,22 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
+function initSettings(){
+  var settingsDict = loadAllSettings();
+  targetCalendarName = settingsDict['targetCalendarName'];
+  sourceCalendarURL = settingsDict['sourceCalendarURL'];
+  howFrequent = settingsDict['howFrequent'];
+  addEventsToCalendar = settingsDict['addEventsToCalendar'];
+  modifyExistingEvents = settingsDict['modifyExistingEvents'];
+  removeEventsFromCalendar = settingsDict['removeEventsFromCalendar'];
+  addAlerts = settingsDict['addAlerts'];
+  addOrganizerToTitle = settingsDict['addOrganizerToTitle'];
+  descriptionAsTitles = settingsDict['descriptionAsTitles'];
+  defaultDuration = settingsDict['defaultDuration'];
+  emailWhenAdded = settingsDict['emailWhenAdded'];
+  email = settingsDict['email'];  
+}
+
 function install(){
   ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
 }

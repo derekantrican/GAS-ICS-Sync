@@ -7,6 +7,7 @@
     <h1>GAS ICS Sync</h1>
     <p>Google Calendar has an option to sync events from an external ICS/ICAL url, but does this extremely slowly (sometimes as slow as once every 24 hours). The purpose of this program is to do it much quicker</p>
     <br/>
+    <!--Todo: need tooltips (or some sort of other "setting explainer") on all of these settings-->
     <table>
       <tr>
         <td>Target Google calendar name:</td>
@@ -54,6 +55,7 @@
         <td><input type="checkbox" id="emailWhenAdded"></td>
       </tr>
       <tr>
+        <!--Todo: might be able to remove this and instead use Session.getActiveUser().getEmail()-->
         <td>Email:</td>
         <td><input type="text" size="20" id="email"></td>
       </tr>
@@ -83,7 +85,7 @@
     function saveSettingsFromUI(){
       google.script.run.withSuccessHandler(function(settingNames){
         console.log(settingNames);
-        for (var i = 0; i < settingNames.length; i++){ //(var settingName in settingNames){
+        for (var i = 0; i < settingNames.length; i++){
           console.log(settingNames[i]);
           var relatedElement = document.getElementById(settingNames[i]);
           if (relatedElement != null)
@@ -99,6 +101,7 @@
     function start(){
       saveSettingsFromUI();
       
+      google.script.run.withFailureHandler(onError).initSettings();
       google.script.run.withFailureHandler(onError).install();
     }
     
