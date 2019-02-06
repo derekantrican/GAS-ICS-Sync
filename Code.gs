@@ -168,8 +168,8 @@ function main(){
 
 
   //-------------- Remove Or modify events from calendar -----------  
+  Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
   for (var i = 0; i < calendarEvents.length; i++){
-    Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
     var tagValue = calendarEvents[i].getTag("FID");
     var feedIndex = feedEventIds.indexOf(tagValue);
     
