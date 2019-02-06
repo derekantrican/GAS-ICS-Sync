@@ -168,8 +168,8 @@ function main(){
 
 
   //-------------- Remove Or modify events from calendar -----------  
+  Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
   for (var i = 0; i < calendarEvents.length; i++){
-    Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
     var tagValue = calendarEvents[i].getTag("FID");
     var feedIndex = feedEventIds.indexOf(tagValue);
     
@@ -188,7 +188,8 @@ function main(){
         if(fes.length > 0){
           var fe = fes[0];
 
-          if(e.getStartTime() != fe.startTime || e.getEndTime() != fe.endTime)
+          if(e.getStartTime().getTime() != fe.startTime.getTime() ||
+             e.getEndTime().getTime() != fe.endTime.getTime())
             e.setTime(fe.startTime, fe.endTime)
           if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
@@ -210,10 +211,10 @@ function ConvertToCustomEvent(vevent){
   event.id = vevent.getFirstPropertyValue('uid');
   
   if (descriptionAsTitles)
-    event.title = vevent.getFirstPropertyValue('description');
+    event.title = vevent.getFirstPropertyValue('description') || '';
   else{
-    event.title = vevent.getFirstPropertyValue('summary');
-    event.description = vevent.getFirstPropertyValue('description');
+    event.title = vevent.getFirstPropertyValue('summary') || '';
+    event.description = vevent.getFirstPropertyValue('description') || '';
   }
   
   if (addOrganizerToTitle){
@@ -223,7 +224,7 @@ function ConvertToCustomEvent(vevent){
       event.title = organizer + ": " + event.title;
   }
   
-  event.location = vevent.getFirstPropertyValue('location');
+  event.location = vevent.getFirstPropertyValue('location') || '';
   
   var dtstart = vevent.getFirstPropertyValue('dtstart');
   var dtend = vevent.getFirstPropertyValue('dtend');
