@@ -263,7 +263,7 @@ function ParseOrganizerName(veventString){
   */
 
   var nameMatch = RegExp("ORGANIZER(?:;|:)CN=(.*?):", "g").exec(veventString);
-  if (nameMatch.length > 1)
+  if (nameMatch != null && nameMatch.length > 1)
     return nameMatch[1];
   else
     return null;
