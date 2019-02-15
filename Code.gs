@@ -80,6 +80,7 @@ function Install(){
 var vtimezone;
 
 function main(){
+  CheckForUpdate();
 
   //Get URL items
   var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
@@ -310,4 +311,27 @@ function ParseNotificationTime(notificationString){
 
 function sameEvent(x){
   return x.id == this;
+}
+
+function CheckForUpdate(){
+  var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
+  if (alreadyAlerted == null){
+    try{
+      var thisVersion = 2.0;
+      var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
+      var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
+      var latestRelease = regex.exec(html)[0];
+      regex = RegExp("\"(\\d.\\d)\"", "g");
+      var latestVersion = Number(regex.exec(latestRelease)[1]);
+      
+      if (latestVersion > thisVersion){
+        if (email != ""){
+          GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
+        
+          PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", true);
+        }
+      }
+    }
+    catch(e){}
+  }
 }
