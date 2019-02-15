@@ -96,6 +96,7 @@ function main(){
   if(targetCalendar == null){
       Logger.log("Creating Calendar: " + targetCalendarName);
       targetCalendar = CalendarApp.createCalendar(targetCalendarName);
+      targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
   }
 
   if (emailWhenAdded && email == "")
