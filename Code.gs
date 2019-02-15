@@ -145,13 +145,25 @@ function main(){
     Logger.log("Checking " + events.length + " Events for creation")
     for each (var event in events){
       if (calendarFids.indexOf(event.id) == -1){
-        var resultEvent = targetCalendar.createEvent(event.title, 
-                                                     event.startTime,
-                                                     event.endTime,
-                                                     {
-                                                      location : event.location, 
-                                                      description : event.description
-                                                     });
+        var resultEvent;
+        if (event.isAllDay){
+          resultEvent = targetCalendar.createAllDayEvent(event.title, 
+                                                         event.startTime,
+                                                         event.endTime,
+                                                         {
+                                                           location : event.location, 
+                                                           description : event.description
+                                                         });
+        }
+        else{
+          resultEvent = targetCalendar.createEvent(event.title, 
+                                                   event.startTime,
+                                                   event.endTime,
+                                                   {
+                                                     location : event.location, 
+                                                     description : event.description
+                                                   });
+        }
         
         resultEvent.setTag("FID", event.id);
         Logger.log("   Created: " + event.id);
@@ -230,6 +242,9 @@ function ConvertToCustomEvent(vevent){
   var dtstart = vevent.getFirstPropertyValue('dtstart');
   var dtend = vevent.getFirstPropertyValue('dtend');
   
+  if (dtstart.isDate && dtend.isDate)
+    event.isAllDay = true;
+  
   if (vtimezone != null)
     dtstart.zone = new ICAL.Timezone(vtimezone);
     
@@ -307,7 +322,6 @@ function ParseNotificationTime(notificationString){
     return reminderTime; //Return the notification time in seconds
   }
 }
-
 
 function sameEvent(x){
   return x.id == this;
