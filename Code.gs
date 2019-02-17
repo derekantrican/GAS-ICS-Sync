@@ -67,6 +67,9 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 * Blackwind
 * Github: https://github.com/blackwind
 *
+* Michaël Cadilhac
+* Github: https://github.com/michaelcadilhac
+*
 */
 
 
@@ -145,13 +148,26 @@ function main(){
     Logger.log("Checking " + events.length + " Events for creation")
     for each (var event in events){
       if (calendarFids.indexOf(event.id) == -1){
-        var resultEvent = targetCalendar.createEvent(event.title, 
-                                                     event.startTime,
-                                                     event.endTime,
-                                                     {
-                                                      location : event.location, 
-                                                      description : event.description
-                                                     });
+        var resultEvent;
+        if (event.recurrence != null){
+          resultEvent = targetCalendar.createEventSeries(event.title, 
+                                                         event.startTime,
+                                                         event.endTime, 
+                                                         event.recurrence,
+                                                         {
+                                                           location : event.location, 
+                                                           description : event.description
+                                                         });
+        }
+        else{
+          resultEvent = targetCalendar.createEvent(event.title, 
+                                                   event.startTime,
+                                                   event.endTime,
+                                                   {
+                                                     location : event.location, 
+                                                     description : event.description
+                                                   });
+        }
         
         resultEvent.setTag("FID", event.id);
         Logger.log("   Created: " + event.id);
@@ -244,6 +260,9 @@ function ConvertToCustomEvent(vevent){
     event.endTime = dtend.toJSDate();
   }
   
+  if (vevent.isRecurring())
+    event.recurrence = ParseRecurrence(vevent.getFirstPropertyValue('rrule'));
+  
   if (addAlerts){
     var valarms = vevent.getAllSubcomponents('valarm');
     for each (var valarm in valarms){
@@ -254,60 +273,6 @@ function ConvertToCustomEvent(vevent){
   
   return event;
 }
-
-function ParseOrganizerName(veventString){
-  /*A regex match is necessary here because ICAL.js doesn't let us directly
-  * get the "CN" part of an ORGANIZER property. With something like
-  * ORGANIZER;CN="Sally Example":mailto:sally@example.com
-  * VEVENT.getFirstPropertyValue('organizer') returns "mailto:sally@example.com".
-  * Therefore we have to use a regex match on the VEVENT string instead
-  */
-
-  var nameMatch = RegExp("ORGANIZER(?:;|:)CN=(.*?):", "g").exec(veventString);
-  if (nameMatch != null && nameMatch.length > 1)
-    return nameMatch[1];
-  else
-    return null;
-}
-
-function ParseNotificationTime(notificationString){
-  //https://www.kanzaki.com/docs/ical/duration-t.html
-  var reminderTime = 0;
-
-  //We will assume all notifications are BEFORE the event
-  if (notificationString[0] == "+" || notificationString[0] == "-")
-    notificationString = notificationString.substr(1);
-
-  notificationString = notificationString.substr(1); //Remove "P" character
-
-  var secondMatch = RegExp("\\d+S", "g").exec(notificationString);
-  var minuteMatch = RegExp("\\d+M", "g").exec(notificationString);
-  var hourMatch = RegExp("\\d+H", "g").exec(notificationString);
-  var dayMatch = RegExp("\\d+D", "g").exec(notificationString);
-  var weekMatch = RegExp("\\d+W", "g").exec(notificationString);
-
-  if (weekMatch != null){
-    reminderTime += parseInt(weekMatch[0].slice(0, -1)) & 7 * 24 * 60 * 60; //Remove the "W" off the end
-
-    return reminderTime; //Return the notification time in seconds
-  }
-  else{
-    if (secondMatch != null)
-      reminderTime += parseInt(secondMatch[0].slice(0, -1)); //Remove the "S" off the end
-
-    if (minuteMatch != null)
-      reminderTime += parseInt(minuteMatch[0].slice(0, -1)) * 60; //Remove the "M" off the end
-
-    if (hourMatch != null)
-      reminderTime += parseInt(hourMatch[0].slice(0, -1)) * 60 * 60; //Remove the "H" off the end
-
-    if (dayMatch != null)
-      reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60 * 60; //Remove the "D" off the end
-
-    return reminderTime; //Return the notification time in seconds
-  }
-}
-
 
 function sameEvent(x){
   return x.id == this;
