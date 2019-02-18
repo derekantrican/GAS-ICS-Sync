@@ -22,9 +22,6 @@ function ParseRecurrence(rrule){
   //which would elimiate the need for all of the below parsing: https://issuetracker.google.com/issues/124584372
 
   var recur = ICAL.Recur.fromString(rrule);
-  Logger.log(recur.toString());
-  Logger.log(recur.parts);
-  Logger.log(recur.parts['BYMONTH']);
   
   var eventRecurrence;
   switch (recur.freq){
@@ -121,7 +118,6 @@ function ParseRecurrence(rrule){
   }
   
   if (recur.parts['BYMONTHDAY'] != null){
-    Logger.log(recur.parts['BYMONTHDAY']);
     //onlyOnMonthDays cannot take negative values (which is the typical convention for RRULE).
     //I have submitted an issue for that here: https://issuetracker.google.com/issues/124579536
     eventRecurrence.onlyOnMonthDays(recur.parts['BYMONTHDAY']);
@@ -134,8 +130,6 @@ function ParseRecurrence(rrule){
   if (recur.parts['BYWEEKNO'] != null){
     eventRecurrence.onlyOnWeeks(recur.parts['BYWEEKNO']);
   }
-  
-  //Todo: need to handle exclusions
   
   eventRecurrence.interval(recur.interval);
   
@@ -153,14 +147,6 @@ function ParseRecurrence(rrule){
     eventRecurrence.setTimeZone((new ICAL.Timezone(vtimezone)).toString());
   
   return eventRecurrence;
-}
-
-function test(){
-  var rrule = "FREQ=MONTHLY;BYMONTHDAY=1,3";//"FREQ=WEEKLY;INTERVAL=1;UNTIL=20190506T045959Z;BYDAY=SU,TH,FR,SA";
-  var recurrence = ParseRecurrence(rrule);
-  
-  var targetCalendar = CalendarApp.getCalendarsByName("ICSTEST")[0];
-  //targetCalendar.createEventSeries("Test Event", new Date(2019, 1, 15, 15, 0, 0), new Date(2019, 1, 15, 16, 0, 0), recurrence);
 }
 
 function ParseNotificationTime(notificationString){
