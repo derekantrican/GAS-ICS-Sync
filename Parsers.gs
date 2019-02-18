@@ -13,15 +13,13 @@ function ParseOrganizerName(veventString){
     return null;
 }
 
-function ParseRecurrence(rrule){
+function ParseRecurrence(recur){
   //[RRULE docs] https://www.kanzaki.com/docs/ical/rrule.html
   //[ICAL.js Recur] http://mozilla-comm.github.io/ical.js/api/ICAL.Recur.html
   //[GAS RecurrenceRule] https://developers.google.com/apps-script/reference/calendar/recurrence-rule
   
   //I have a pending feature request to simply be able to create a RecurrenceRule object from a RRULE string
   //which would elimiate the need for all of the below parsing: https://issuetracker.google.com/issues/124584372
-
-  var recur = ICAL.Recur.fromString(rrule);
   
   var eventRecurrence;
   switch (recur.freq){

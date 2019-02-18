@@ -260,8 +260,9 @@ function ConvertToCustomEvent(vevent){
     event.endTime = dtend.toJSDate();
   }
   
-  if (vevent.isRecurring())
-    event.recurrence = ParseRecurrence(vevent.getFirstPropertyValue('rrule'));
+  var rrule = vevent.getFirstPropertyValue('rrule');
+  if (rrule != null)
+    event.recurrence = ParseRecurrence(rrule);
   
   if (addAlerts){
     var valarms = vevent.getAllSubcomponents('valarm');
