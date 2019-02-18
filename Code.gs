@@ -137,7 +137,7 @@ function main(){
   //----------------------------------------------------------------
 
   if(addEventsToCalendar || removeEventsFromCalendar){
-    var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
+    var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date(2100,01,01))
     var calendarFids = []
     for (var i = 0; i < calendarEvents.length; i++)
       calendarFids[i] = calendarEvents[i].getTag("FID");
@@ -150,7 +150,7 @@ function main(){
       if (calendarFids.indexOf(event.id) == -1){
         var resultEvent;
         if (event.recurrence != null){
-          resultEvent = targetCalendar.createEventSeries(event.title, 
+          resultEvent = targetCalendar.createEventSeries(event.title,
                                                          event.startTime,
                                                          event.endTime, 
                                                          event.recurrence,
@@ -160,7 +160,7 @@ function main(){
                                                          });
         }
         else{
-          resultEvent = targetCalendar.createEvent(event.title, 
+          resultEvent = targetCalendar.createEvent(event.title,
                                                    event.startTime,
                                                    event.endTime,
                                                    {
