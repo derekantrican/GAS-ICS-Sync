@@ -74,6 +74,19 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 function Install(){
+  //Delete any already existing triggers so we don't create excessive triggers
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++){
+    if (triggers[i].getHandlerFunction() == "main"){
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  
+  //Custom error for restriction here: https://developers.google.com/apps-script/reference/script/clock-trigger-builder#everyMinutes(Integer)
+  var validFrequencies = [1, 5, 10, 15, 30];
+  if(validFrequencies.indexOf(howFrequent) == -1)
+    throw "[ERROR] Invalid value for \"howFrequent\". Must be either 1, 5, 10, 15, or 30";
+
   ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
 }
 
