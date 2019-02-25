@@ -150,34 +150,48 @@ function main(){
     for each (var event in events){
       if (calendarFids.indexOf(event.id) == -1){
         var resultEvent;
-        if (event.recurrence != null){
-          resultEvent = targetCalendar.createEventSeries(event.title,
-                                                         event.startTime,
-                                                         event.endTime, 
-                                                         event.recurrence,
-                                                         {
-                                                           location : event.location, 
-                                                           description : event.description
-                                                         });
-        }
         
         if (event.isAllDay){
-          resultEvent = targetCalendar.createAllDayEvent(event.title, 
-                                                         event.startTime,
-                                                         event.endTime,
-                                                         {
-                                                           location : event.location, 
-                                                           description : event.description
-                                                         });
+          if (event.recurrence != null){
+            resultEvent = targetCalendar.createAllDayEventSeries(event.title, 
+                                                                 event.startTime,
+                                                                 event.endTime,
+                                                                 event.recurrence,
+                                                                 {
+                                                                   location : event.location, 
+                                                                   description : event.description
+                                                                 });
+          }
+          else{
+            resultEvent = targetCalendar.createAllDayEvent(event.title, 
+                                                           event.startTime,
+                                                           event.endTime,
+                                                           {
+                                                             location : event.location, 
+                                                             description : event.description
+                                                           });
+          }
         }
         else{
-          resultEvent = targetCalendar.createEvent(event.title, 
-                                                   event.startTime,
-                                                   event.endTime,
-                                                   {
-                                                     location : event.location, 
-                                                     description : event.description
-                                                   });
+          if (event.recurrence != null){
+            resultEvent = targetCalendar.createEventSeries(event.title,
+                                                           event.startTime,
+                                                           event.endTime, 
+                                                           event.recurrence,
+                                                           {
+                                                             location : event.location, 
+                                                             description : event.description
+                                                           });
+          }
+          else{
+            resultEvent = targetCalendar.createEvent(event.title, 
+                                                     event.startTime,
+                                                     event.endTime,
+                                                     {
+                                                       location : event.location, 
+                                                       description : event.description
+                                                     });
+          }
         }
         
         resultEvent.setTag("FID", event.id);
