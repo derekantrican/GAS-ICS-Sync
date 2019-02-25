@@ -57,6 +57,7 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 *=========================================
 *             CONTRIBUTORS
 *=========================================
+*
 * Andrew Brothers
 * Github: https://github.com/agentd00nut/
 * Twitter: @abrothers656
