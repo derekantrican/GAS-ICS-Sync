@@ -146,8 +146,8 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
   icsEvents.forEach(function(event){ feedEventIds.push(event.id); }); //Populate the list of feedEventIds
 
   if(addEventsToCalendar || removeEventsFromCalendar){
-    var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date(2100,01,01))
-    var calendarFids = []
+    var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date(2100,01,01));
+    var calendarFids = [];
     for (var i = 0; i < calendarEvents.length; i++)
       calendarFids[i] = calendarEvents[i].getTag("FID");
   }
@@ -173,11 +173,15 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
   //----------------------------------------------------------------
   
   
-  //-------------- Remove Or modify events from calendar -----------  
+  //-------------- Remove Or modify events from calendar -----------
+  var alreadyProcessedFids = [];
   Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
   for (var i = 0; i < calendarEvents.length; i++){
     var tagValue = calendarEvents[i].getTag("FID");
     var feedIndex = feedEventIds.indexOf(tagValue);
+    
+    if (alreadyProcessedFids.indexOf(tagValue) > -1)
+      continue;
     
     if(removeEventsFromCalendar){
       if(feedIndex  == -1 && tagValue != null){
@@ -188,9 +192,9 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
 
     if(modifyExistingEvents){
       if(feedIndex != -1){
-        Logger.log("    Modifying " + calendarEvents[i].getTitle() + " (id: " + tagValue + ")");
+        Logger.log("    Checking for modification " + calendarEvents[i].getTitle() + " (id: " + tagValue + ")");
         
-        var fes = events.filter(sameEvent, calendarEvents[i].getTag("FID"));
+        var fes = icsEvents.filter(sameEvent, calendarEvents[i].getTag("FID"));
         
         if (fes.length <= 0)
           continue;
@@ -200,8 +204,8 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
         if (fe.recurrence != null){
           var eSeries = calendarEvents[i].getEventSeries();
           
-          //Since there is no CalendarEventSeries.getRecurrence() method then we will always set the recurrence
-          //(which also means setting the time). This solves the situation of a regular event becoming a recurring event.
+          //Since there is no CalendarEventSeries.getRecurrence() method we can use to check then we will always set the recurrence
+          //(which also means setting the time). This also solves the situation of a regular event becoming a recurring event.
           eSeries.setRecurrence(fe.recurrence, fe.startTime, fe.endTime);
           
           if (eSeries.getTitle() != fe.title)
@@ -216,9 +220,13 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
         else{
           var e = calendarEvents[i];
           
-          //Todo: need to solve the situation of if a recurring event becomes a regular event. Currently
-          //if a recurring event becomes a regular event, this code will move all instances to the date
-          //of the regular event
+          var occurences = calendarFids.filter(function(value){ return value === tagValue; }).length;
+          if (occurences > 1){
+            //Event used to be a recurring event, but is now a regular event. Delete the recurring series from
+            //the calendar and create the new event fresh
+            e.getEventSeries().deleteEventSeries();
+            CreateEvent(targetCalendar, fe);
+          }
                 
           if(e.getStartTime().getTime() != fe.startTime.getTime() ||
             e.getEndTime().getTime() != fe.endTime.getTime())
@@ -235,6 +243,8 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
         }
       }
     }
+    
+    alreadyProcessedFids.push(tagValue);
   }
   //----------------------------------------------------------------
 }
