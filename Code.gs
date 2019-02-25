@@ -196,7 +196,7 @@ function main(){
         }
         
         resultEvent.setTag("FID", event.id);
-        Logger.log("   Created: " + event.id);
+        Logger.log("   Created: " + event.title + " (id: " + event.id + ")");
         
         for each (var reminder in event.reminderTimes)
           resultEvent.addPopupReminder(reminder / 60);
@@ -218,7 +218,7 @@ function main(){
     
     if(removeEventsFromCalendar){
       if(feedIndex  == -1 && tagValue != null){
-        Logger.log("    Deleting " + calendarEvents[i].getTitle());
+        Logger.log("    Deleting " + calendarEvents[i].getTitle() + " (id: " + tagValue + ")");
         calendarEvents[i].deleteEvent();
       }
     }
