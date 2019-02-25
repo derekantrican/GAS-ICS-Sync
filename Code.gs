@@ -77,6 +77,7 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
+
 function Install(){
   ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
 }
@@ -147,53 +148,10 @@ function main(){
 
   //------------------------ Add events to calendar ----------------
   if (addEventsToCalendar){
-    Logger.log("Checking " + events.length + " Events for creation")
+    Logger.log("Checking " + events.length + " Events for creation");
     for each (var event in events){
       if (calendarFids.indexOf(event.id) == -1){
-        var resultEvent;
-        
-        if (event.isAllDay){
-          if (event.recurrence != null){
-            resultEvent = targetCalendar.createAllDayEventSeries(event.title, 
-                                                                 event.startTime,
-                                                                 event.endTime,
-                                                                 event.recurrence,
-                                                                 {
-                                                                   location : event.location, 
-                                                                   description : event.description
-                                                                 });
-          }
-          else{
-            resultEvent = targetCalendar.createAllDayEvent(event.title, 
-                                                           event.startTime,
-                                                           event.endTime,
-                                                           {
-                                                             location : event.location, 
-                                                             description : event.description
-                                                           });
-          }
-        }
-        else{
-          if (event.recurrence != null){
-            resultEvent = targetCalendar.createEventSeries(event.title,
-                                                           event.startTime,
-                                                           event.endTime, 
-                                                           event.recurrence,
-                                                           {
-                                                             location : event.location, 
-                                                             description : event.description
-                                                           });
-          }
-          else{
-            resultEvent = targetCalendar.createEvent(event.title, 
-                                                     event.startTime,
-                                                     event.endTime,
-                                                     {
-                                                       location : event.location, 
-                                                       description : event.description
-                                                     });
-          }
-        }
+        var resultEvent = CreateEvent(targetCalendar, event);
         
         resultEvent.setTag("FID", event.id);
         Logger.log("   Created: " + event.title + " (id: " + event.id + ")");
@@ -219,28 +177,57 @@ function main(){
     if(removeEventsFromCalendar){
       if(feedIndex  == -1 && tagValue != null){
         Logger.log("    Deleting " + calendarEvents[i].getTitle() + " (id: " + tagValue + ")");
-        calendarEvents[i].deleteEvent();
+        calendarEvents[i].getEventSeries().deleteEventSeries(); //Delete the event by series. This works even if it is not a recurring event 
       }
     }
 
     if(modifyExistingEvents){
       if(feedIndex != -1){
-        var e = calendarEvents[i];
+        Logger.log("    Modifying " + calendarEvents[i].getTitle() + " (id: " + tagValue + ")");
+        
         var fes = events.filter(sameEvent, calendarEvents[i].getTag("FID"));
         
-        if(fes.length > 0){
-          var fe = fes[0];
-
+        if (fes.length <= 0)
+          continue;
+          
+        var fe = fes[0];
+        
+        if (fe.recurrence != null){
+          var eSeries = calendarEvents[i].getEventSeries();
+          var eSample = calendarEvents[i]; //Sample instance of the recurring series
+          
+          //Since there is no CalendarEventSeries.getRecurrence() method then we will always set the recurrence
+          //(which also means setting the time). This solves the situation of a regular event becoming a recurring event.
+          eSeries.setRecurrence(fe.recurrence, fe.startTime, fe.endTime);
+          
+          if (eSeries.getTitle() != fe.title)
+            eSeries.setTitle(fe.title);
+          
+          if (eSeries.getLocation() != fe.location)
+            eSeries.setLocation(fe.location);
+            
+          if (eSeries.getDescription() != fe.description)
+            eSeries.setDescription(fe.description);
+        }
+        else{
+          var e = calendarEvents[i];
+          
+          //Todo: need to solve the situation of if a recurring event becomes a regular event. Currently
+          //if a recurring event becomes a regular event, this code will move all instances to the date
+          //of the regular event
+                
           if(e.getStartTime().getTime() != fe.startTime.getTime() ||
-             e.getEndTime().getTime() != fe.endTime.getTime())
-            e.setTime(fe.startTime, fe.endTime)
+            e.getEndTime().getTime() != fe.endTime.getTime())
+              e.setTime(fe.startTime, fe.endTime);
+          
           if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
+          
           if(e.getLocation() != fe.location)
-            e.setLocation(fe.location)
+            e.setLocation(fe.location);
+          
           if(e.getDescription() != fe.description)
-            e.setDescription(fe.description)
-
+            e.setDescription(fe.description);
         }
       }
     }
@@ -302,6 +289,55 @@ function ConvertToCustomEvent(vevent){
   }
   
   return event;
+}
+
+function CreateEvent(targetCalendar, customEvent){
+  var resultEvent;
+  
+  if (customEvent.isAllDay){
+    if (customEvent.recurrence != null){
+      resultEvent = targetCalendar.createAllDayEventSeries(customEvent.title, 
+                                                           customEvent.startTime,
+                                                           customEvent.endTime,
+                                                           customEvent.recurrence,
+                                                           {
+                                                             location : customEvent.location, 
+                                                             description : customEvent.description
+                                                           });
+    }
+    else{
+      resultEvent = targetCalendar.createAllDayEvent(customEvent.title, 
+                                                     customEvent.startTime,
+                                                     customEvent.endTime,
+                                                     {
+                                                       location : customEvent.location, 
+                                                       description : customEvent.description
+                                                     });
+    }
+  }
+  else{
+    if (customEvent.recurrence != null){
+      resultEvent = targetCalendar.createEventSeries(customEvent.title,
+                                                     customEvent.startTime,
+                                                     customEvent.endTime, 
+                                                     customEvent.recurrence,
+                                                     {
+                                                       location : customEvent.location, 
+                                                       description : customEvent.description
+                                                     });
+    }
+    else{
+      resultEvent = targetCalendar.createEvent(customEvent.title, 
+                                               customEvent.startTime,
+                                               customEvent.endTime,
+                                               {
+                                                 location : customEvent.location, 
+                                                 description : customEvent.description
+                                               });
+    }
+  }
+  
+  return resultEvent;
 }
 
 function sameEvent(x){
