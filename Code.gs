@@ -199,7 +199,6 @@ function SyncICSToCalendar(icsEvents, targetCalendar){
         
         if (fe.recurrence != null){
           var eSeries = calendarEvents[i].getEventSeries();
-          var eSample = calendarEvents[i]; //Sample instance of the recurring series
           
           //Since there is no CalendarEventSeries.getRecurrence() method then we will always set the recurrence
           //(which also means setting the time). This solves the situation of a regular event becoming a recurring event.
