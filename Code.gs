@@ -174,8 +174,6 @@ function main(){
           
         if (emailWhenAdded)
           GmailApp.sendEmail(email, "New Event Added", "New event added to calendar \"" + targetCalendarName + "\" at " + event.startTime);
-          
-        Utilities.sleep(250); //Solve some "Creating too many events in a short time" issues
       }
     }
   }
