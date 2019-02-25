@@ -109,8 +109,7 @@ function main(){
   //----------------------------------------------------------------
 
   //------------------------ Parse events --------------------------
-  var feedEventIds=[];
-
+  
   //Use ICAL.js to parse the data
   var jcalData = ICAL.parse(response);
   var component = new ICAL.Component(jcalData);
@@ -120,7 +119,6 @@ function main(){
   
   //Map the vevents into custom event objects
   var events = component.getAllSubcomponents("vevent").map(ConvertToCustomEvent);
-  events.forEach(function(event){ feedEventIds.push(event.id); }); //Populate the list of feedEventIds
   //----------------------------------------------------------------
   
   //------------------------ Check results -------------------------
@@ -137,7 +135,15 @@ function main(){
 
     Logger.log("");
   }
+  
   //----------------------------------------------------------------
+  
+  SyncICSToCalendar(events, targetCalendar);
+}
+
+function SyncICSToCalendar(icsEvents, targetCalendar){
+  var feedEventIds=[];
+  icsEvents.forEach(function(event){ feedEventIds.push(event.id); }); //Populate the list of feedEventIds
 
   if(addEventsToCalendar || removeEventsFromCalendar){
     var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date(2100,01,01))
@@ -148,8 +154,8 @@ function main(){
 
   //------------------------ Add events to calendar ----------------
   if (addEventsToCalendar){
-    Logger.log("Checking " + events.length + " Events for creation");
-    for each (var event in events){
+    Logger.log("Checking " + icsEvents.length + " Events for creation");
+    for each (var event in icsEvents){
       if (calendarFids.indexOf(event.id) == -1){
         var resultEvent = CreateEvent(targetCalendar, event);
         
@@ -165,9 +171,8 @@ function main(){
     }
   }
   //----------------------------------------------------------------
-
-
-
+  
+  
   //-------------- Remove Or modify events from calendar -----------  
   Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
   for (var i = 0; i < calendarEvents.length; i++){
@@ -233,7 +238,6 @@ function main(){
     }
   }
   //----------------------------------------------------------------
-
 }
 
 function ConvertToCustomEvent(vevent){
