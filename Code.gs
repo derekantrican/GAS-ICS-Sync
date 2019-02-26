@@ -9,7 +9,7 @@
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
 *
 *
-* **To stop Script from running click in the menu "Edit" > "Current Project's Triggers".  Delete the running trigger.
+* **To stop Script from running click in the menu "Run" > "Run function" > "Uninstall"
 *
 *=========================================
 *               SETTINGS
@@ -75,12 +75,7 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //=====================================================================================================
 function Install(){
   //Delete any already existing triggers so we don't create excessive triggers
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "main"){
-      ScriptApp.deleteTrigger(triggers[i]);
-    }
-  }
+  DeleteAllTriggers();
   
   //Custom error for restriction here: https://developers.google.com/apps-script/reference/script/clock-trigger-builder#everyMinutes(Integer)
   var validFrequencies = [1, 5, 10, 15, 30];
@@ -88,6 +83,19 @@ function Install(){
     throw "[ERROR] Invalid value for \"howFrequent\". Must be either 1, 5, 10, 15, or 30";
 
   ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
+}
+
+function Uninstall(){
+  DeleteAllTriggers();
+}
+
+function DeleteAllTriggers(){
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++){
+    if (triggers[i].getHandlerFunction() == "main"){
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
 }
 
 var vtimezone;
