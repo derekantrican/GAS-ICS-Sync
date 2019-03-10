@@ -16,17 +16,18 @@
 *=========================================
 */
 
-// --------------- SETTINGS ---------------
-
-// var targetCalendarName = "" // The name of the Google Calendar you want to add events to
-// var sourceCalendarURL = "" // The ics/ical url that you want to get events from
-
+// Use the following format to setup calendar(s) to sync:
+//
+// var sourceCalendars={
+//   MyCustomCalendarName: "http://my.doma.in/calendar.ics?token=abc",
+//   AnotherCalendarName: "http://my.doma.in/meetings.ics?token=42"
+// }
 
 var sourceCalendars={
-  CustomName:"ICS/ICAL URL"
 }
 
-// Currently global settings are applied to all sourceCalendars.  
+// Currently global settings are applied to all calendars setup above with sourceCalendars.
+
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
@@ -174,7 +175,7 @@ function syncCalendar(targetCalendarName, sourceCalendarURL) {
   //----------------------------------------------------------------
 
   if(addEventsToCalendar || removeEventsFromCalendar){
-    /* We might want to consider reducing how far back we reach for events to reduce API call usage... Also would make a good premium feature */
+    /* We might want to consider reducing how far back we reach for events to reduce API call usage... */
     var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
     var calendarFids = []
     for (var i = 0; i < calendarEvents.length; i++)
