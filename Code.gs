@@ -309,14 +309,21 @@ function CreateEvent(targetCalendar, customEvent){
   
   if (customEvent.isAllDay){
     if (customEvent.recurrence != null){
-      resultEvent = targetCalendar.createAllDayEventSeries(customEvent.title, 
-                                                           customEvent.startTime,
-                                                           customEvent.endTime,
-                                                           customEvent.recurrence,
-                                                           {
-                                                             location : customEvent.location, 
-                                                             description : customEvent.description
-                                                           });
+      //There is no "createAllDayEventSeries" that takes both a startTime and endTime as
+      //parameters. So instead we will create an all day event with these parameters and
+      //turn it into a series with a recurrence
+    
+      resultEvent = targetCalendar.createAllDayEvent(customEvent.title, 
+                                                     customEvent.startTime,
+                                                     customEvent.endTime,
+                                                     {
+                                                       location : customEvent.location, 
+                                                       description : customEvent.description
+                                                     });
+                                                     
+      resultEvent = resultEvent.getEventSeries().setRecurrence(customEvent.recurrence, 
+                                                               customEvent.startTime,
+                                                               customEvent.endTime);
     }
     else{
       resultEvent = targetCalendar.createAllDayEvent(customEvent.title, 
