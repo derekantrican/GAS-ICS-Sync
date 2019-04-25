@@ -225,7 +225,11 @@ function main(){
 
           if(e.getStartTime().getTime() != fe.startTime.getTime() ||
              e.getEndTime().getTime() != fe.endTime.getTime())
-            e.setTime(fe.startTime, fe.endTime)
+               if (fe.isAllDay)
+                 e.setAllDayDates(fe.startTime, fe.endTime);
+               else
+                 e.setTime(fe.startTime, fe.endTime);
+
           if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
           if(e.getLocation() != fe.location)
@@ -267,7 +271,7 @@ function ConvertToCustomEvent(vevent){
   if (dtstart.isDate && dtend.isDate)
     event.isAllDay = true;
   
-  if (vtimezone != null)
+  if (vtimezone != null && !event.isAllDay)
     dtstart.zone = new ICAL.Timezone(vtimezone);
     
   event.startTime = dtstart.toJSDate();
@@ -275,7 +279,7 @@ function ConvertToCustomEvent(vevent){
   if (dtend == null)
     event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
   else{
-    if (vtimezone != null)
+    if (vtimezone != null && !event.isAllDay)
       dtend.zone = new ICAL.Timezone(vtimezone);
       
     event.endTime = dtend.toJSDate();
