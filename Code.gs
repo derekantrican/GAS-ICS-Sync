@@ -263,7 +263,7 @@ function ConvertToCustomEvent(vevent){
                    timeZone: tzid};
     
     if (dtend == null){
-      event.end = {dateTime: Utilities.formatDate(new Date(event.start.dateTime + duration * 60 * 1000), tzid, "yyyy-MM-dd\'T\'HH:mm:ss"),
+      event.end = {dateTime: Utilities.formatDate(new Date((new Date(event.start.dateTime)).getTime() + 3600000), Session.getScriptTimeZone(), "yyyy-MM-dd\'T\'HH:mm:ss"),
                    timeZone: tzid};
     }else{
       event.end = {dateTime: dtend.toString(),
@@ -284,6 +284,16 @@ function ConvertToCustomEvent(vevent){
     for each (var recRule in recurrenceRules){
       event.recurrence.push("RRULE:" + recRule.getFirstValue().toString());
     }
+  var exDatesRegex = RegExp("EXDATE(.*)", "g");
+  var exdates = vevent.toString().match(exDatesRegex);
+  if (exdates != null){
+    event.recurrence.concat(exdates);
+  }
+  var rDatesRegex = RegExp("RDATE(.*)", "g");
+  var rdates = vevent.toString().match(rDatesRegex);
+  if (rdates != null){
+    event.recurrence.concat(rdates);
+  }
   return event;
 }
 
@@ -294,7 +304,7 @@ function ParseOrganizerName(veventString){
   * VEVENT.getFirstPropertyValue('organizer') returns "mailto:sally@example.com".
   * Therefore we have to use a regex match on the VEVENT string instead
   */
-  
+
   var nameMatch = RegExp("ORGANIZER(?:;|:)CN=(.*?):", "g").exec(veventString);
   if (nameMatch != null && nameMatch.length > 1)
     return nameMatch[1];
@@ -344,7 +354,7 @@ function CheckForUpdate(){
   var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   if (alreadyAlerted == null){
     try{
-      var thisVersion = 2.0;
+      var thisVersion = 3.0;
       var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
       var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
       var latestRelease = regex.exec(html)[0];
