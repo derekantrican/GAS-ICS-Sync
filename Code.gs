@@ -104,23 +104,21 @@ var tzid;
 var targetCalendarId;
 
 function main(){
-  CheckForUpdate();
-
   //Get URL items
   var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
-
+  
   //Get target calendar information
   var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
-
-
+  
+  
   //------------------------ Error checking ------------------------
   if(response.includes("That calendar does not exist"))
     throw "[ERROR] Incorrect ics/ical URL";
-
+  
   if(targetCalendar == null){
-      Logger.log("Creating Calendar: " + targetCalendarName);
-      targetCalendar = CalendarApp.createCalendar(targetCalendarName);
-      targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
+    Logger.log("Creating Calendar: " + targetCalendarName);
+    targetCalendar = CalendarApp.createCalendar(targetCalendarName);
+    targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
   }
   targetCalendarId = targetCalendar.getId()
   Logger.log("Working on calendar: " + targetCalendar.getName() + ", ID: " + targetCalendarId)
@@ -128,20 +126,21 @@ function main(){
   if (emailWhenAdded && email == "")
     throw "[ERROR] \"emailWhenAdded\" is set to true, but no email is defined";
   //----------------------------------------------------------------
- 
+  
   //------------------------ Parse existing events --------------------------
   
   if(addEventsToCalendar || removeEventsFromCalendar){
     var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: false}).items;
     var calendarEventsIds = []
     Logger.log("Grabbed " + calendarEvents.length + " existing Events from " + targetCalendarName);
-    for (var i = 0; i < calendarEvents.length; i++)
-      calendarEventsIds[i] = calendarEvents[i].id;
+    for (var i = 0; i < calendarEvents.length; i++){
+      calendarEventsIds[i] = calendarEvents[i].iCalUID;
+    }
     Logger.log("Saved " + calendarEventsIds.length + " existing Event IDs");
   }
   //------------------------ Parse ics events --------------------------
   var icsEventIds=[];
-
+  
   //Use ICAL.js to parse the data
   var jcalData = ICAL.parse(response);//sourceCalendarString/response
   var component = new ICAL.Component(jcalData);
@@ -151,148 +150,95 @@ function main(){
   }
   var vevents = component.getAllSubcomponents("vevent");
   vevents.forEach(function(event){ icsEventIds.push(event.getFirstPropertyValue('uid').toString()); });
-  Logger.log("---Adding " + vevents.length + " Events.");
   
-  for each (var event in vevents){
-    vevent = new ICAL.Event(event);
-    var newevent = new Event();
-    newEvent = {
-            summary: vevent.summary,
-            id: vevent.uid,
-            description: vevent.description,
-            start: {
-              dateTime: Utilities.formatDate(vevent.startDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z'")
-            },
-            end: {
-              dateTime: Utilities.formatDate(vevent.endDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z\'")
-            },
-          };
-    newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
-    Logger.log("Added " + vevent.summary);
-  }
-
-  Logger.log("---done!")
-  return;
-  //------------------------ Add events to calendar ----------------
-  if (addEventsToCalendar){
-    Logger.log("---Checking " + vevents.length + " Events for creation---")
-    var existingEvent = null;
-    var newEvent = null;
-    for each (var currEvent in vevents){
-      newEvent = new Event();
+  if (addEventsToCalendar || modifyExistingEvents){
+    Logger.log("---Processing " + vevents.length + " Events.");
+    for each (var event in vevents){
+      vevent = new ICAL.Event(event);
       var requiredAction = "skip";
-      
-      //---check if Event needs Update, Insert or Skip
-      existingEvent = targetCalendar.getEventById(currEvent.id);
-      if (existingEvent){
-        //Event-ID present in Calendar -> Update
-        if (currEvent.createdAt == null || new Date(currEvent.createdAt.toString()) > new Date(existingEvent.getLastUpdated())){
+      var index = calendarEventsIds.indexOf(vevent.uid);
+      if (index >= 0){
+        //check update
+        icsModDate = event.getFirstPropertyValue('last-modified') || event.getFirstPropertyValue('created') || Date.now();
+        calModDate = new Date(calendarEvents[index].updated);
+        if (icsModDate > calModDate){
           requiredAction = "update";
+        }else{
+          //skip
         }
-        else{
-          //Existing Event is up to date
-          requiredAction = "skip";
-        }
-      }
-      else{
-        //Event-ID currently not in Calendar -> Insert
+      }else{
         requiredAction = "insert";
       }
       
-      //---- Create new Event if required
       if (requiredAction != "skip"){
-        if (currEvent.isAllDay){
+        var newEvent = new Event();
+        if(vevent.startDate.isDate){
+          //All Day Event
           newEvent = {
-            summary: currEvent.title,
-            id: currEvent.id,
-            description: currEvent.description,
+            summary: vevent.summary,
+            iCalUID: vevent.uid,
+            description: vevent.description,
             start: {
-              date: Utilities.formatDate(new Date(currEvent.startTime), tzid, "yyyy-MM-dd"),
-              timeZone: tzid
+              date: vevent.startDate.toString()
             },
             end: {
-              date: Utilities.formatDate(new Date(currEvent.endTime), tzid, "yyyy-MM-dd"),
-              timeZone: tzid
-            },
-            recurrence: currEvent.recurrence
+              date: vevent.endDate.toString()
+            }
           };
-          Logger.log("New Event created: " + newEvent.id + ", " + newEvent.summary + ", " + newEvent.description + ", " + newEvent.start.date + ", " + newEvent.end.date);
-        }
-        else{
+        }else{
+          //normal Event
           newEvent = {
-            summary: currEvent.title,
-            id: currEvent.id,
-            description: currEvent.description,
+            summary: vevent.summary,
+            iCalUID: vevent.uid,
+            description: vevent.description,
             start: {
-              dateTime: Utilities.formatDate(new Date(currEvent.startTime), tzid, "yyyy-MM-dd\'T\'HH:mm:ss"),
-              timeZone: tzid
+              dateTime: Utilities.formatDate(vevent.startDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z'"),
+              timeZone: "GMT"
             },
             end: {
-              dateTime: Utilities.formatDate(new Date(currEvent.endTime), tzid, "yyyy-MM-dd\'T\'HH:mm:ss"),
-              timeZone: tzid
+              dateTime: Utilities.formatDate(vevent.endDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z\'"),
+              timeZone: "GMT"
             },
-            recurrence: currEvent.recurrence
           };
-          Logger.log("New Event created: " + newEvent.id + ", " + newEvent.summary + ", " + newEvent.description + ", " + newEvent.start.dateTime + ", " + newEvent.end.dateTime);
-        }
-        if (colorizeEvents){
-          switch (newEvent.summary){
-            default:
-              newEvent.colorId = 11;
-              break;
-          }
         }
         switch (requiredAction){
           case "insert":
-            Logger.log("Adding new Event " + currEvent.id);
+            Logger.log("Adding new Event " + newEvent.iCalUID);
             newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
             break;
           case "update":
             Logger.log("Updating existing Event!");
-            newEvent = Calendar.Events.update(newEvent, targetCalendarId, currEvent.id);
+            newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
             break;
         }
-        if (emailWhenAdded)
-          GmailApp.sendEmail(email, "New Event Added", "New event added to calendar \"" + targetCalendarName + "\" at " + event.startTime);
-      }
-      else{
-        Logger.log("Skipping Update, Event unchanged! Last Update: " + existingEvent.getLastUpdated());
+      }else{
+        //Skipping
+        Logger.log("Event unchanged. No action required.")
       }
     }
+    Logger.log("---done!");
   }
-  //----------------------------------------------------------------
-
-
-
+  
   //-------------- Remove old events from calendar -----------
   if(removeEventsFromCalendar){
     Logger.log("Checking " + calendarEvents.length + " events for removal");
     for (var i = 0; i < calendarEvents.length; i++){
-      var currentID = calendarEvents[i].id;
+      var currentID = calendarEventsIds[i];
       var feedIndex = icsEventIds.indexOf(currentID);
-
+      
       if(feedIndex  == -1){
         Logger.log("Deleting old Event " + currentID);
-        Calendar.Events.remove(targetCalendarId, currentID);
+        Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
       }
     }
+    Logger.log("---done!");
   }
   //----------------------------------------------------------------
-
 }
 
+//old
 function ConvertToCustomEvent(vevent){
-  var event = new Event();
-  event.id = vevent.getFirstPropertyValue('uid').toLowerCase().replace(/[-w_x@y.z,]+/g, '');
-  event.createdAt = vevent.getFirstPropertyValue('last-modified') || vevent.getFirstPropertyValue('created');
 
-  if (descriptionAsTitles)
-    event.title = vevent.getFirstPropertyValue('description') || '';
-  else{
-    event.title = vevent.getFirstPropertyValue('summary') || '';
-    event.description = vevent.getFirstPropertyValue('description') || '';
-  }
-  
   if (addOrganizerToTitle){
     var organizer = ParseOrganizerName(vevent.toString());
 
@@ -398,28 +344,5 @@ function ParseNotificationTime(notificationString){
       reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60 * 60; //Remove the "D" off the end
 
     return reminderTime; //Return the notification time in seconds
-  }
-}
-
-function CheckForUpdate(){
-  var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
-  if (alreadyAlerted == null){
-    try{
-      var thisVersion = 3.0;
-      var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
-      var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
-      var latestRelease = regex.exec(html)[0];
-      regex = RegExp("\"(\\d.\\d)\"", "g");
-      var latestVersion = Number(regex.exec(latestRelease)[1]);
-      
-      if (latestVersion > thisVersion){
-        if (email != ""){
-          GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
-        
-          PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", true);
-        }
-      }
-    }
-    catch(e){}
   }
 }
