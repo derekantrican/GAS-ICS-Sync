@@ -128,23 +128,8 @@ function main(){
   if (emailWhenAdded && email == "")
     throw "[ERROR] \"emailWhenAdded\" is set to true, but no email is defined";
   //----------------------------------------------------------------
-
-  //------------------------ Parse events --------------------------
-  var icsEventIds=[];
-
-  //Use ICAL.js to parse the data
-  var jcalData = ICAL.parse(response);
-  var component = new ICAL.Component(jcalData);
-  vtimezone = component.getFirstSubcomponent("vtimezone");
-  if (vtimezone == null){
-    tzid = "GMT";
-  }else{
-    tzid = vtimezone.getFirstPropertyValue("tzid") || 'GMT';
-  }
-  //Map the vevents into custom event objects
-  var icsEvents = component.getAllSubcomponents("vevent").map(ConvertToCustomEvent);
-  icsEvents.forEach(function(event){ icsEventIds.push(event.id); }); //Populate the list of icsEventIds
-  //----------------------------------------------------------------
+ 
+  //------------------------ Parse existing events --------------------------
   
   if(addEventsToCalendar || removeEventsFromCalendar){
     var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: false}).items;
@@ -154,15 +139,46 @@ function main(){
       calendarEventsIds[i] = calendarEvents[i].id;
     Logger.log("Saved " + calendarEventsIds.length + " existing Event IDs");
   }
+  //------------------------ Parse ics events --------------------------
+  var icsEventIds=[];
 
+  //Use ICAL.js to parse the data
+  var jcalData = ICAL.parse(response);//sourceCalendarString/response
+  var component = new ICAL.Component(jcalData);
+  vtimezone = component.getAllSubcomponents("vtimezone");
+  for each (var tz in vtimezone){
+    ICAL.TimezoneService.register(tz);
+  }
+  var vevents = component.getAllSubcomponents("vevent");
+  vevents.forEach(function(event){ icsEventIds.push(event.getFirstPropertyValue('uid').toString()); });
+  Logger.log("---Adding " + vevents.length + " Events.");
   
-  
+  for each (var event in vevents){
+    vevent = new ICAL.Event(event);
+    var newevent = new Event();
+    newEvent = {
+            summary: vevent.summary,
+            id: vevent.uid,
+            description: vevent.description,
+            start: {
+              dateTime: Utilities.formatDate(vevent.startDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z'")
+            },
+            end: {
+              dateTime: Utilities.formatDate(vevent.endDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z\'")
+            },
+          };
+    newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
+    Logger.log("Added " + vevent.summary);
+  }
+
+  Logger.log("---done!")
+  return;
   //------------------------ Add events to calendar ----------------
   if (addEventsToCalendar){
-    Logger.log("Checking " + icsEvents.length + " Events for creation")
+    Logger.log("---Checking " + vevents.length + " Events for creation---")
     var existingEvent = null;
     var newEvent = null;
-    for each (var currEvent in icsEvents){
+    for each (var currEvent in vevents){
       newEvent = new Event();
       var requiredAction = "skip";
       
