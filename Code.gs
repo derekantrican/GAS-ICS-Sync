@@ -17,7 +17,6 @@
 */
 
 var targetCalendarName = "Full API TEST";           // The name of the Google Calendar you want to add events to
-var targetCalendarId = "";
 var sourceCalendarURL = "";            // The ics/ical url that you want to get events from
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
@@ -70,7 +69,6 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 * Github: https://github.com/blackwind
 *
 */
-
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
@@ -100,7 +98,6 @@ function DeleteAllTriggers(){
 }
 
 var vtimezone;
-var tzid;
 var targetCalendarId;
 
 function main(){
@@ -121,6 +118,7 @@ function main(){
     targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
   }
   targetCalendarId = targetCalendar.getId()
+  
   Logger.log("Working on calendar: " + targetCalendar.getName() + ", ID: " + targetCalendarId)
   
   if (emailWhenAdded && email == "")
@@ -175,9 +173,6 @@ function main(){
         if(vevent.startDate.isDate){
           //All Day Event
           newEvent = {
-            summary: vevent.summary,
-            iCalUID: vevent.uid,
-            description: vevent.description,
             start: {
               date: vevent.startDate.toString()
             },
@@ -187,20 +182,60 @@ function main(){
           };
         }else{
           //normal Event
+          var tzid = vevent.startDate.timezone;
+          if (tzids.indexOf(tzid) == -1){
+            Logger.log("Timezone " + tzid + " unsupported!");
+            if (tzid in tzidreplace){
+              tzid = tzidreplace[tzid];
+              Logger.log("Using Timezone " + tzid + "!");
+            }
+          };
           newEvent = {
-            summary: vevent.summary,
-            iCalUID: vevent.uid,
-            description: vevent.description,
             start: {
-              dateTime: Utilities.formatDate(vevent.startDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z'"),
-              timeZone: "GMT"
+              dateTime: vevent.startDate.toString(),
+              timeZone: tzid
             },
             end: {
-              dateTime: Utilities.formatDate(vevent.endDate.toJSDate(), "GMT", "yyyy-MM-dd\'T\'HH:mm:ss\'Z\'"),
-              timeZone: "GMT"
+              dateTime: vevent.endDate.toString(),
+              timeZone: tzid
             },
           };
         }
+        newEvent.summary = vevent.summary;
+        if (addOrganizerToTitle){
+          var organizer = ParseOrganizerName(event.toString());
+          
+          if (organizer != null)
+            newEvent.summary = organizer + ": " + vevent.summary;
+        }
+        
+        newEvent.iCalUID = vevent.uid;
+        newEvent.description = vevent.description;
+        newEvent.location = vevent.location;
+        newEvent.reminders = {
+          'useDefault': false,
+          'overrides': [
+            {'method': 'popup', 'minutes': 10}
+          ]
+        };
+        var recurrenceRules = event.getAllProperties('rrule');
+        var recurrence = [];
+        if (recurrenceRules != null)
+          for each (var recRule in recurrenceRules){
+            recurrence.push("RRULE:" + recRule.getFirstValue().toString());
+          }
+        var exDatesRegex = RegExp("EXDATE(.*)", "g");
+        var exdates = event.toString().match(exDatesRegex);
+        if (exdates != null){
+          recurrence = recurrence.concat(exdates);
+        }
+        var rDatesRegex = RegExp("RDATE(.*)", "g");
+        var rdates = event.toString().match(rDatesRegex);
+        if (rdates != null){
+          recurrence = recurrence.concat(rdates);
+        }
+        newEvent.recurrence = recurrence;
+        
         switch (requiredAction){
           case "insert":
             Logger.log("Adding new Event " + newEvent.iCalUID);
@@ -239,17 +274,6 @@ function main(){
 //old
 function ConvertToCustomEvent(vevent){
 
-  if (addOrganizerToTitle){
-    var organizer = ParseOrganizerName(vevent.toString());
-
-    if (organizer != null)
-      event.title = organizer + ": " + event.title;
-  }
-  
-  event.location = vevent.getFirstPropertyValue('location') || '';
-  
-  var dtstart = vevent.getFirstPropertyValue('dtstart');
-  var dtend = vevent.getFirstPropertyValue('dtend');
   var duration = vevent.getFirstPropertyValue('duration') || defaultDuration;
   
   if (dtstart.isDate && dtend.isDate)
