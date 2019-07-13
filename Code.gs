@@ -187,8 +187,10 @@ function main(){
             Logger.log("Timezone " + tzid + " unsupported!");
             if (tzid in tzidreplace){
               tzid = tzidreplace[tzid];
-              Logger.log("Using Timezone " + tzid + "!");
+            }else{
+              tzid = "GMT"; 
             }
+            Logger.log("Using Timezone " + tzid + "!");
           };
           newEvent = {
             start: {
