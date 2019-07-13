@@ -23,7 +23,7 @@ var howFrequent = 15;                  // What interval (minutes) to run this sc
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
-var addAlerts = false;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events
+var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
 var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
 var defaultDuration = 60;              // Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
@@ -215,11 +215,24 @@ function main(){
         newEvent.description = vevent.description;
         newEvent.location = vevent.location;
         newEvent.reminders = {
-          'useDefault': false,
-          'overrides': [
-            {'method': 'popup', 'minutes': 10}
-          ]
+          'useDefault': true
         };
+        if (addAlerts){
+          var valarms = event.getAllSubcomponents('valarm');
+          var overrides = [];
+          for each (var valarm in valarms){
+            var trigger = valarm.getFirstPropertyValue('trigger').toString();
+            if (overrides.length < 5){ //Google supports max 5 reminder-overrides
+              overrides.push({'method': 'popup', 'minutes': ParseNotificationTime(trigger)/60});
+            }
+          }
+          if (overrides.length > 0){
+            newEvent.reminders = {
+              'useDefault': false,
+              'overrides': overrides
+            };
+          }
+        }
         var recurrenceRules = event.getAllProperties('rrule');
         var recurrence = [];
         if (recurrenceRules != null)
@@ -271,53 +284,6 @@ function main(){
     Logger.log("---done!");
   }
   //----------------------------------------------------------------
-}
-
-//old
-function ConvertToCustomEvent(vevent){
-
-  var duration = vevent.getFirstPropertyValue('duration') || defaultDuration;
-  
-  if (dtstart.isDate && dtend.isDate)
-    event.isAllDay = true;
-    
-  event.startTime = dtstart;
-  
-  if (dtend == null)
-    event.endTime = new Date(event.startTime.getTime() + duration * 60 * 1000);
-  else{
-    if (vtimezone != null)
-      dtend.zone = new ICAL.Timezone(vtimezone);
-      
-    event.endTime = dtend;
-  }
-  
-  if (addAlerts){
-    var valarms = vevent.getAllSubcomponents('valarm');
-    for each (var valarm in valarms){
-      var trigger = valarm.getFirstPropertyValue('trigger').toString();
-      event.reminderTimes[event.reminderTimes.length++] = ParseNotificationTime(trigger);
-    }
-  }
-
-  var recurrenceRules = vevent.getAllProperties('rrule');
-  event.recurrence = [];
-  if (recurrenceRules != null)
-    for each (var recRule in recurrenceRules){
-      event.recurrence.push("RRULE:" + recRule.getFirstValue().toString());
-    }
-  var exDatesRegex = RegExp("EXDATE(.*)", "g");
-  var exdates = vevent.toString().match(exDatesRegex);
-  if (exdates != null){
-    event.recurrence = event.recurrence.concat(exdates);
-  }
-  var rDatesRegex = RegExp("RDATE(.*)", "g");
-  var rdates = vevent.toString().match(rDatesRegex);
-  if (rdates != null){
-    event.recurrence = event.recurrence.concat(rdates);
-  }
-  Logger.log("TF: " + event.startTime + " - " + event.endTime + " All Day: " + event.isAllDay);
-  return event;
 }
 
 function ParseOrganizerName(veventString){

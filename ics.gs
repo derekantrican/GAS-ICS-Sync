@@ -79,7 +79,8 @@ var sourceCalendarString = "BEGIN:VCALENDAR\n"+
 "END:VTIMEZONE\n"+
 "BEGIN:VEVENT\n"+
 "ORGANIZER;CN='Sally Example':mailto:sally@example.com\n"+
-"DTEND;TZID=Europe/Berlin:20190123T130000\n"+
+//"DTEND;TZID=Europe/Berlin:20190123T130000\n"+
+"DURATION:PT15M\n"+
 "DTSTART;TZID=Europe/Berlin:20190123T123000\n"+
 "DTSTAMP;VALUE=DATE-TIME:20190128T180311Z\n"+
 "UID:12345\n"+
@@ -88,6 +89,13 @@ var sourceCalendarString = "BEGIN:VCALENDAR\n"+
 "RRULE:FREQ=WEEKLY;BYDAY=TU,TH;UNTIL=20200109T160000Z;WKST=SU\n"+
 "EXDATE;TZID=Europe/Berlin:20190613T123000,20190702T123000\n"+
 "LOCATION:Main Street Sports Center\n"+
+"BEGIN:VALARM\n"+
+"TRIGGER:-PT30M\n"+
+"REPEAT:2\n"+
+"DURATION:PT15M\n"+
+"ACTION:DISPLAY\n"+
+"DESCRIPTION:Breakfast meeting with executive team at 8:30 AM EST.\n"+
+"END:VALARM\n"+
 "END:VEVENT\n"+
 "BEGIN:VEVENT\n"+
 "ORGANIZER;CN='Sally Example':mailto:sally@example.com\n"+
