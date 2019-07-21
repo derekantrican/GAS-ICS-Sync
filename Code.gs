@@ -5,7 +5,8 @@
 *
 * 1) Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
 * 2) Changes lines 19-32 to be the settings that you want to use
-* 3) Click in the menu "Run" > "Run function" > "Install" and authorize the program
+* 3) Enable "Calendar API v3" at "Resources" > "Advanced Google Services" > "Calendar API v3" 
+* 4) Click in the menu "Run" > "Run function" > "Install" and authorize the program
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
 *
 *
@@ -25,50 +26,11 @@ var modifyExistingEvents = true;       // If you turn this to "false", any event
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
-var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
-var defaultDuration = 60;              // Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
-var colorizeEvents = true;
+var addTasks = true;
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
-/*
-*=========================================
-*           ABOUT THE AUTHOR
-*=========================================
-*
-* This program was created by Derek Antrican
-*
-* If you would like to see other programs Derek has made, you can check out
-* his website: derekantrican.com or his github: https://github.com/derekantrican
-*
-*=========================================
-*            BUGS/FEATURES
-*=========================================
-*
-* Please report any issues at https://github.com/derekantrican/GAS-ICS-Sync/issues
-*
-*=========================================
-*           $$ DONATIONS $$
-*=========================================
-*
-* If you would like to donate and help Derek keep making awesome programs,
-* you can do that here: https://bulkeditcalendarevents.wordpress.com/donate/
-*
-*=========================================
-*             CONTRIBUTORS
-*=========================================
-* Andrew Brothers
-* Github: https://github.com/agentd00nut/
-* Twitter: @abrothers656
-*
-* Joel Balmer
-* Github: https://github.com/JoelBalmer
-*
-* Blackwind
-* Github: https://github.com/blackwind
-*
-*/
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
@@ -99,10 +61,60 @@ function DeleteAllTriggers(){
 
 var vtimezone;
 var targetCalendarId;
+var response;
+
+function parseTasks(){
+  var taskLists = Tasks.Tasklists.list().items;
+  var taskList = taskLists[0];
+  
+  var existingTasks = Tasks.Tasks.list(taskList.id).items || [];
+  var existingTasksIds = []
+  Logger.log("Grabbed " + existingTasks.length + " existing Tasks from " + taskList.title);
+  for (var i = 0; i < existingTasks.length; i++){
+    existingTasksIds[i] = existingTasks[i].id;
+  }
+  Logger.log("Saved " + existingTasksIds.length + " existing Task IDs");
+  
+  var icsTasksIds = [];
+  
+  var jcalData = ICAL.parse(response);
+  var component = new ICAL.Component(jcalData);
+  
+  var vtasks = component.getAllSubcomponents("vtodo");
+  vtasks.forEach(function(task){ icsTasksIds.push(task.getFirstPropertyValue('uid').toString()); });
+  Logger.log("---Processing " + vtasks.length + " Tasks.");
+  
+  for each (var task in vtasks){
+    var newtask = Tasks.newTask();
+    newtask.id = task.getFirstPropertyValue("uid").toString();
+    newtask.title = task.getFirstPropertyValue("summary").toString();
+    var d = task.getFirstPropertyValue("due").toJSDate();
+    newtask.due = (d.getFullYear()) + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2) + "T" + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2)+"Z";
+    Tasks.Tasks.insert(newtask, taskList.id);
+  };
+  Logger.log("---Done!");
+  
+  //-------------- Remove old Tasks -----------
+  // ID can't be used as identifier as the API reassignes a random id at task creation
+  if(removeEventsFromCalendar){
+    Logger.log("Checking " + existingTasksIds.length + " tasks for removal");
+    for (var i = 0; i < existingTasksIds.length; i++){
+      var currentID = existingTasks[i].status;
+      var feedIndex = icsTasksIds.indexOf(currentID);
+      
+      if(feedIndex  == -1){
+        Logger.log("Deleting old Task " + existingTasks[i].id);
+        Tasks.Tasks.remove(taskList.id, existingTasks[i].id);
+      }
+    }
+    Logger.log("---done!");
+  }
+  //----------------------------------------------------------------
+}
 
 function main(){
   //Get URL items
-  var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
+  response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
   
   //Get target calendar information
   var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
@@ -127,20 +139,21 @@ function main(){
   
   //------------------------ Parse existing events --------------------------
   
-  if(addEventsToCalendar || removeEventsFromCalendar){
-    var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: false}).items;
-    var calendarEventsIds = []
-    Logger.log("Grabbed " + calendarEvents.length + " existing Events from " + targetCalendarName);
-    for (var i = 0; i < calendarEvents.length; i++){
-      calendarEventsIds[i] = calendarEvents[i].iCalUID;
-    }
-    Logger.log("Saved " + calendarEventsIds.length + " existing Event IDs");
-  }
+  if(addEventsToCalendar || removeEventsFromCalendar){ 
+    var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: false}).items; 
+    var calendarEventsIds = [] 
+    Logger.log("Grabbed " + calendarEvents.length + " existing Events from " + targetCalendarName); 
+    for (var i = 0; i < calendarEvents.length; i++){ 
+      calendarEventsIds[i] = calendarEvents[i].iCalUID; 
+    } 
+    Logger.log("Saved " + calendarEventsIds.length + " existing Event IDs"); 
+  } 
+
   //------------------------ Parse ics events --------------------------
   var icsEventIds=[];
   
   //Use ICAL.js to parse the data
-  var jcalData = ICAL.parse(response);//sourceCalendarString/response
+  var jcalData = ICAL.parse(sourceCalendarString);//sourceCalendarString/response
   var component = new ICAL.Component(jcalData);
   vtimezone = component.getAllSubcomponents("vtimezone");
   for each (var tz in vtimezone){
@@ -203,6 +216,7 @@ function main(){
             },
           };
         }
+        
         newEvent.summary = vevent.summary;
         if (addOrganizerToTitle){
           var organizer = ParseOrganizerName(event.toString());
@@ -284,6 +298,8 @@ function main(){
     Logger.log("---done!");
   }
   //----------------------------------------------------------------
+  if (addTasks)
+    parseTasks();
 }
 
 function ParseOrganizerName(veventString){
