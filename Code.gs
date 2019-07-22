@@ -153,7 +153,7 @@ function main(){
   var icsEventIds=[];
   
   //Use ICAL.js to parse the data
-  var jcalData = ICAL.parse(sourceCalendarString);//sourceCalendarString/response
+  var jcalData = ICAL.parse(response);
   var component = new ICAL.Component(jcalData);
   vtimezone = component.getAllSubcomponents("vtimezone");
   for each (var tz in vtimezone){
