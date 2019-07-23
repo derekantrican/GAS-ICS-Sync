@@ -265,16 +265,29 @@ function main(){
         }
         newEvent.recurrence = recurrence;
         
-        switch (requiredAction){
-          case "insert":
-            Logger.log("Adding new Event " + newEvent.iCalUID);
-            newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
-            break;
-          case "update":
-            Logger.log("Updating existing Event!");
-            newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-            break;
-        }
+        var retries = 0;
+        do{
+          Utilities.sleep(retries * 100);
+          switch (requiredAction){
+            case "insert":
+              Logger.log("Adding new Event " + newEvent.iCalUID);
+              try{
+                newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
+              }catch(error){
+                Logger.log("Error, Retrying..." );
+              }
+              break;
+            case "update":
+              Logger.log("Updating existing Event!");
+              try{
+                newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+              }catch(error){
+                Logger.log("Error, Retrying...");
+              }
+              break;
+          }
+          retries++;
+        }while(retries < 5 && (typeof newEvent.etag === "undefined"))
       }else{
         //Skipping
         Logger.log("Event unchanged. No action required.")
