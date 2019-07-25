@@ -26,7 +26,7 @@ var modifyExistingEvents = true;       // If you turn this to "false", any event
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
-var addTasks = true;
+var addTasks = false;
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
@@ -99,15 +99,15 @@ function parseTasks(){
   if(removeEventsFromCalendar){
     Logger.log("Checking " + existingTasksIds.length + " tasks for removal");
     for (var i = 0; i < existingTasksIds.length; i++){
-      var currentID = existingTasks[i].status;
+      var currentID = existingTasks[i].id;
       var feedIndex = icsTasksIds.indexOf(currentID);
       
       if(feedIndex  == -1){
-        Logger.log("Deleting old Task " + existingTasks[i].id);
-        Tasks.Tasks.remove(taskList.id, existingTasks[i].id);
+        Logger.log("Deleting old Task " + currentID);
+        Tasks.Tasks.remove(taskList.id, currentID);
       }
     }
-    Logger.log("---done!");
+    Logger.log("---Done!");
   }
   //----------------------------------------------------------------
 }
@@ -140,11 +140,11 @@ function main(){
   //------------------------ Parse existing events --------------------------
   
   if(addEventsToCalendar || removeEventsFromCalendar){ 
-    var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: false}).items; 
+    var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: true}).items; 
     var calendarEventsIds = [] 
     Logger.log("Grabbed " + calendarEvents.length + " existing Events from " + targetCalendarName); 
     for (var i = 0; i < calendarEvents.length; i++){ 
-      calendarEventsIds[i] = calendarEvents[i].iCalUID; 
+      calendarEventsIds[i] = calendarEvents[i].iCalUID;
     } 
     Logger.log("Saved " + calendarEventsIds.length + " existing Event IDs"); 
   } 
@@ -155,6 +155,7 @@ function main(){
   //Use ICAL.js to parse the data
   var jcalData = ICAL.parse(response);
   var component = new ICAL.Component(jcalData);
+  ICAL.helpers.updateTimezones(component);
   vtimezone = component.getAllSubcomponents("vtimezone");
   for each (var tz in vtimezone){
     ICAL.TimezoneService.register(tz);
@@ -170,9 +171,16 @@ function main(){
       var index = calendarEventsIds.indexOf(vevent.uid);
       if (index >= 0){
         //check update
-        icsModDate = event.getFirstPropertyValue('last-modified') || event.getFirstPropertyValue('created') || Date.now();
+        icsModDate = event.getFirstPropertyValue('last-modified') || event.getFirstPropertyValue('created');
         calModDate = new Date(calendarEvents[index].updated);
-        if (icsModDate > calModDate){
+        if (calendarEvents[index].status == "cancelled"){
+          requiredAction = "update";
+        }else if (icsModDate === null){
+          //manually check if event changed
+          if (eventChanged(event, vevent, calendarEvents[index])){
+            requiredAction = "update";
+          }
+        }else if (icsModDate > calModDate){
           requiredAction = "update";
         }else{
           //skip
@@ -274,15 +282,15 @@ function main(){
               try{
                 newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
               }catch(error){
-                Logger.log("Error, Retrying..." );
+                Logger.log("Error, Retrying..." + error );
               }
               break;
             case "update":
               Logger.log("Updating existing Event!");
               try{
-                newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+              newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
               }catch(error){
-                Logger.log("Error, Retrying...");
+                Logger.log("Error, Retrying..." + error);
               }
               break;
           }
@@ -303,9 +311,13 @@ function main(){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventIds.indexOf(currentID);
       
-      if(feedIndex  == -1){
+      if(feedIndex  == -1 && calendarEvents[i].status != "cancelled"){
         Logger.log("Deleting old Event " + currentID);
-        Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
+        try{
+          Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
+        }catch (err){
+          Logger.log(err);
+        }
       }
     }
     Logger.log("---done!");
@@ -366,4 +378,23 @@ function ParseNotificationTime(notificationString){
 
     return reminderTime; //Return the notification time in seconds
   }
+}
+
+function eventChanged(event, icsEvent, calEvent){
+  if (icsEvent.description != calEvent.description)
+    return true;
+  if (icsEvent.summary != calEvent.summary)
+    return true;
+  if (icsEvent.location != calEvent.location)
+    return true;
+  var startDate = calEvent.start.date || calEvent.start.dateTime;
+  startDate = new ICAL.Time().fromJSDate(new Date(startDate), true);
+  if (startDate.compare(icsEvent.startDate) != 0)
+    return true;
+  var endDate = calEvent.end.date || calEvent.end.dateTime;
+  endDate = new ICAL.Time().fromJSDate(new Date(endDate), true);
+  if (endDate.compare(icsEvent.endDate) != 0)
+    return true;
+  
+  return false;
 }
