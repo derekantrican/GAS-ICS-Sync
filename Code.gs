@@ -98,8 +98,6 @@ function DeleteAllTriggers(){
   }
 }
 
-var vtimezone;
-
 function main(){
   CheckForUpdate();
 
@@ -130,9 +128,9 @@ function main(){
   //Use ICAL.js to parse the data
   var jcalData = ICAL.parse(response);
   var component = new ICAL.Component(jcalData);
-  vtimezone = component.getFirstSubcomponent("vtimezone");
-  if (vtimezone != null)
-    ICAL.TimezoneService.register(vtimezone);
+  var vtimezones = component.getAllSubcomponents("vtimezone");
+  for each (var tz in vtimezones)
+    ICAL.TimezoneService.register(tz);
   
   //Map the vevents into custom event objects
   var events = component.getAllSubcomponents("vevent").map(ConvertToCustomEvent);
@@ -225,7 +223,11 @@ function main(){
 
           if(e.getStartTime().getTime() != fe.startTime.getTime() ||
              e.getEndTime().getTime() != fe.endTime.getTime())
-            e.setTime(fe.startTime, fe.endTime)
+            if (fe.isAllDay){
+              e.setAllDayDates(fe.startTime, fe.endTime);
+            }else{
+              e.setTime(fe.startTime, fe.endTime);
+            }
           if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
           if(e.getLocation() != fe.location)
@@ -242,6 +244,7 @@ function main(){
 }
 
 function ConvertToCustomEvent(vevent){
+  var icalEvent = new ICAL.Event(vevent);
   var event = new Event();
   event.id = vevent.getFirstPropertyValue('uid');
   
@@ -261,24 +264,15 @@ function ConvertToCustomEvent(vevent){
   
   event.location = vevent.getFirstPropertyValue('location') || '';
   
-  var dtstart = vevent.getFirstPropertyValue('dtstart');
-  var dtend = vevent.getFirstPropertyValue('dtend');
-  
-  if (dtstart.isDate && dtend.isDate)
+  if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
-  
-  if (vtimezone != null)
-    dtstart.zone = new ICAL.Timezone(vtimezone);
     
-  event.startTime = dtstart.toJSDate();
+  event.startTime = icalEvent.startDate.toJSDate();
   
-  if (dtend == null)
+  if (icalEvent.endDate == null)
     event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
   else{
-    if (vtimezone != null)
-      dtend.zone = new ICAL.Timezone(vtimezone);
-      
-    event.endTime = dtend.toJSDate();
+    event.endTime = icalEvent.endDate.toJSDate();
   }
   
   if (addAlerts){
