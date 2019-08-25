@@ -209,7 +209,7 @@ function main(){
             if (tzid in tzidreplace){
               tzid = tzidreplace[tzid];
             }else{
-              tzid = "GMT"; 
+              tzid = CalendarApp.getTimeZone(); 
             }
             Logger.log("Using Timezone " + tzid + "!");
           };
@@ -395,6 +395,26 @@ function eventChanged(event, icsEvent, calEvent){
   endDate = new ICAL.Time().fromJSDate(new Date(endDate), true);
   if (endDate.compare(icsEvent.endDate) != 0)
     return true;
+//  Need to manually build the recurrence-array
+//  var recurrenceRules = event.getAllProperties('rrule');
+//  var recurrence = [];
+//  if (recurrenceRules != null)
+//    for each (var recRule in recurrenceRules){
+//      recurrence.push("RRULE:" + recRule.getFirstValue().toString());
+//    }
+//  var exDatesRegex = RegExp("EXDATE(.*)", "g");
+//  var exdates = event.toString().match(exDatesRegex);
+//  if (exdates != null){
+//    recurrence = recurrence.concat(exdates);
+//  }
+//  var rDatesRegex = RegExp("RDATE(.*)", "g");
+//  var rdates = event.toString().match(rDatesRegex);
+//  if (rdates != null){
+//    recurrence = recurrence.concat(rdates);
+//  }
+//  Logger.log("Comparing recurrence: " + recurrence + " - " + calEvent.recurrence);
+//  if (icsEvent.recurrence != calEvent.recurrence)
+//    return true;
   
   return false;
 }
