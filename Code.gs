@@ -222,12 +222,12 @@ function main(){
           var fe = fes[0];
 
           if(e.getStartTime().getTime() != fe.startTime.getTime() ||
-             e.getEndTime().getTime() != fe.endTime.getTime())
-            if (fe.isAllDay){
+            e.getEndTime().getTime() != fe.endTime.getTime()){
+            if (fe.isAllDay)
               e.setAllDayDates(fe.startTime, fe.endTime);
-            }else{
+            else
               e.setTime(fe.startTime, fe.endTime);
-            }
+          }
           if(e.getTitle() != fe.title)
             e.setTitle(fe.title);
           if(e.getLocation() != fe.location)
@@ -271,9 +271,8 @@ function ConvertToCustomEvent(vevent){
   
   if (icalEvent.endDate == null)
     event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
-  else{
+  else
     event.endTime = icalEvent.endDate.toJSDate();
-  }
   
   if (addAlerts){
     var valarms = vevent.getAllSubcomponents('valarm');
