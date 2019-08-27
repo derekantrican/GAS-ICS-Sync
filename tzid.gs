@@ -725,5 +725,6 @@ tzidreplace = {
 "UTC+13": "Pacific/Enderbury",	
 "Tonga Standard Time": "Pacific/Tongatapu",	
 "Samoa Standard Time": "Pacific/Apia",	
-"Line Islands Standard Time": "Pacific/Kiritimati",	
+"Line Islands Standard Time": "Pacific/Kiritimati",
+"Z": "Etc/GMT"
 };

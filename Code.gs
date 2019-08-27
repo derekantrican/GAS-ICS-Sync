@@ -18,7 +18,8 @@
 */
 
 var targetCalendarName = "Full API TEST";           // The name of the Google Calendar you want to add events to
-var sourceCalendarURL = "";            // The ics/ical url that you want to get events from
+var sourceCalendarURLs = [""
+                         ];            // The ics/ical url that you want to get events from
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
@@ -60,7 +61,7 @@ function DeleteAllTriggers(){
 }
 
 var targetCalendarId;
-var response;
+var response = [];
 
 function parseTasks(){
   var taskLists = Tasks.Tasklists.list().items;
@@ -75,11 +76,14 @@ function parseTasks(){
   Logger.log("Saved " + existingTasksIds.length + " existing Task IDs");
   
   var icsTasksIds = [];
+  var vtasks = [];
   
-  var jcalData = ICAL.parse(response);
-  var component = new ICAL.Component(jcalData);
-  
-  var vtasks = component.getAllSubcomponents("vtodo");
+  for each (var resp in response){
+    var jcalData = ICAL.parse(resp);
+    var component = new ICAL.Component(jcalData);
+    
+    vtasks = [].concat(component.getAllSubcomponents("vtodo"), vtasks);
+  }
   vtasks.forEach(function(task){ icsTasksIds.push(task.getFirstPropertyValue('uid').toString()); });
   Logger.log("---Processing " + vtasks.length + " Tasks.");
   
@@ -113,17 +117,19 @@ function parseTasks(){
 
 function main(){
   //Get URL items
-  response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
+  for each (var url in sourceCalendarURLs){
+    var urlResponse = UrlFetchApp.fetch(url).getContentText();
+    //------------------------ Error checking ------------------------
+    if(urlResponse.includes("That calendar does not exist"))
+      throw "[ERROR] Incorrect ics/ical URL";
+    response.push(urlResponse);
+  }
+  Logger.log("Syncing " + response.length + " Calendars.");
   
   //Get target calendar information
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
   return cal.summary == targetCalendarName;
   })[0];
-  
-  
-  //------------------------ Error checking ------------------------
-  if(response.includes("That calendar does not exist"))
-    throw "[ERROR] Incorrect ics/ical URL";
   
   if(targetCalendar == null){
     Logger.log("Creating Calendar: " + targetCalendarName);
@@ -133,7 +139,6 @@ function main(){
     targetCalendar.timeZone = Calendar.Settings.get("timezone").value;
     targetCalendar = Calendar.Calendars.insert(targetCalendar);
  }
-  //targetCalendarId = targetCalendar.getId()
   targetCalendarId = targetCalendar.id;
   
   Logger.log("Working on calendar: " + targetCalendar.summary + ", ID: " + targetCalendarId)
@@ -156,20 +161,25 @@ function main(){
 
   //------------------------ Parse ics events --------------------------
   var icsEventIds=[];
+  var vevents = [];
   
   //Use ICAL.js to parse the data
-  var jcalData = ICAL.parse(response);
-  var component = new ICAL.Component(jcalData);
-  ICAL.helpers.updateTimezones(component);
-  var vtimezones = component.getAllSubcomponents("vtimezone");
-  for each (var tz in vtimezones){
-    ICAL.TimezoneService.register(tz);
+  for each (var resp in response){
+    var jcalData = ICAL.parse(resp);
+    var component = new ICAL.Component(jcalData);
+    ICAL.helpers.updateTimezones(component);
+    var vtimezones = component.getAllSubcomponents("vtimezone");
+    for each (var tz in vtimezones){
+      ICAL.TimezoneService.register(tz);
+    }
+    vevents = [].concat(component.getAllSubcomponents("vevent"), vevents);
   }
-  var vevents = component.getAllSubcomponents("vevent");
   vevents.forEach(function(event){ icsEventIds.push(event.getFirstPropertyValue('uid').toString()); });
   
   if (addEventsToCalendar || modifyExistingEvents){
     Logger.log("---Processing " + vevents.length + " Events.");
+    var calendarTz = Calendar.Settings.get("timezone").value;
+    
     for each (var event in vevents){
       vevent = new ICAL.Event(event);
       var requiredAction = "skip";
@@ -214,7 +224,7 @@ function main(){
             if (tzid in tzidreplace){
               tzid = tzidreplace[tzid];
             }else{
-              tzid = Calendar.Settings.get("timezone").value; 
+              tzid = calendarTz; 
             }
             Logger.log("Using Timezone " + tzid + "!");
           };
