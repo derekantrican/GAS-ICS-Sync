@@ -117,7 +117,9 @@ function main(){
   response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
   
   //Get target calendar information
-  var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
+  var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
+  return cal.summary == targetCalendarName;
+  })[0];
   
   
   //------------------------ Error checking ------------------------
@@ -126,12 +128,16 @@ function main(){
   
   if(targetCalendar == null){
     Logger.log("Creating Calendar: " + targetCalendarName);
-    targetCalendar = CalendarApp.createCalendar(targetCalendarName);
-    targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
-  }
-  targetCalendarId = targetCalendar.getId()
+    targetCalendar = Calendar.newCalendar();
+    targetCalendar.summary = targetCalendarName;
+    targetCalendar.description = "Created by GAS.";
+    targetCalendar.timeZone = Calendar.Calendars.get("primary").timeZone;
+    targetCalendar = Calendar.Calendars.insert(targetCalendar);
+ }
+  //targetCalendarId = targetCalendar.getId()
+  targetCalendarId = targetCalendar.id;
   
-  Logger.log("Working on calendar: " + targetCalendar.getName() + ", ID: " + targetCalendarId)
+  Logger.log("Working on calendar: " + targetCalendar.summary + ", ID: " + targetCalendarId)
   
   if (emailWhenAdded && email == "")
     throw "[ERROR] \"emailWhenAdded\" is set to true, but no email is defined";
@@ -209,7 +215,7 @@ function main(){
             if (tzid in tzidreplace){
               tzid = tzidreplace[tzid];
             }else{
-              tzid = CalendarApp.getTimeZone(); 
+              tzid = Calendar.Calendars.get("primary").timeZone; 
             }
             Logger.log("Using Timezone " + tzid + "!");
           };
