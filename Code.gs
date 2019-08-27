@@ -195,7 +195,7 @@ function main(){
       }
       
       if (requiredAction != "skip"){
-        var newEvent = new Event();
+        var newEvent = Calendar.newEvent();
         if(vevent.startDate.isDate){
           //All Day Event
           newEvent = {
