@@ -59,7 +59,6 @@ function DeleteAllTriggers(){
   }
 }
 
-var vtimezone;
 var targetCalendarId;
 var response;
 
@@ -131,7 +130,7 @@ function main(){
     targetCalendar = Calendar.newCalendar();
     targetCalendar.summary = targetCalendarName;
     targetCalendar.description = "Created by GAS.";
-    targetCalendar.timeZone = Calendar.Calendars.get("primary").timeZone;
+    targetCalendar.timeZone = Calendar.Settings.get("timezone").value;
     targetCalendar = Calendar.Calendars.insert(targetCalendar);
  }
   //targetCalendarId = targetCalendar.getId()
@@ -162,8 +161,8 @@ function main(){
   var jcalData = ICAL.parse(response);
   var component = new ICAL.Component(jcalData);
   ICAL.helpers.updateTimezones(component);
-  vtimezone = component.getAllSubcomponents("vtimezone");
-  for each (var tz in vtimezone){
+  var vtimezones = component.getAllSubcomponents("vtimezone");
+  for each (var tz in vtimezones){
     ICAL.TimezoneService.register(tz);
   }
   var vevents = component.getAllSubcomponents("vevent");
@@ -215,7 +214,7 @@ function main(){
             if (tzid in tzidreplace){
               tzid = tzidreplace[tzid];
             }else{
-              tzid = Calendar.Calendars.get("primary").timeZone; 
+              tzid = Calendar.Settings.get("timezone").value; 
             }
             Logger.log("Using Timezone " + tzid + "!");
           };
