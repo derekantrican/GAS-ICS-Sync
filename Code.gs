@@ -240,6 +240,14 @@ function main(){
           };
         }
         
+        newEvent.attendees = [];
+        for each (var att in vevent.attendees){
+          var name = ParseAttendeeName(att.toICALString());
+          var mail = ParseAttendeeMail(att.toICALString());
+          var resp = ParseAttendeeResp(att.toICALString());
+          newEvent.attendees.push({'displayName': name, 'email': mail, 'responseStatus': resp.toLowerCase()});
+        }
+        
         newEvent.summary = vevent.summary;
         if (addOrganizerToTitle){
           var organizer = ParseOrganizerName(event.toString());
@@ -270,23 +278,8 @@ function main(){
             };
           }
         }
-        var recurrenceRules = event.getAllProperties('rrule');
-        var recurrence = [];
-        if (recurrenceRules != null)
-          for each (var recRule in recurrenceRules){
-            recurrence.push("RRULE:" + recRule.getFirstValue().toString());
-          }
-        var exDatesRegex = RegExp("EXDATE(.*)", "g");
-        var exdates = event.toString().match(exDatesRegex);
-        if (exdates != null){
-          recurrence = recurrence.concat(exdates);
-        }
-        var rDatesRegex = RegExp("RDATE(.*)", "g");
-        var rdates = event.toString().match(rDatesRegex);
-        if (rdates != null){
-          recurrence = recurrence.concat(rdates);
-        }
-        newEvent.recurrence = recurrence;
+        
+        newEvent.recurrence = ParseRecurrenceRule(event);
         
         var retries = 0;
         do{
@@ -340,6 +333,50 @@ function main(){
   //----------------------------------------------------------------
   if (addTasks)
     parseTasks();
+}
+
+function ParseRecurrenceRule(vevent){
+  var recurrenceRules = vevent.getAllProperties('rrule');
+  var recurrence = [];
+  if (recurrenceRules != null)
+    for each (var recRule in recurrenceRules){
+      recurrence.push("RRULE:" + recRule.getFirstValue().toString());
+    }
+  var exDatesRegex = RegExp("EXDATE(.*)", "g");
+  var exdates = vevent.toString().match(exDatesRegex);
+  if (exdates != null){
+    recurrence = recurrence.concat(exdates);
+  }
+  var rDatesRegex = RegExp("RDATE(.*)", "g");
+  var rdates = vevent.toString().match(rDatesRegex);
+  if (rdates != null){
+    recurrence = recurrence.concat(rdates);
+  }
+  return recurrence;
+}
+
+function ParseAttendeeName(veventString){
+  var nameMatch = RegExp("(CN=)([^;$]*)(:MAILTO:)([^;$]*)", "g").exec(veventString);
+  if (nameMatch != null && nameMatch.length > 1)
+    return nameMatch[2];
+  else
+    return null;
+}
+
+function ParseAttendeeMail(veventString){
+  var mailMatch = RegExp("(CN=)([^;$]*)(:MAILTO:)([^;$]*)", "g").exec(veventString);
+  if (mailMatch != null && mailMatch.length > 1)
+    return mailMatch[4];
+  else
+    return null;
+}
+
+function ParseAttendeeResp(veventString){
+  var respMatch = RegExp("(PARTSTAT=)([^;$]*)", "g").exec(veventString);
+  if (respMatch != null && respMatch.length > 1)
+    return respMatch[2];
+  else
+    return null;
 }
 
 function ParseOrganizerName(veventString){
