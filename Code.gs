@@ -247,7 +247,10 @@ function main(){
           var resp = ParseAttendeeResp(att.toICALString());
           newEvent.attendees.push({'displayName': name, 'email': mail, 'responseStatus': resp.toLowerCase()});
         }
-        
+        if (event.hasProperty('status')){
+          newEvent.status = event.getFirstPropertyValue('status').toString().toLowerCase();
+        }
+        newEvent.sequence = vevent.sequence;
         newEvent.summary = vevent.summary;
         if (addOrganizerToTitle){
           var organizer = ParseOrganizerName(event.toString());
@@ -259,6 +262,12 @@ function main(){
         newEvent.iCalUID = vevent.uid;
         newEvent.description = vevent.description;
         newEvent.location = vevent.location;
+        if (event.hasProperty('class')){
+          newEvent.visibility = event.getFirstPropertyValue('class').toString().toLowerCase();
+        }
+        if (event.hasProperty('transp')){
+          newEvent.transparency = event.getFirstPropertyValue('transp').toString().toLowerCase();
+        }
         newEvent.reminders = {
           'useDefault': true
         };
