@@ -346,20 +346,17 @@ function main(){
 
 function ParseRecurrenceRule(vevent){
   var recurrenceRules = vevent.getAllProperties('rrule');
+  var exDates = vevent.getAllProperties('exdate');
+  var rDates = vevent.getAllProperties('rdate');
   var recurrence = [];
-  if (recurrenceRules != null)
-    for each (var recRule in recurrenceRules){
-      recurrence.push("RRULE:" + recRule.getFirstValue().toString());
-    }
-  var exDatesRegex = RegExp("EXDATE(.*)", "g");
-  var exdates = vevent.toString().match(exDatesRegex);
-  if (exdates != null){
-    recurrence = recurrence.concat(exdates);
+  for each (var recRule in recurrenceRules){
+    recurrence.push(recRule.toICALString());
   }
-  var rDatesRegex = RegExp("RDATE(.*)", "g");
-  var rdates = vevent.toString().match(rDatesRegex);
-  if (rdates != null){
-    recurrence = recurrence.concat(rdates);
+  for each (var exDate in exDates){
+    recurrence = recurrence.concat(exDate.toICALString());
+  }
+  for each (var rDate in rDates){
+    recurrence = recurrence.concat(rDate.toICALString());
   }
   return recurrence;
 }
