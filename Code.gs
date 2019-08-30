@@ -162,6 +162,7 @@ function main(){
   //------------------------ Parse ics events --------------------------
   var icsEventIds=[];
   var vevents = [];
+  var recurringEvents = [];
   
   //Use ICAL.js to parse the data
   for each (var resp in response){
@@ -190,6 +191,8 @@ function main(){
         calModDate = new Date(calendarEvents[index].updated);
         if (calendarEvents[index].status == "cancelled"){
           requiredAction = "update";
+        }else if (event.hasProperty('recurrence-id')){
+          requiredAction = 'update';
         }else if (icsModDate === null){
           //manually check if event changed
           if (eventChanged(event, vevent, calendarEvents[index])){
@@ -288,31 +291,38 @@ function main(){
           }
         }
         
-        newEvent.recurrence = ParseRecurrenceRule(event);
+        if (event.hasProperty('rrule') || event.hasProperty('rdate'))
+          newEvent.recurrence = ParseRecurrenceRule(event);
         
-        var retries = 0;
-        do{
-          Utilities.sleep(retries * 100);
-          switch (requiredAction){
-            case "insert":
-              Logger.log("Adding new Event " + newEvent.iCalUID);
-              try{
-                newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
-              }catch(error){
-                Logger.log("Error, Retrying..." + error );
-              }
-              break;
-            case "update":
-              Logger.log("Updating existing Event!");
-              try{
-              newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-              }catch(error){
-                Logger.log("Error, Retrying..." + error);
-              }
-              break;
-          }
-          retries++;
-        }while(retries < 5 && (typeof newEvent.etag === "undefined"))
+        if (event.hasProperty('recurrence-id')){
+          newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
+          Logger.log("--Saving Eventinstance for later");
+          recurringEvents.push(newEvent);
+        }else{
+          var retries = 0;
+          do{
+            Utilities.sleep(retries * 100);
+            switch (requiredAction){
+              case "insert":
+                Logger.log("Adding new Event " + newEvent.iCalUID);
+                try{
+                  newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
+                }catch(error){
+                  Logger.log("Error, Retrying..." + error );
+                }
+                break;
+              case "update":
+                Logger.log("Updating existing Event!");
+                try{
+                  newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+                }catch(error){
+                  Logger.log("Error, Retrying..." + error);
+                }
+                break;
+            }
+            retries++;
+          }while(retries < 5 && (typeof newEvent.etag === "undefined"))
+        }
       }else{
         //Skipping
         Logger.log("Event unchanged. No action required.")
@@ -342,6 +352,31 @@ function main(){
   //----------------------------------------------------------------
   if (addTasks)
     parseTasks();
+  //------Add Recurring Event Instances-----------
+  Logger.log("---Processing " + recurringEvents.length + " Recurrence Instances!");
+  for each (var recEvent in recurringEvents){
+    Logger.log("-----" + recEvent.recurringEventId.substring(0,10));
+    var addedEvents = Calendar.Events.list(targetCalendarId, {iCalUID: recEvent.iCalUID}).items;
+    if (addedEvents.length == 0){ //Initial Event has Recurrence-id
+      try{
+        Calendar.Events.insert(recEvent, targetCalendarId);
+      }catch(error){
+      }
+    }else{ //Find the instance we need to update
+      var instances = Calendar.Events.instances(targetCalendarId, addedEvents[0].id).items;
+      addedEvents = instances.filter(function(event){
+        var start = event.start.date || event.start.dateTime;
+        return start.includes(recEvent.recurringEventId.substring(0,10))
+      });
+      if (addedEvents.length > 0){
+        try{
+          Calendar.Events.patch(recEvent, targetCalendarId, addedEvents[0].id);
+        }catch(error){
+          Logger.log(error); 
+        }
+      }
+    }
+  }
 }
 
 function ParseRecurrenceRule(vevent){
