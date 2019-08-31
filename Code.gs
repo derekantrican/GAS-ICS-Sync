@@ -267,12 +267,32 @@ function ConvertToCustomEvent(vevent){
   if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
     
-  event.startTime = icalEvent.startDate.toJSDate();
-  
-  if (icalEvent.endDate == null)
-    event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
-  else
-    event.endTime = icalEvent.endDate.toJSDate();
+  if (icalEvent.startDate.tz == null || icalEvent.endDate.tz == null){
+    Logger.log("Floating Time detected");
+    var targetTZ = CalendarApp.getTimeZone();
+    Logger.log("Adding Event in " + targetTZ);
+    var utcTZ = ICAL.TimezoneService.get("UTC");
+    icalEvent.startDate = icalEvent.startDate.convertToZone(utcTZ);
+    icalEvent.endDate = icalEvent.endDate.convertToZone(utcTZ);
+    var jsTime = icalEvent.startDate.toJSDate();
+    var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+    var tgtTime = new Date(Utilities.formatDate(jsTime, targetTZ, "HH:mm:ss MM/dd/yyyy"));
+    var startTime = new Date(jsTime.getTime() - (tgtTime - utcTime));
+    event.startTime = startTime;
+    jsTime = icalEvent.endDate.toJSDate();
+    utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+    tgtTime = new Date(Utilities.formatDate(jsTime, targetTZ, "HH:mm:ss MM/dd/yyyy"));
+    var endTime = new Date(jsTime.getTime() - (tgtTime - utcTime));
+    event.endTime = endTime;
+  }else{
+    event.startTime = icalEvent.startDate.toJSDate();
+    if (icalEvent.endDate == null){
+      event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
+    }
+    else{
+      event.endTime = icalEvent.endDate.toJSDate();
+    }
+  }
   
   if (addAlerts){
     var valarms = vevent.getAllSubcomponents('valarm');
