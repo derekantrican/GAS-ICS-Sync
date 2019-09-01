@@ -267,7 +267,7 @@ function ConvertToCustomEvent(vevent){
   if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
     
-  if (icalEvent.startDate.tz == null || icalEvent.endDate.tz == null){
+  if (!event.isAllDay && (icalEvent.startDate.tz == null || icalEvent.endDate.tz == null)){
     Logger.log("Floating Time detected");
     var targetTZ = CalendarApp.getTimeZone();
     Logger.log("Adding Event in " + targetTZ);
