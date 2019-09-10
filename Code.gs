@@ -98,6 +98,8 @@ function DeleteAllTriggers(){
   }
 }
 
+var targetCalendar;
+
 function main(){
   CheckForUpdate();
 
@@ -105,7 +107,7 @@ function main(){
   var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
 
   //Get target calendar information
-  var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
+  targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
 
 
   //------------------------ Error checking ------------------------
@@ -266,10 +268,9 @@ function ConvertToCustomEvent(vevent){
   
   if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
-    
-  if (!event.isAllDay && (icalEvent.startDate.tz == null || icalEvent.endDate.tz == null)){
+  if (!event.isAllDay && (icalEvent.startDate.zone.tzid == "floating" || icalEvent.endDate.zone.tzid == "floating")){
     Logger.log("Floating Time detected");
-    var targetTZ = CalendarApp.getTimeZone();
+    var targetTZ = targetCalendar.getTimeZone();
     Logger.log("Adding Event in " + targetTZ);
     var utcTZ = ICAL.TimezoneService.get("UTC");
     icalEvent.startDate = icalEvent.startDate.convertToZone(utcTZ);
@@ -284,7 +285,8 @@ function ConvertToCustomEvent(vevent){
     tgtTime = new Date(Utilities.formatDate(jsTime, targetTZ, "HH:mm:ss MM/dd/yyyy"));
     var endTime = new Date(jsTime.getTime() - (tgtTime - utcTime));
     event.endTime = endTime;
-  }else{
+  }
+  else{
     event.startTime = icalEvent.startDate.toJSDate();
     if (icalEvent.endDate == null){
       event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
