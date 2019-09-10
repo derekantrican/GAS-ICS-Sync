@@ -115,9 +115,10 @@ function main(){
     throw "[ERROR] Incorrect ics/ical URL";
 
   if(targetCalendar == null){
-      Logger.log("Creating Calendar: " + targetCalendarName);
-      targetCalendar = CalendarApp.createCalendar(targetCalendarName);
-      targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
+    Logger.log("Creating Calendar: " + targetCalendarName);
+    targetCalendar = CalendarApp.createCalendar(targetCalendarName);
+    targetCalendar.setTimeZone(CalendarApp.getTimeZone());
+    targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
   }
 
   if (emailWhenAdded && email == "")
@@ -268,22 +269,25 @@ function ConvertToCustomEvent(vevent){
   
   if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
+  
   if (!event.isAllDay && (icalEvent.startDate.zone.tzid == "floating" || icalEvent.endDate.zone.tzid == "floating")){
     Logger.log("Floating Time detected");
     var targetTZ = targetCalendar.getTimeZone();
     Logger.log("Adding Event in " + targetTZ);
+    // Converting start/end timestamps to UTC
     var utcTZ = ICAL.TimezoneService.get("UTC");
     icalEvent.startDate = icalEvent.startDate.convertToZone(utcTZ);
     icalEvent.endDate = icalEvent.endDate.convertToZone(utcTZ);
     var jsTime = icalEvent.startDate.toJSDate();
+    // Calculate targetTZ's UTC-Offset
     var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
     var tgtTime = new Date(Utilities.formatDate(jsTime, targetTZ, "HH:mm:ss MM/dd/yyyy"));
-    var startTime = new Date(jsTime.getTime() - (tgtTime - utcTime));
+    var utcOffset = tgtTime - utcTime;
+    // Offset initial timestamps by UTC-Offset
+    var startTime = new Date(jsTime.getTime() - utcOffset);
     event.startTime = startTime;
     jsTime = icalEvent.endDate.toJSDate();
-    utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
-    tgtTime = new Date(Utilities.formatDate(jsTime, targetTZ, "HH:mm:ss MM/dd/yyyy"));
-    var endTime = new Date(jsTime.getTime() - (tgtTime - utcTime));
+    var endTime = new Date(jsTime.getTime() - utcOffset);
     event.endTime = endTime;
   }
   else{
