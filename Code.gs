@@ -19,7 +19,7 @@
 
 var targetCalendarName = "Full API TEST";           // The name of the Google Calendar you want to add events to
 var sourceCalendarURLs = [""
-                         ];            // The ics/ical url that you want to get events from
+                         ];            // The ics/ical urls that you want to get events from
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
@@ -30,6 +30,7 @@ var addOrganizerToTitle = false;       // Whether to prefix the event name with 
 var addTasks = false;
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
+var emailWhenModified = false;         // Will email you when an existing event is updated in your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
 //=====================================================================================================
@@ -63,72 +64,23 @@ function DeleteAllTriggers(){
 var targetCalendarId;
 var response = [];
 
-function parseTasks(){
-  var taskLists = Tasks.Tasklists.list().items;
-  var taskList = taskLists[0];
-  
-  var existingTasks = Tasks.Tasks.list(taskList.id).items || [];
-  var existingTasksIds = []
-  Logger.log("Grabbed " + existingTasks.length + " existing Tasks from " + taskList.title);
-  for (var i = 0; i < existingTasks.length; i++){
-    existingTasksIds[i] = existingTasks[i].id;
-  }
-  Logger.log("Saved " + existingTasksIds.length + " existing Task IDs");
-  
-  var icsTasksIds = [];
-  var vtasks = [];
-  
-  for each (var resp in response){
-    var jcalData = ICAL.parse(resp);
-    var component = new ICAL.Component(jcalData);
-    
-    vtasks = [].concat(component.getAllSubcomponents("vtodo"), vtasks);
-  }
-  vtasks.forEach(function(task){ icsTasksIds.push(task.getFirstPropertyValue('uid').toString()); });
-  Logger.log("---Processing " + vtasks.length + " Tasks.");
-  
-  for each (var task in vtasks){
-    var newtask = Tasks.newTask();
-    newtask.id = task.getFirstPropertyValue("uid").toString();
-    newtask.title = task.getFirstPropertyValue("summary").toString();
-    var d = task.getFirstPropertyValue("due").toJSDate();
-    newtask.due = (d.getFullYear()) + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2) + "T" + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2)+"Z";
-    Tasks.Tasks.insert(newtask, taskList.id);
-  };
-  Logger.log("---Done!");
-  
-  //-------------- Remove old Tasks -----------
-  // ID can't be used as identifier as the API reassignes a random id at task creation
-  if(removeEventsFromCalendar){
-    Logger.log("Checking " + existingTasksIds.length + " tasks for removal");
-    for (var i = 0; i < existingTasksIds.length; i++){
-      var currentID = existingTasks[i].id;
-      var feedIndex = icsTasksIds.indexOf(currentID);
-      
-      if(feedIndex  == -1){
-        Logger.log("Deleting old Task " + currentID);
-        Tasks.Tasks.remove(taskList.id, currentID);
-      }
-    }
-    Logger.log("---Done!");
-  }
-  //----------------------------------------------------------------
-}
-
 function main(){
   //Get URL items
   for each (var url in sourceCalendarURLs){
     var urlResponse = UrlFetchApp.fetch(url).getContentText();
     //------------------------ Error checking ------------------------
-    if(urlResponse.includes("That calendar does not exist"))
-      throw "[ERROR] Incorrect ics/ical URL";
-    response.push(urlResponse);
+    if(urlResponse.includes("That calendar does not exist")){
+      Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+    }
+    else{
+      response.push(urlResponse);
+    }
   }
   Logger.log("Syncing " + response.length + " Calendars.");
   
   //Get target calendar information
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
-  return cal.summary == targetCalendarName;
+    return cal.summary == targetCalendarName;
   })[0];
   
   if(targetCalendar == null){
@@ -191,19 +143,24 @@ function main(){
         calModDate = new Date(calendarEvents[index].updated);
         if (calendarEvents[index].status == "cancelled"){
           requiredAction = "update";
-        }else if (event.hasProperty('recurrence-id')){
+        }
+        else if (event.hasProperty('recurrence-id')){
           requiredAction = 'update';
-        }else if (icsModDate === null){
+        }
+        else if (icsModDate === null){
           //manually check if event changed
           if (eventChanged(event, vevent, calendarEvents[index])){
             requiredAction = "update";
           }
-        }else if (icsModDate > calModDate){
+        }
+        else if (icsModDate > calModDate){
           requiredAction = "update";
-        }else{
+        }
+        else{
           //skip
         }
-      }else{
+      }
+      else{
         requiredAction = "insert";
       }
       
@@ -219,14 +176,16 @@ function main(){
               date: vevent.endDate.toString()
             }
           };
-        }else{
+        }
+        else{
           //normal Event
           var tzid = vevent.startDate.timezone;
           if (tzids.indexOf(tzid) == -1){
             Logger.log("Timezone " + tzid + " unsupported!");
             if (tzid in tzidreplace){
               tzid = tzidreplace[tzid];
-            }else{
+            }
+            else{
               tzid = calendarTz; 
             }
             Logger.log("Using Timezone " + tzid + "!");
@@ -295,35 +254,51 @@ function main(){
           newEvent.recurrence = ParseRecurrenceRule(event);
         
         if (event.hasProperty('recurrence-id')){
+          
           newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
           Logger.log("--Saving Eventinstance for later");
           recurringEvents.push(newEvent);
-        }else{
+          
+        }
+        else{
+          
           var retries = 0;
           do{
             Utilities.sleep(retries * 100);
             switch (requiredAction){
               case "insert":
-                Logger.log("Adding new Event " + newEvent.iCalUID);
-                try{
-                  newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
-                }catch(error){
-                  Logger.log("Error, Retrying..." + error );
+                if (addEventsToCalendar){
+                  Logger.log("Adding new Event " + newEvent.iCalUID);
+                  try{
+                    newEvent = Calendar.Events.insert(newEvent, targetCalendarId);
+                    if (emailWhenAdded){
+                      GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + "\" at " + vevent.start.toString());
+                    }
+                  }catch(error){
+                    Logger.log("Error, Retrying..." + error );
+                  }
                 }
                 break;
               case "update":
-                Logger.log("Updating existing Event!");
-                try{
-                  newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-                }catch(error){
-                  Logger.log("Error, Retrying..." + error);
+                if (modifyExistingEvents){
+                  Logger.log("Updating existing Event!");
+                  try{
+                    newEvent = Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+                    if (emailWhenModified){
+                      GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + "\" at " + vevent.start.toString());
+                    }
+                  }catch(error){
+                    Logger.log("Error, Retrying..." + error);
+                  }
                 }
                 break;
             }
             retries++;
           }while(retries < 5 && (typeof newEvent.etag === "undefined"))
+          
         }
-      }else{
+      }
+      else{
         //Skipping
         Logger.log("Event unchanged. No action required.")
       }
@@ -471,6 +446,58 @@ function ParseNotificationTime(notificationString){
 
     return reminderTime; //Return the notification time in seconds
   }
+}
+
+function parseTasks(){
+  var taskLists = Tasks.Tasklists.list().items;
+  var taskList = taskLists[0];
+  
+  var existingTasks = Tasks.Tasks.list(taskList.id).items || [];
+  var existingTasksIds = []
+  Logger.log("Grabbed " + existingTasks.length + " existing Tasks from " + taskList.title);
+  for (var i = 0; i < existingTasks.length; i++){
+    existingTasksIds[i] = existingTasks[i].id;
+  }
+  Logger.log("Saved " + existingTasksIds.length + " existing Task IDs");
+  
+  var icsTasksIds = [];
+  var vtasks = [];
+  
+  for each (var resp in response){
+    var jcalData = ICAL.parse(resp);
+    var component = new ICAL.Component(jcalData);
+    
+    vtasks = [].concat(component.getAllSubcomponents("vtodo"), vtasks);
+  }
+  vtasks.forEach(function(task){ icsTasksIds.push(task.getFirstPropertyValue('uid').toString()); });
+  Logger.log("---Processing " + vtasks.length + " Tasks.");
+  
+  for each (var task in vtasks){
+    var newtask = Tasks.newTask();
+    newtask.id = task.getFirstPropertyValue("uid").toString();
+    newtask.title = task.getFirstPropertyValue("summary").toString();
+    var d = task.getFirstPropertyValue("due").toJSDate();
+    newtask.due = (d.getFullYear()) + "-" + ("0"+(d.getMonth()+1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2) + "T" + ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2) + ":" + ("0" + d.getSeconds()).slice(-2)+"Z";
+    Tasks.Tasks.insert(newtask, taskList.id);
+  };
+  Logger.log("---Done!");
+  
+  //-------------- Remove old Tasks -----------
+  // ID can't be used as identifier as the API reassignes a random id at task creation
+  if(removeEventsFromCalendar){
+    Logger.log("Checking " + existingTasksIds.length + " tasks for removal");
+    for (var i = 0; i < existingTasksIds.length; i++){
+      var currentID = existingTasks[i].id;
+      var feedIndex = icsTasksIds.indexOf(currentID);
+      
+      if(feedIndex  == -1){
+        Logger.log("Deleting old Task " + currentID);
+        Tasks.Tasks.remove(taskList.id, currentID);
+      }
+    }
+    Logger.log("---Done!");
+  }
+  //----------------------------------------------------------------
 }
 
 function eventChanged(event, icsEvent, calEvent){
