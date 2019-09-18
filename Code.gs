@@ -153,7 +153,7 @@ function main(){
             requiredAction = "update";
           }
         }
-        else if (icsModDate > calModDate){
+        else if (new Date(icsModDate) > calModDate){
           requiredAction = "update";
         }
         else{
