@@ -9,6 +9,8 @@ This is a standalone script (that consists of multiple files). The purpose is to
 ### Questions? Comments? Anything else?
 [Join the Discord!](https://discord.gg/DRBpb4k)
 
+![Discord](https://img.shields.io/discord/612735135120490496)
+
 ----------------
 
 ### Contributing
