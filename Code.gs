@@ -19,7 +19,7 @@
 
 var targetCalendarName = "Full API TEST";           // The name of the Google Calendar you want to add events to
 var sourceCalendarURLs = [""
-                         ];            // The ics/ical urls that you want to get events from
+                         ];            // The ics/ical urls that you want to get events from ["url","url","url"]
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
@@ -27,6 +27,7 @@ var modifyExistingEvents = true;       // If you turn this to "false", any event
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
+var addCalToTitle = true;              // Whether to add the source calendar to title
 var addTasks = false;
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
@@ -125,7 +126,11 @@ function main(){
     for each (var tz in vtimezones){
       ICAL.TimezoneService.register(tz);
     }
-    vevents = [].concat(component.getAllSubcomponents("vevent"), vevents);
+    
+    var allevents = component.getAllSubcomponents("vevent");
+    var calName = component.getFirstPropertyValue("name");
+    if (calName != null) allevents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
+    vevents = [].concat(allevents, vevents);
   }
   vevents.forEach(function(event){ icsEventIds.push(event.getFirstPropertyValue('uid').toString()); });
   
@@ -219,6 +224,13 @@ function main(){
           
           if (organizer != null)
             newEvent.summary = organizer + ": " + vevent.summary;
+        }
+        
+        if (addCalToTitle && event.hasProperty('parentCal')){
+          var calName = event.getFirstPropertyValue('parentCal');
+          
+          if (calName != null)
+            newEvent.summary = calName + ": " + vevent.summary;
         }
         
         newEvent.iCalUID = vevent.uid;
