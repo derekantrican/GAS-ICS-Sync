@@ -98,6 +98,8 @@ function DeleteAllTriggers(){
   }
 }
 
+var targetCalendar;
+
 function main(){
   CheckForUpdate();
 
@@ -105,7 +107,7 @@ function main(){
   var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
 
   //Get target calendar information
-  var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
+  targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
 
 
   //------------------------ Error checking ------------------------
@@ -113,9 +115,10 @@ function main(){
     throw "[ERROR] Incorrect ics/ical URL";
 
   if(targetCalendar == null){
-      Logger.log("Creating Calendar: " + targetCalendarName);
-      targetCalendar = CalendarApp.createCalendar(targetCalendarName);
-      targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
+    Logger.log("Creating Calendar: " + targetCalendarName);
+    targetCalendar = CalendarApp.createCalendar(targetCalendarName);
+    targetCalendar.setTimeZone(CalendarApp.getTimeZone());
+    targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
   }
 
   if (emailWhenAdded && email == "")
@@ -266,13 +269,36 @@ function ConvertToCustomEvent(vevent){
   
   if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
-    
-  event.startTime = icalEvent.startDate.toJSDate();
   
-  if (icalEvent.endDate == null)
-    event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
-  else
-    event.endTime = icalEvent.endDate.toJSDate();
+  if (!event.isAllDay && (icalEvent.startDate.zone.tzid == "floating" || icalEvent.endDate.zone.tzid == "floating")){
+    Logger.log("Floating Time detected");
+    var targetTZ = targetCalendar.getTimeZone();
+    Logger.log("Adding Event in " + targetTZ);
+    // Converting start/end timestamps to UTC
+    var utcTZ = ICAL.TimezoneService.get("UTC");
+    icalEvent.startDate = icalEvent.startDate.convertToZone(utcTZ);
+    icalEvent.endDate = icalEvent.endDate.convertToZone(utcTZ);
+    var jsTime = icalEvent.startDate.toJSDate();
+    // Calculate targetTZ's UTC-Offset
+    var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+    var tgtTime = new Date(Utilities.formatDate(jsTime, targetTZ, "HH:mm:ss MM/dd/yyyy"));
+    var utcOffset = tgtTime - utcTime;
+    // Offset initial timestamps by UTC-Offset
+    var startTime = new Date(jsTime.getTime() - utcOffset);
+    event.startTime = startTime;
+    jsTime = icalEvent.endDate.toJSDate();
+    var endTime = new Date(jsTime.getTime() - utcOffset);
+    event.endTime = endTime;
+  }
+  else{
+    event.startTime = icalEvent.startDate.toJSDate();
+    if (icalEvent.endDate == null){
+      event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
+    }
+    else{
+      event.endTime = icalEvent.endDate.toJSDate();
+    }
+  }
   
   if (addAlerts){
     var valarms = vevent.getAllSubcomponents('valarm');
