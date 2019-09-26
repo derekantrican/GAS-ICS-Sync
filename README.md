@@ -5,7 +5,7 @@ This script is a rework of <a href="https://github.com/derekantrican/GAS-ICS-Syn
 
 <ul>Additional features:
   <li><ul>Multicalendar support, merge multiple ical calendars to a single google calendar
-    <li>Option to at sourcecalendar name to event title (if available)</li>
+    <li>Option to add sourcecalendar name to event title (if available)</li>
     </ul></li>
   <li>Support of VTODO-Elements</li>
   <li><ul>Full Recurrence support
