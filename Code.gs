@@ -262,8 +262,14 @@ function main(){
           }
         }
         
-        if (event.hasProperty('rrule') || event.hasProperty('rdate'))
-          newEvent.recurrence = ParseRecurrenceRule(event);
+        if (event.hasProperty('rrule') || event.hasProperty('rdate')){
+          // Calculate targetTZ's UTC-Offset
+          var jsTime = new Date();
+          var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+          var tgtTime = new Date(Utilities.formatDate(jsTime, calendarTz, "HH:mm:ss MM/dd/yyyy"));
+          calendarUTCOffset = tgtTime - utcTime;
+          newEvent.recurrence = ParseRecurrenceRule(event, calendarUTCOffset);
+        }
         
         if (event.hasProperty('recurrence-id')){
           
@@ -366,13 +372,21 @@ function main(){
   }
 }
 
-function ParseRecurrenceRule(vevent){
+function ParseRecurrenceRule(vevent, utcOffset){
   var recurrenceRules = vevent.getAllProperties('rrule');
   var exDates = vevent.getAllProperties('exdate');
   var rDates = vevent.getAllProperties('rdate');
   var recurrence = [];
   for each (var recRule in recurrenceRules){
-    recurrence.push(recRule.toICALString());
+    var recIcal = recRule.toICALString();
+    var adjustedTime;
+    var untilMatch = RegExp("(.*)(UNTIL=)(\\d\\d\\d\\d)(\\d\\d)(\\d\\d)T(\\d\\d)(\\d\\d)(\\d\\d)(;.*|\\b)", "g").exec(recIcal);
+    if (untilMatch != null) {
+      adjustedTime = new Date(Date.UTC(parseInt(untilMatch[3],10),parseInt(untilMatch[4], 10)-1,parseInt(untilMatch[5],10), parseInt(untilMatch[6],10), parseInt(untilMatch[7],10), parseInt(untilMatch[8],10)));
+      adjustedTime = (Utilities.formatDate(new Date(adjustedTime - utcOffset), "etc/GMT", "YYYYMMdd'T'HHmmss'Z'"));
+      recIcal = untilMatch[1] + untilMatch[2] + adjustedTime + untilMatch[9];
+    }
+    recurrence.push(recIcal);
   }
   for each (var exDate in exDates){
     recurrence = recurrence.concat(exDate.toICALString());
