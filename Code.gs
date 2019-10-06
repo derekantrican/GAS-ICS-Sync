@@ -26,7 +26,6 @@ var removeEventsFromCalendar = true;   // If you turn this to "true", any event 
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
 var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
-var defaultDuration = 60;              // Default duration (in minutes) in case the event is missing an end specification in the ICS/ICAL file
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
@@ -270,6 +269,11 @@ function ConvertToCustomEvent(vevent){
   if (icalEvent.startDate.isDate && icalEvent.endDate.isDate)
     event.isAllDay = true;
   
+  if (icalEvent.startDate.compare(icalEvent.endDate) == 0 && event.isAllDay){
+    //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
+    icalEvent.endDate = icalEvent.endDate.adjust(1,0,0,0);
+  }
+  
   if (!event.isAllDay && (icalEvent.startDate.zone.tzid == "floating" || icalEvent.endDate.zone.tzid == "floating")){
     Logger.log("Floating Time detected");
     var targetTZ = targetCalendar.getTimeZone();
@@ -292,12 +296,7 @@ function ConvertToCustomEvent(vevent){
   }
   else{
     event.startTime = icalEvent.startDate.toJSDate();
-    if (icalEvent.endDate == null){
-      event.endTime = new Date(event.startTime.getTime() + defaultDuration * 60 * 1000);
-    }
-    else{
-      event.endTime = icalEvent.endDate.toJSDate();
-    }
+    event.endTime = icalEvent.endDate.toJSDate();
   }
   
   if (addAlerts){
