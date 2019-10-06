@@ -27,7 +27,7 @@ var modifyExistingEvents = true;       // If you turn this to "false", any event
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
-var addCalToTitle = true;              // Whether to add the source calendar to title
+var addCalToTitle = true;             // Whether to add the source calendar to title
 var addTasks = false;
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
@@ -68,13 +68,18 @@ var response = [];
 function main(){
   //Get URL items
   for each (var url in sourceCalendarURLs){
-    var urlResponse = UrlFetchApp.fetch(url).getContentText();
-    //------------------------ Error checking ------------------------
-    if(urlResponse.includes("That calendar does not exist")){
-      Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+    try{
+      var urlResponse = UrlFetchApp.fetch(url).getContentText();
+      //------------------------ Error checking ------------------------
+      if(!urlResponse.includes("BEGIN:VCALENDAR")){
+        Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+      }
+      else{
+        response.push(urlResponse);
+      }
     }
-    else{
-      response.push(urlResponse);
+    catch (e){
+      Logger.log(e);
     }
   }
   Logger.log("Syncing " + response.length + " Calendars.");
@@ -129,7 +134,8 @@ function main(){
     
     var allevents = component.getAllSubcomponents("vevent");
     var calName = component.getFirstPropertyValue("name");
-    if (calName != null) allevents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
+    if (calName != null)
+      allevents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
     vevents = [].concat(allevents, vevents);
   }
   vevents.forEach(function(event){ icsEventIds.push(event.getFirstPropertyValue('uid').toString()); });
@@ -137,6 +143,7 @@ function main(){
   if (addEventsToCalendar || modifyExistingEvents){
     Logger.log("---Processing " + vevents.length + " Events.");
     var calendarTz = Calendar.Settings.get("timezone").value;
+    var calendarUTCOffset = 0;
     
     for each (var event in vevents){
       vevent = new ICAL.Event(event);
@@ -173,6 +180,10 @@ function main(){
         var newEvent = Calendar.newEvent();
         if(vevent.startDate.isDate){
           //All Day Event
+          if (vevent.startDate.compare(vevent.endDate) == 0){
+            //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
+            vevent.endDate = vevent.endDate.adjust(1,0,0,0);
+          }
           newEvent = {
             start: {
               date: vevent.startDate.toString()
@@ -191,7 +202,8 @@ function main(){
               tzid = tzidreplace[tzid];
             }
             else{
-              tzid = calendarTz; 
+              //floating time
+              tzid = calendarTz;
             }
             Logger.log("Using Timezone " + tzid + "!");
           };
@@ -228,9 +240,7 @@ function main(){
         
         if (addCalToTitle && event.hasProperty('parentCal')){
           var calName = event.getFirstPropertyValue('parentCal');
-          
-          if (calName != null)
-            newEvent.summary = calName + ": " + vevent.summary;
+          newEvent.summary = calName + ": " + vevent.summary;
         }
         
         newEvent.iCalUID = vevent.uid;
@@ -272,11 +282,9 @@ function main(){
         }
         
         if (event.hasProperty('recurrence-id')){
-          
           newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
-          Logger.log("--Saving Eventinstance for later");
+          Logger.log("--Saving event instance for later");
           recurringEvents.push(newEvent);
-          
         }
         else{
           
