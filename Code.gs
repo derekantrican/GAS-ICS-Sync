@@ -371,7 +371,7 @@ function CheckForUpdate(){
   var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   if (alreadyAlerted == null){
     try{
-      var thisVersion = 3.0;
+      var thisVersion = 4.0;
       var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
       var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
       var latestRelease = regex.exec(html)[0];
