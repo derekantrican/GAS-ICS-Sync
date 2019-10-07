@@ -16,10 +16,21 @@
 *=========================================
 */
 
-var targetCalendarName = "";           // The name of the Google Calendar you want to add events to
-var sourceCalendarURL = "";            // The ics/ical url that you want to get events from
+// sourceCalendars contains a named list of URLs for example:
+//var sourceCalendars={
+//  CalTarget1 :            // The name of the Google Calendar you want to add events to
+//    ['URL1'],                // One or more ics/ical url that you want to get events from
+//  CalTarget2 :            // The name of the Google Calendar you want to add events to
+//    ['URL2',                 // One or more ics/ical url that you want to get events from
+//    'URL3']                  // One or more ics/ical url that you want to get events from
+//}
+var sourceCalendars={
+  TargetCalendar :
+    ['']
+}
 
-var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
+var timeout = 275;                     // How long should the script run for
+var howFrequent = 4*60;                // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
@@ -95,155 +106,223 @@ function Uninstall(){
 function Start(){
   CheckForUpdate();
   DeleteAllTriggers("Loop");
-  Reset()
+  Reset();
+  ScriptApp.newTrigger("main").timeBased().everyMinutes(5).create();
 }
 
 function Reset(){
+  saveProp('iCAL',0);
+  saveProp('iURL',0);
+  saveProp('iEVT',0);
+  saveProp('StartUpdate',GetTime(new Date()));
 }
 
 
 function Loop(){
 
-  //Get URL items
-  var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
-
-  //Get target calendar information
-  var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
-
-
   //------------------------ Error checking ------------------------
-  if(response.includes("That calendar does not exist"))
-    throw "[ERROR] Incorrect ics/ical URL";
-
-  if(targetCalendar == null){
-    Logger.log("Creating Calendar: " + targetCalendarName);
-    targetCalendar = CalendarApp.createCalendar(targetCalendarName);
-    targetCalendar.setTimeZone(CalendarApp.getTimeZone());
-    targetCalendar.setSelected(true); //Sets the calendar as "shown" in the Google Calendar UI
-  }
-
   if (emailWhenAdded && email == "")
     throw "[ERROR] \"emailWhenAdded\" is set to true, but no email is defined";
   //----------------------------------------------------------------
 
-  //------------------------ Parse events --------------------------
-  var feedEventIds=[];
+  //Start time counter
+  var TIC = new Date();
 
-  //Use ICAL.js to parse the data
-  var jcalData = ICAL.parse(response);
-  var component = new ICAL.Component(jcalData);
-  var vtimezones = component.getAllSubcomponents("vtimezone");
-  for each (var tz in vtimezones)
-    ICAL.TimezoneService.register(tz);
+  //Retrieve initial counters
+  var iCAL = Number(loadProp('iCAL'));
+  var iURL = Number(loadProp('iURL'));
+  var iEVT = Number(loadProp('iEVT'));
+  LogIt("Current indexes: iCAL "+iCAL+"  iURL "+iURL+"  iEVT "+iEVT);
 
-  //Map the vevents into custom event objects
-  var events = component.getAllSubcomponents("vevent").map(ConvertToCustomEvent);
-  events.forEach(function(event){ feedEventIds.push(event.id); }); //Populate the list of feedEventIds
-  //----------------------------------------------------------------
+  //Retreve milliseconds from 1970 of StartUpdate
+  var StartUpdate = loadProp('StartUpdate');
 
-  //------------------------ Check results -------------------------
-  Logger.log("# of events: " + events.length);
-  for each (var event in events){
-    Logger.log("Title: " + event.title);
-    Logger.log("Id: " + event.id);
-    Logger.log("Description: " + event.description);
-    Logger.log("Start: " + event.startTime);
-    Logger.log("End: " + event.endTime);
+  //Retrieve all target calendar names
+  var targetCalendarNames = Object.keys(sourceCalendars);
+  for (; iCAL < targetCalendarNames.length; iCAL++){
+    var targetCalendarName = targetCalendarNames[iCAL];
+    var sourceCalendarURLs = sourceCalendars[targetCalendarName];
 
-    for each (var reminder in event.reminderTimes)
-      Logger.log("Reminder: " + reminder + " seconds before");
-
-    Logger.log("");
-  }
-  //----------------------------------------------------------------
-
-  if(addEventsToCalendar || removeEventsFromCalendar){
-    var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
-    var calendarFids = []
-    for (var i = 0; i < calendarEvents.length; i++)
-      calendarFids[i] = calendarEvents[i].getTag("FID");
-  }
-
-  //------------------------ Add events to calendar ----------------
-  if (addEventsToCalendar){
-    Logger.log("Checking " + events.length + " Events for creation")
-    for each (var event in events){
-      if (calendarFids.indexOf(event.id) == -1){
-        var resultEvent;
-        if (event.isAllDay){
-          resultEvent = targetCalendar.createAllDayEvent(event.title,
-                                                         event.startTime,
-                                                         event.endTime,
-                                                         {
-                                                           location : event.location,
-                                                           description : event.description
-                                                         });
-        }
-        else{
-          resultEvent = targetCalendar.createEvent(event.title,
-                                                   event.startTime,
-                                                   event.endTime,
-                                                   {
-                                                     location : event.location,
-                                                     description : event.description
-                                                   });
-        }
-
-        resultEvent.setTag("FID", event.id);
-        Logger.log("   Created: " + event.id);
-
-        for each (var reminder in event.reminderTimes)
-          resultEvent.addPopupReminder(reminder / 60);
-
-        if (emailWhenAdded)
-          GmailApp.sendEmail(email, "New Event Added", "New event added to calendar \"" + targetCalendarName + "\" at " + event.startTime);
-      }
+    //Get target calendar information
+    var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
+    if (targetCalendar == null){
+      LogIt("Creating Calendar: " + targetCalendarName);
+      targetCalendar = CalendarApp.createCalendar(targetCalendarName);
+      targetCalendar.setTimeZone(CalendarApp.getTimeZone());
+      targetCalendar.setSelected(false); //Sets the calendar as "hidden" in the Google Calendar UI
     }
-  }
-  //----------------------------------------------------------------
 
-
-
-  //-------------- Remove Or modify events from calendar -----------
-  Logger.log("Checking " + calendarEvents.length + " events for removal or modification");
-  for (var i = 0; i < calendarEvents.length; i++){
-    var tagValue = calendarEvents[i].getTag("FID");
-    var feedIndex = feedEventIds.indexOf(tagValue);
-
-    if(removeEventsFromCalendar){
-      if(feedIndex  == -1 && tagValue != null){
-        Logger.log("    Deleting " + calendarEvents[i].getTitle());
-        calendarEvents[i].deleteEvent();
+    if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar ){
+      LogIt("Loading Calendar: " + targetCalendarName);
+      var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ));
+      LogIt("         -> " + calendarEvents.length);
+      var calendarFids = [];
+      for (var i = 0; i < calendarEvents.length; i++){
+        calendarFids[i] = calendarEvents[i].getTag("FID");
       }
     }
 
-    if(modifyExistingEvents){
-      if(feedIndex != -1){
-        var e = calendarEvents[i];
-        var fes = events.filter(sameEvent, calendarEvents[i].getTag("FID"));
+    //------------------------ Parse events --------------------------
+    for ( ; iURL < sourceCalendarURLs.length; iURL++) {
+      var sourceCalendarURL = sourceCalendarURLs[iURL];
+      LogIt("URL: " + sourceCalendarURL);
 
-        if(fes.length > 0){
-          var fe = fes[0];
+      //Get URL items
+      var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
 
-          if(e.getStartTime().getTime() != fe.startTime.getTime() ||
-            e.getEndTime().getTime() != fe.endTime.getTime()){
-            if (fe.isAllDay)
-              e.setAllDayDates(fe.startTime, fe.endTime);
-            else
-              e.setTime(fe.startTime, fe.endTime);
+      //------------------------ Error checking ------------------------
+      if(response.includes("That calendar does not exist")) throw "[ERROR] Incorrect ics/ical URL";
+
+      //Use ICAL.js to parse the data
+      var jcalData = ICAL.parse(response);
+      var component = new ICAL.Component(jcalData);
+      for each (var VTZ in component.getAllSubcomponents("vtimezone")){
+        if (VTZ != null){
+          ICAL.TimezoneService.register(VTZ);
+        }
+      }
+
+      //Extract all vevents
+      var events_ = component.getAllSubcomponents("vevent");
+      LogIt("         -> " + events_.length);
+
+      //Loop through all vevents
+      for ( ; iEVT < events_.length; iEVT++) {
+
+        //Convert the vevent into custom event object
+        var event = ConvertToCustomEvent(events_[iEVT]);
+
+        //Look for existing event
+        var calendarIndex = calendarFids.indexOf(event.id);
+
+        if (calendarIndex == -1){
+          //------------------------ Add events to calendar ----------------
+          if (addEventsToCalendar) {
+            //          Logger.log("Checking calendar #" + i + " event #" + j + " for creation");
+            LogIt("    Creating: " + iEVT + "  -  " + event.title + "  @  " + event.startTime);
+
+            var resultEvent = CreateEvent(targetCalendar,event);
+
+            if(removeEventsFromCalendar){
+              //Update status tag
+              resultEvent.setTag("Status",StartUpdate);
+            }
+
+            if (emailWhenAdded) {
+              GmailApp.sendEmail(email, "New Event Added", "New event added to calendar \"" + targetCalendarName + "\" at " + event.startTime);
+            }
           }
-          if(e.getTitle() != fe.title)
-            e.setTitle(fe.title);
-          if(e.getLocation() != fe.location)
-            e.setLocation(fe.location)
-          if(e.getDescription() != fe.description)
-            e.setDescription(fe.description)
-
+          //----------------------------------------------------------------
         }
+        else {
+
+          //-------------- Modify events from calendar -----------
+          if(modifyExistingEvents){
+            var e = calendarEvents[calendarIndex];
+            LogIt("    Modifying: " + iEVT + "  -  " + event.title + "  @  " + event.startTime);
+            // **** BUG when type changes from allday to normal ****
+            if(e.isAllDayEvent() != event.isAllDay){
+              LogIt("        Changing event type");
+              e.deleteEvent();
+              calendarEvents[calendarIndex] = CreateEvent(targetCalendar,event);
+              e = calendarEvents[calendarIndex];
+            }
+            if(e.getStartTime().getTime() != event.startTime.getTime() ||
+              e.getEndTime().getTime() != event.endTime.getTime()) {
+                e.setTime(event.startTime, event.endTime)
+              }
+            if(e.getTitle() != event.title) {
+              e.setTitle(event.title);
+            }
+            if(e.getLocation() != event.location){
+              e.setLocation(event.location)
+            }
+            if(e.getDescription() != event.description) {
+              e.setDescription(event.description)
+            }
+            e.removeAllReminders();
+            if (addAlerts){
+              for each (var reminder in event.reminderTimes) {
+                e.addPopupReminder(reminder / 60);
+              }
+            }
+          }
+
+          if(removeEventsFromCalendar){
+            //Update status tag
+            e.setTag("Status",StartUpdate);
+          }
+
+        }//------ End of if (calendarIndex == -1) --------
+
+
+        //------------------------ Check results -------------------------
+        Logger.log("Title: " + event.title);
+        Logger.log("Id: " + event.id);
+        Logger.log("Description: " + event.description);
+        Logger.log("Start: " + event.startTime);
+        Logger.log("End: " + event.endTime);
+        for each (var reminder in event.reminderTimes) {
+          Logger.log("Reminder: " + reminder + " seconds before");
+        }
+        Logger.log("");
+        //----------------------------------------------------------------
+
+
+        //------- Checks current time and stops it if overtime --------
+        //Stops time counter
+        var TOC = new Date();
+        if ( timeout * 1000 < Number(TOC)-Number(TIC) ) {
+          LogIt("    Overtime : reaching time limit");
+          //Update the CAL index
+          saveProp('iCAL',iCAL);
+          //Update the URL index
+          saveProp('iURL',iURL);
+          //Update the EVT index
+          saveProp('iEVT',iEVT+1);
+          return;
+        }
+        //----------------------------------------------------------------
+
+      } //------------ END OF FOR LOOP EVTS -----------------------
+
+      if (iURL<sourceCalendarURLs.length-1) { //Reset iEVT counter for next URL
+        //Reinitialise the EVT index
+        iEVT = 0;
       }
+      else {
+        //Update the URL index
+        saveProp('iURL',++iURL);
+      }
+
+    } //------------ END OF FOR LOOP URLS -----------------------
+
+
+    //-------------- Remove events from calendar -----------
+    if(removeEventsFromCalendar){
+      for ( var iDEL = 0 ; iDEL < calendarEvents.length; iDEL++){
+        var e = calendarEvents[iDEL];
+        if (GetTime(e.getLastUpdated())<StartUpdate){
+          LogIt("    Deleting " + iDEL + "  -  " + e.getTitle());
+          calendarEvents[iDEL].deleteEvent();
+        }
+
+        //------- Checks current time and stops it if overtime --------
+        //Stops time counter
+        var TOC = new Date();
+        if ( timeout * 1000 < Number(TOC)-Number(TIC) ) {
+          Logger.log("    Overtime : reaching time limit");
+          //Update the CAL index
+          saveProp('iCAL',iCAL);
+          return;
+        }
+      } //------------ END OF FOR LOOP DEL EVENTS -----------------------
     }
-  }
-  //----------------------------------------------------------------
+  } //------------ END OF FOR LOOP TARGET CALENDAR -----------------------
+
+  LogIt(" FINISHED - CLEANING UP ");
+  DeleteAllTriggers("main");
+  Reset();
 
 }
 

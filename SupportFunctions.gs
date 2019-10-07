@@ -3,13 +3,52 @@ String.prototype.includes = function(phrase){
 }
 
 
-function DeleteAllTriggers(){
+function LogIt(txt){
+  Logger.log(txt);
+  console.info(txt);
+}
+
+function DeleteAllTriggers(fcn){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "main"){
+    if (triggers[i].getHandlerFunction() == fcn){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
+}
+
+function GetTime(dt){
+  return Math.floor(dt.getTime()/1000);
+}
+
+function CreateEvent(targetCalendar,event){
+  var resultEvent;
+  if (event.isAllDay){
+    resultEvent = targetCalendar.createAllDayEvent(event.title,
+                                                   event.startTime,
+                                                   event.endTime,
+                                                   {
+                                                     location : event.location,
+                                                     description : event.description
+                                                   });
+  } else {
+    resultEvent = targetCalendar.createEvent(event.title,
+                                             event.startTime,
+                                             event.endTime,
+                                             {
+                                               location : event.location,
+                                               description : event.description
+                                             });
+  }
+
+  resultEvent.setTag("FID", event.id);
+
+  if (addAlerts) {
+    for each (var reminder in event.reminderTimes) {
+      resultEvent.addPopupReminder(reminder / 60);
+    }
+  }
+  return resultEvent;
 }
 
 
@@ -133,4 +172,20 @@ function ParseNotificationTime(notificationString){
 
 function sameEvent(x){
   return x.id == this;
+}
+
+
+var PropService = PropertiesService.getScriptProperties();
+function saveProp(name,value) {
+  PropertiesService.getScriptProperties().setProperty(name, value);
+}
+function loadProp(name) {
+  return PropertiesService.getScriptProperties().getProperty(name);
+}
+
+function saveArray(name,array) {
+  saveProp(name,JSON.stringify(array));
+}
+function loadArray(name) {
+  return JSON.parse(loadProp(name));
 }
