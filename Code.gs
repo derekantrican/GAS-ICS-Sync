@@ -33,6 +33,7 @@ var ignoreTitles = [/Stay at/];                  // List of regex patterns that 
 
 var timeout = 275;                     // How long should the script run for
 var howFrequent = 4*60;                // What interval (minutes) to run this script on to check for new events
+var onlyFuture = false;                // If you turn this to "false", all events (past as well as future will be copied over)
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
@@ -194,6 +195,11 @@ function Loop(){
 
           //Convert the vevent into custom event object
           var event = ConvertToCustomEvent(events_[iEVT]);
+
+          //Check for only future events
+          if ( onlyFuture && GetTime(event.startTime)<StartUpdate) {
+            continue;
+          }
 
           //Check if title contains one of the regex
           var exiting = false;
