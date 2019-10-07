@@ -358,7 +358,7 @@ function Loop(){
 function CheckForUpdate(){
   var thisVersion = 4.0;
   var alreadyAlerted = loadProp("alertedForNewVersion");
-  if ((alreadyAlerted == null) || alreadyAlerted<thisVersion){
+  if ( (alreadyAlerted == null) || (alreadyAlerted < thisVersion) ){
     try{
       var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
       var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
@@ -369,9 +369,8 @@ function CheckForUpdate(){
       if (latestVersion > thisVersion){
         if (email != ""){
           GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
-
-          saveProp("alertedForNewVersion", thisVersion);
         }
+        saveProp("alertedForNewVersion", thisVersion);
       }
     }
     catch(e){}
