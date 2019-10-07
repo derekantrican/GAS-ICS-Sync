@@ -110,7 +110,7 @@ function Start(){
   CheckForUpdate();
   DeleteAllTriggers("Loop");
   Reset();
-  ScriptApp.newTrigger("main").timeBased().everyMinutes(5).create();
+  ScriptApp.newTrigger("Loop").timeBased().everyMinutes(5).create();
 }
 
 function Reset(){
@@ -339,7 +339,7 @@ function Loop(){
     } //------------ END OF FOR LOOP TARGET CALENDAR -----------------------
 
     LogIt(" FINISHED - CLEANING UP ");
-    DeleteAllTriggers("main");
+    DeleteAllTriggers("Loop");
     Reset();
 
   }
@@ -351,9 +351,9 @@ function Loop(){
     saveProp('iURL',iURL);
     //Update the EVT index
     saveProp('iEVT',iEVT);
-    DeleteAllTriggers("main");
+    DeleteAllTriggers("Loop");
   }
-} //------------ END OF MAIN -----------------------
+} //------------ END OF LOOP -----------------------
 
 function CheckForUpdate(){
   var thisVersion = 4.0;
