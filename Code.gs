@@ -122,7 +122,6 @@ function Reset(){
 
 
 function Loop(){
-
   try{
     //------------------------ Error checking ------------------------
     if (emailWhenAdded && email == "")
@@ -357,10 +356,10 @@ function Loop(){
 } //------------ END OF MAIN -----------------------
 
 function CheckForUpdate(){
-  var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
-  if (alreadyAlerted == null){
+  var thisVersion = 4.0;
+  var alreadyAlerted = loadProp("alertedForNewVersion");
+  if ((alreadyAlerted == null) || alreadyAlerted<thisVersion){
     try{
-      var thisVersion = 4.0;
       var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
       var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
       var latestRelease = regex.exec(html)[0];
@@ -371,7 +370,7 @@ function CheckForUpdate(){
         if (email != ""){
           GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
 
-          PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", true);
+          saveProp("alertedForNewVersion", thisVersion);
         }
       }
     }
