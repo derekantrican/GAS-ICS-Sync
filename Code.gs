@@ -74,30 +74,41 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //=====================================================================================================
 function Install(){
   //Delete any already existing triggers so we don't create excessive triggers
-  DeleteAllTriggers();
+  Uninstall();
 
   //Custom error for restriction here: https://developers.google.com/apps-script/reference/script/clock-trigger-builder#everyMinutes(Integer)
   var validFrequencies = [1, 5, 10, 15, 30];
-  if(validFrequencies.indexOf(howFrequent) == -1)
-    throw "[ERROR] Invalid value for \"howFrequent\". Must be either 1, 5, 10, 15, or 30";
-
-  ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
+  if (Math.floor(howFrequent/60)>=1){
+    ScriptApp.newTrigger("Start").timeBased().everyHours(Math.floor(howFrequent/60)).create();
+  } else if(validFrequencies.indexOf(howFrequent) != -1) {
+    ScriptApp.newTrigger("Start").timeBased().everyMinutes(howFrequent).create();
+  } else {
+    throw "[ERROR] Invalid value for \"howFrequent\". Must be either 1, 5, 10, 15, 30, or over 60...";
+  }
 }
 
 function Uninstall(){
-  DeleteAllTriggers();
+  DeleteAllTriggers("Start");
+  DeleteAllTriggers("Loop");
 }
 
-var targetCalendar;
-
-function main(){
+function Start(){
   CheckForUpdate();
+  DeleteAllTriggers("Loop");
+  Reset()
+}
+
+function Reset(){
+}
+
+
+function Loop(){
 
   //Get URL items
   var response = UrlFetchApp.fetch(sourceCalendarURL).getContentText();
 
   //Get target calendar information
-  targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
+  var targetCalendar = CalendarApp.getCalendarsByName(targetCalendarName)[0];
 
 
   //------------------------ Error checking ------------------------
