@@ -29,6 +29,8 @@ var sourceCalendars={
     ['']
 }
 
+var ignoreTitles = [/Stay at/];                  // List of regex patterns that will ignore events using title
+
 var timeout = 275;                     // How long should the script run for
 var howFrequent = 4*60;                // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
@@ -192,6 +194,16 @@ function Loop(){
 
           //Convert the vevent into custom event object
           var event = ConvertToCustomEvent(events_[iEVT]);
+
+          //Check if title contains one of the regex
+          var exiting = false;
+          for each (var ignoreTitle in ignoreTitles){
+            if (ignoreTitle.test(event.title)){
+              exiting = true;
+              break;
+            }
+          }
+          if (exiting) continue;
 
           //Look for existing event
           var calendarIndex = calendarFids.indexOf(event.id);
