@@ -24,10 +24,10 @@ var sourceCalendarURLs = [""
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
-var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
+var removeEventsFromCalendar = true;   // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
-var addCalToTitle = true;             // Whether to add the source calendar to title
+var addCalToTitle = false;             // Whether to add the source calendar to title
 var addTasks = false;
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
@@ -108,7 +108,7 @@ function main(){
   //------------------------ Parse existing events --------------------------
   
   if(addEventsToCalendar || removeEventsFromCalendar){ 
-    var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: true}).items; 
+    var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: true, privateExtendedProperty: "fromGAS=true"}).items;
     var calendarEventsIds = [] 
     Logger.log("Grabbed " + calendarEvents.length + " existing Events from " + targetCalendarName); 
     for (var i = 0; i < calendarEvents.length; i++){ 
@@ -280,6 +280,8 @@ function main(){
           calendarUTCOffset = tgtTime - utcTime;
           newEvent.recurrence = ParseRecurrenceRule(event, calendarUTCOffset);
         }
+        
+        newEvent.extendedProperties = {private: {fromGAS: "true"}};
         
         if (event.hasProperty('recurrence-id')){
           newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
