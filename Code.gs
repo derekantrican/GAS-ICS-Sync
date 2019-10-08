@@ -23,6 +23,7 @@ var howFrequent = 15;                  // What interval (minutes) to run this sc
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event in the calendar not found in the feed will be removed.
+var removeExistingEvents = false;      // If you turn this to "true" and "removeEventsFromCalendar" is "true", any event in the calendar that existed before installing this script will be removed if it is not in the feed. You will also be unable to manually add events via the Google Calendar interface(s).
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
 var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
@@ -209,7 +210,7 @@ function main(){
     var feedIndex = feedEventIds.indexOf(tagValue);
     
     if(removeEventsFromCalendar){
-      if(feedIndex  == -1 && tagValue != null){
+      if(feedIndex  == -1 && (removeExistingEvents || tagValue != null)){
         Logger.log("    Deleting " + calendarEvents[i].getTitle());
         calendarEvents[i].deleteEvent();
       }
