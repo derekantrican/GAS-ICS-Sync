@@ -9,9 +9,9 @@ This script is a rework of <a href="https://github.com/derekantrican/GAS-ICS-Syn
     </ul></li>
   <li>Support of VTODO-Elements</li>
   <li><ul>Full Recurrence support
-    <li>RRULE, RDATE, EXDATE, RECURRENCE-ID</li></ul></li>
+    <li>RRULE, EXRULE, RDATE, EXDATE, RECURRENCE-ID</li></ul></li>
   <li><ul>Full mapping of ICAL properties to Google Calendar Event Properties
-    <li>Attendees (Name, Mail, Response), Status, Sequence, Class, Transp</li>
+    <li>Attendees (Name, Mail, Response), Status, Sequence, Class, Transp, URL</li>
     </ul></li>
   <li>EMail notification when an event is updated by the script</li>
   <li>Exponential Backoff to handle API-throttling</li>
