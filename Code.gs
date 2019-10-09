@@ -214,7 +214,13 @@ function main(){
         }
       }
       if (event.hasProperty('status')){
-        newEvent.status = event.getFirstPropertyValue('status').toString().toLowerCase();
+        var status = event.getFirstPropertyValue('status').toString().toLowerCase();
+        if (["confirmed", "tentative", "cancelled"].indexOf(status) > -1)
+          newEvent.status = status;
+      }
+      if (event.hasProperty('url')){
+        newEvent.source = Calendar.newEventSource()
+        newEvent.source.url = event.getFirstPropertyValue('url').toString();
       }
       newEvent.sequence = icalEvent.sequence;
       newEvent.summary = icalEvent.summary;
@@ -222,21 +228,25 @@ function main(){
         var organizer = ParseOrganizerName(event.toString());
         
         if (organizer != null)
-          newEvent.summary = organizer + ": " + icalEvent.summary;
+          newEvent.summary = organizer + ": " + newEvent.summary;
       }
       
       if (addCalToTitle && event.hasProperty('parentCal')){
         var calName = event.getFirstPropertyValue('parentCal');
-        newEvent.summary = calName + ": " + icalEvent.summary;
+        newEvent.summary = "(" + calName + ") " + newEvent.summary;
       }
       
       newEvent.description = icalEvent.description;
       newEvent.location = icalEvent.location;
       if (event.hasProperty('class')){
-        newEvent.visibility = event.getFirstPropertyValue('class').toString().toLowerCase();
+        var class = event.getFirstPropertyValue('class').toString().toLowerCase();
+        if (["default","public","private","confidential"].indexOf(class) > -1)
+          newEvent.visibility = class;
       }
       if (event.hasProperty('transp')){
-        newEvent.transparency = event.getFirstPropertyValue('transp').toString().toLowerCase();
+        var transparency = event.getFirstPropertyValue('transp').toString().toLowerCase();
+        if(["opaque","transparent"].indexOf(transcarency) > -1)
+          newEvent.transparency = transparency;
       }
       newEvent.reminders = {
         'useDefault': true
@@ -247,7 +257,9 @@ function main(){
         for each (var valarm in valarms){
           var trigger = valarm.getFirstPropertyValue('trigger').toString();
           if (overrides.length < 5){ //Google supports max 5 reminder-overrides
-            overrides.push({'method': 'popup', 'minutes': ParseNotificationTime(trigger)/60});
+            var timer = ParseNotificationTime(trigger)/60;
+            if (0 <= timer <= 40320)
+              overrides.push({'method': 'popup', 'minutes': timer});
           }
         }
         if (overrides.length > 0){
@@ -367,6 +379,7 @@ function main(){
 
 function ParseRecurrenceRule(vevent, utcOffset){
   var recurrenceRules = vevent.getAllProperties('rrule');
+  var exRules = vevent.getAllProperties('exrule');//deprecated, for compatibility only
   var exDates = vevent.getAllProperties('exdate');
   var rDates = vevent.getAllProperties('rdate');
   var recurrence = [];
@@ -381,11 +394,14 @@ function ParseRecurrenceRule(vevent, utcOffset){
     }
     recurrence.push(recIcal);
   }
+  for each (var exRule in exRules){
+    recurrence.push(exRule.toICALString()); 
+  }
   for each (var exDate in exDates){
-    recurrence = recurrence.concat(exDate.toICALString());
+    recurrence.push(exDate.toICALString());
   }
   for each (var rDate in rDates){
-    recurrence = recurrence.concat(rDate.toICALString());
+    recurrence.push(rDate.toICALString());
   }
   return recurrence;
 }
@@ -407,15 +423,15 @@ function ParseAttendeeMail(veventString){
 }
 
 function ParseAttendeeResp(veventString){
-  var respMatch = RegExp("(partstat=)([^;$]*)", "gi").exec(veventString);
+  var respMatch = RegExp("(partstat=)([^;$:]*)", "gi").exec(veventString);
   if (respMatch != null && respMatch.length > 1){
-    if ( respMatch[2].toUpperCase().indexOf(['NEEDS-ACTION']) ) {
+    if (['NEEDS-ACTION'].indexOf(respMatch[2].toUpperCase()) > -1) {
       respMatch[2] = 'needsAction';
-    } else if ( respMatch[2].toUpperCase().indexOf(['ACCEPTED','COMPLETED']) ) {
+    } else if (['ACCEPTED','COMPLETED'].indexOf(respMatch[2].toUpperCase()) > -1) {
       respMatch[2] = 'accepted';
-    } else if ( respMatch[2].toUpperCase().indexOf(['DECLINED']) ) {
+    } else if (['DECLINED'].indexOf(respMatch[2].toUpperCase(respMatch[2].toUpperCase())) > -1) {
       respMatch[2] = 'declined';
-    } else if ( respMatch[2].toUpperCase().indexOf(['DELEGATED','IN-PROCESS','TENTATIVE']) ) {
+    } else if (['DELEGATED','IN-PROCESS','TENTATIVE'].indexOf(respMatch[2].toUpperCase())) {
       respMatch[2] = 'tentative';
     } else {
       respMatch[2] = null;
