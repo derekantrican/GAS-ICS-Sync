@@ -221,10 +221,17 @@ function main(){
         
         newEvent.attendees = [];
         for each (var att in vevent.attendees){
-          var name = ParseAttendeeName(att.toICALString());
           var mail = ParseAttendeeMail(att.toICALString());
-          var resp = ParseAttendeeResp(att.toICALString());
-          newEvent.attendees.push({'displayName': name, 'email': mail, 'responseStatus': resp.toLowerCase()});
+          if (mail!=null){
+            var newAttendee = {'email':mail};
+            var name = ParseAttendeeName(att.toICALString());
+            if (name!=null)
+              newAttendee['displayName'] = name;
+            var resp = ParseAttendeeResp(att.toICALString());
+            if (resp!=null)
+              newAttendee['responseStatus'] = resp;
+            newEvent.attendees.push(newAttendee);
+          }
         }
         if (event.hasProperty('status')){
           newEvent.status = event.getFirstPropertyValue('status').toString().toLowerCase();
@@ -408,7 +415,7 @@ function ParseRecurrenceRule(vevent, utcOffset){
 }
 
 function ParseAttendeeName(veventString){
-  var nameMatch = RegExp("(CN=)([^;$]*)(:MAILTO:)([^;$]*)", "g").exec(veventString);
+  var nameMatch = RegExp("(cn=)([^;$:]*)", "gi").exec(veventString);
   if (nameMatch != null && nameMatch.length > 1)
     return nameMatch[2];
   else
@@ -416,16 +423,27 @@ function ParseAttendeeName(veventString){
 }
 
 function ParseAttendeeMail(veventString){
-  var mailMatch = RegExp("(CN=)([^;$]*)(:MAILTO:)([^;$]*)", "g").exec(veventString);
+  var mailMatch = RegExp("(:mailto:)([^;$:]*)", "gi").exec(veventString);
   if (mailMatch != null && mailMatch.length > 1)
-    return mailMatch[4];
+    return mailMatch[2];
   else
     return null;
 }
 
 function ParseAttendeeResp(veventString){
-  var respMatch = RegExp("(PARTSTAT=)([^;$]*)", "g").exec(veventString);
+  var respMatch = RegExp("(partstat=)([^;$]*)", "gi").exec(veventString);
   if (respMatch != null && respMatch.length > 1)
+    if ( respMatch[2].toUpperCase().indexOf(['NEEDS-ACTION']) ) {
+      respMatch[2] = 'needsAction';
+    } else if ( respMatch[2].toUpperCase().indexOf(['ACCEPTED','COMPLETED']) ) {
+      respMatch[2] = 'accepted';
+    } else if ( respMatch[2].toUpperCase().indexOf(['DECLINED']) ) {
+      respMatch[2] = 'declined';
+    } else if ( respMatch[2].toUpperCase().indexOf(['DELEGATED','IN-PROCESS','TENTATIVE']) ) {
+      respMatch[2] = 'tentative';
+    } else {
+      respMatch[2] = null;
+    }
     return respMatch[2];
   else
     return null;
@@ -439,7 +457,7 @@ function ParseOrganizerName(veventString){
   * Therefore we have to use a regex match on the VEVENT string instead
   */
 
-  var nameMatch = RegExp("ORGANIZER(?:;|:)CN=(.*?):", "g").exec(veventString);
+  var nameMatch = RegExp("organizer(?:;|:)cn=(.*?):", "gi").exec(veventString);
   if (nameMatch != null && nameMatch.length > 1)
     return nameMatch[1];
   else
