@@ -66,6 +66,8 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 * Blackwind
 * Github: https://github.com/blackwind
 *
+* Jonas Geissler
+* Github: https://github.com/jonas0b1011001
 */
 
 
