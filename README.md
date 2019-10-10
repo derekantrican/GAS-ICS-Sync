@@ -1,4 +1,4 @@
-<a href="https://drive.google.com/open?id=1vHwCz1dGsBzapoxPjxkhMRzDI71q-eeFZdr6dw0vnl13IlVxVLQepJS_">Script Download</a>
+<a href="/" onclick="return false;"><s>Script Download</s></a>
 
 This script is a rework of <a href="https://github.com/derekantrican/GAS-ICS-Sync">derekantrican/GAS-ICS-Sync</a> modified to use the Google Calendar API v3.
 
