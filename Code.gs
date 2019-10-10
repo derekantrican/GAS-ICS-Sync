@@ -22,6 +22,7 @@ var sourceCalendarURLs = [""
                          ];            // The ics/ical urls that you want to get events from ["url","url","url"]
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
+var onlyFutureEvents = false;          // If you turn this to "false", all events (past as well as future will be copied over)
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
@@ -66,6 +67,10 @@ var targetCalendarId;
 var response = [];
 
 function main(){
+  //Retrieve milliseconds from 1970 of StartUpdate
+  if (onlyFutureEvents)
+    var StartUpdate = new ICAL.Time.fromJSDate(new Date());
+
   //Get URL items
   for each (var url in sourceCalendarURLs){
     try{
@@ -149,12 +154,45 @@ function main(){
     
     vevents.forEach(function(event){
       event.removeProperty('dtstamp');
-      var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString();
+      var icalEvent = new ICAL.Event(event);
+      if (onlyFutureEvents && icalEvent.endDate.compare(StartUpdate) < 0){
+        if (!icalEvent.isRecurring){
+          icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+          Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
+          return;
+        }
+        else{ 
+          //check recurring event
+          var recur = event.getFirstPropertyValue('rrule');
+          var dtstart = event.getFirstPropertyValue('dtstart');
+          var iter = recur.iterator(dtstart);
+          var newStartDate;
+          for (var next = iter.next(); next; next = iter.next()) {
+            if (next.compare(StartUpdate) < 0) {
+              continue;
+            }
+            newStartDate = next;
+            break;
+          }
+          if (newStartDate != null){
+            var diff = newStartDate.subtractDate(icalEvent.startDate);
+            icalEvent.endDate.addDuration(diff);
+            var newEndDate = icalEvent.endDate;
+            icalEvent.endDate = newEndDate;
+            icalEvent.startDate = newStartDate;
+            Logger.log("Skipping past instances of Event " + event.getFirstPropertyValue('uid').toString());
+          }else{
+            icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+            Logger.log("Skipping past Recurring Event " + event.getFirstPropertyValue('uid').toString());
+            return;
+          }
+        }
+      }
+      var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
       if(calendarEventsMD5s.indexOf(digest) >= 0){
         Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
         return;
-      }  
-      var icalEvent = new ICAL.Event(event);
+      }
       var newEvent = Calendar.newEvent();
       var index = calendarEventsIds.indexOf(icalEvent.uid);
       var needsUpdate = (index >= 0);
@@ -222,7 +260,6 @@ function main(){
         newEvent.source = Calendar.newEventSource()
         newEvent.source.url = event.getFirstPropertyValue('url').toString();
       }
-      newEvent.sequence = icalEvent.sequence;
       newEvent.summary = icalEvent.summary;
       if (addOrganizerToTitle){
         var organizer = ParseOrganizerName(event.toString());
