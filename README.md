@@ -11,8 +11,9 @@ This script is a rework of <a href="https://github.com/derekantrican/GAS-ICS-Syn
   <li><ul>Full Recurrence support
     <li>RRULE, EXRULE, RDATE, EXDATE, RECURRENCE-ID</li></ul></li>
   <li><ul>Full mapping of ICAL properties to Google Calendar Event Properties
-    <li>Attendees (Name, Mail, Response), Status, Sequence, Class, Transp, URL</li>
+    <li>Attendees (Name, Mail, Response), Status, <s>Sequence</s>, Class, Transp, URL</li>
     </ul></li>
   <li>EMail notification when an event is updated by the script</li>
   <li>Exponential Backoff to handle API-throttling</li>
+  <li>Option to skip past events (+ event instances of recurring events)</li>
 </ul>
