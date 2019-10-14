@@ -126,7 +126,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s){
     };
   }
   
-  if (event.hasProperty('attendee')){
+  if (addAttendees && event.hasProperty('attendee')){
     newEvent.attendees = [];
     for each (var att in icalEvent.attendees){
       var mail = ParseAttendeeMail(att.toICALString());
