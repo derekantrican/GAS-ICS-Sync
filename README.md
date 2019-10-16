@@ -15,4 +15,5 @@ This script is a rework of <a href="https://github.com/derekantrican/GAS-ICS-Syn
     </ul></li>
   <li>EMail notification when an event is updated by the script</li>
   <li>Exponential Backoff to handle API-throttling</li>
+  <li>Support any Interval as trigger</li>
 </ul>
