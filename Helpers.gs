@@ -78,36 +78,67 @@ function parseResponses(responses, icsEventIds){
 
 function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startUpdateTime){
   event.removeProperty('dtstamp');
-  var icalEvent = new ICAL.Event(event);
-  if (onlyFutureEvents && icalEvent.endDate.compare(startUpdateTime) < 0){
-    if (!icalEvent.isRecurring()){
-      icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
-      Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
-      return;
+  var icalEvent = new ICAL.Event(event, {strictExceptions: true});
+  if (icalEvent.isRecurrenceException()){
+    if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
+      Logger.log("Skipping past recurrence exception.");
+      return; 
     }
-    else{ 
-      //check recurring event
-      var recur = event.getFirstPropertyValue('rrule');
-      var dtstart = event.getFirstPropertyValue('dtstart');
-      var iter = recur.iterator(dtstart);
-      var newStartDate;
-      for (var next = iter.next(); next; next = iter.next()) {
-        if (next.compare(StartUpdate) < 0) {
-          continue;
+    
+  }
+  else if (onlyFutureEvents){
+    if(icalEvent.isRecurring()){
+      var skip = false;
+      if (icalEvent.endDate.compare(startUpdateTime) < 0){
+        var recur = event.getFirstPropertyValue('rrule');
+        var dtstart = event.getFirstPropertyValue('dtstart');
+        var iter = recur.iterator(dtstart);
+        var newStartDate;
+        for (var next = iter.next(); next; next = iter.next()) {
+          if (next.compare(startUpdateTime) < 0) {
+            continue;
+          }
+          newStartDate = next;
+          break;
         }
-        newStartDate = next;
-        break;
+        if (newStartDate != null){
+          var diff = newStartDate.subtractDate(icalEvent.startDate);
+          icalEvent.endDate.addDuration(diff);
+          var newEndDate = icalEvent.endDate;
+          icalEvent.endDate = newEndDate;
+          icalEvent.startDate = newStartDate;
+          Logger.log("Adjusted RRULE to exclude past instances.");
+        }
+        else{
+          //icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+          icalEvent.component.removeProperty('rrule');
+          Logger.log("Removed RRULE.");
+          skip = true;
+        }
       }
-      if (newStartDate != null){
-        var diff = newStartDate.subtractDate(icalEvent.startDate);
-        icalEvent.endDate.addDuration(diff);
-        var newEndDate = icalEvent.endDate;
-        icalEvent.endDate = newEndDate;
-        icalEvent.startDate = newStartDate;
-        Logger.log("Skipping past instances of Event " + event.getFirstPropertyValue('uid').toString());
-      }else{
+      //check+filter recid
+      for (i=0; i<icalEvent.except.length; i++){
+        if((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)){
+          Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+          icalEvent.component.addPropertyWithValue('exdate', icalEvent.except[i].recurrenceId.toString());
+        }
+        else if((icalEvent.except[i].startDate.compare(startUpdateTime) >= 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0)){
+          Logger.log("Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+          icalEvent.component.addPropertyWithValue('rdate', icalEvent.except[i].recurrenceId.toString());
+          skip = false;
+        }
+      }
+      if(skip){
         icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
         Logger.log("Skipping past Recurring Event " + event.getFirstPropertyValue('uid').toString());
+        return;
+      }
+    }
+    else{
+      if (icalEvent.endDate.compare(startUpdateTime) < 0){
+        //normal events
+        icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+        Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
         return;
       }
     }
@@ -242,8 +273,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
       }
     }
   }
-  
-  if (event.hasProperty('rrule') || event.hasProperty('rdate')){
+  if (icalEvent.isRecurring()){
     // Calculate targetTZ's UTC-Offset
     var jsTime = new Date();
     var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
@@ -261,9 +291,9 @@ function processEventInstance(recEvent, targetCalendarId){
   var recIDStart = new Date(recEvent.recurringEventId);
   recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
   var eventInstanceToPatch = Calendar.Events.list(targetCalendarId, {timeZone:"etc/GMT", singleEvents: true, privateExtendedProperty: "fromGAS=true", privateExtendedProperty: "id=" + recEvent.extendedProperties.private['id']}).items.filter(function(item){
-    var origStart = item.originalStartTime.dateTime || item.originalStartTime.date
-    var instanceStart = new ICAL.Time.fromString(origStart);
-    return (instanceStart.compare(recIDStart) == 0);
+      var origStart = item.originalStartTime.dateTime || item.originalStartTime.date
+      var instanceStart = new ICAL.Time.fromString(origStart);
+      return (instanceStart.compare(recIDStart) == 0);
   });
   if (eventInstanceToPatch.length == 0){
     Logger.log("No Instance found, skipping!");
