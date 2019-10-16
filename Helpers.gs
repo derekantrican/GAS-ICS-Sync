@@ -79,15 +79,15 @@ function parseResponses(responses, icsEventIds){
 function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startUpdateTime){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event, {strictExceptions: true});
-  if (icalEvent.isRecurrenceException()){
-    if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
-      Logger.log("Skipping past recurrence exception.");
-      return; 
+  if (onlyFutureEvents){
+    if (icalEvent.isRecurrenceException()){
+      if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
+        Logger.log("Skipping past recurrence exception.");
+        return; 
+      }
+      
     }
-    
-  }
-  else if (onlyFutureEvents){
-    if(icalEvent.isRecurring()){
+    else if(icalEvent.isRecurring()){
       var skip = false;
       if (icalEvent.endDate.compare(startUpdateTime) < 0){
         var recur = event.getFirstPropertyValue('rrule');
@@ -217,7 +217,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
   }
   if (event.hasProperty('sequence')){
-    newEvent.sequence = icalEvent.sequence;
+    //newEvent.sequence = icalEvent.sequence;
   }
   if (event.hasProperty('summary')){
     newEvent.summary = icalEvent.summary;
