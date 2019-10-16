@@ -11,7 +11,7 @@ function DeleteAllTriggers(){
   }
 }
 
-function fetchSourceCalendars(){
+function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
   for each (var url in sourceCalendarURLs){
     try{
@@ -31,7 +31,7 @@ function fetchSourceCalendars(){
   return result;
 }
 
-function setupTargetCalendar(){
+function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
     return cal.summary == targetCalendarName;
   })[0];
