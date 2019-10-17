@@ -83,7 +83,8 @@ function Install(){
   if(validFrequencies.indexOf(howFrequent) == -1)
     throw "[ERROR] Invalid value for \"howFrequent\". Must be either 1, 5, 10, 15, or 30";
 
-  ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
+  ScriptApp.newTrigger("main").timeBased().after(1000).create(); // Runs the script right after installing
+  ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create(); // and then every "howFrequent" minutes
 }
 
 function Uninstall(){
@@ -158,7 +159,9 @@ function main(){
   //----------------------------------------------------------------
 
   if(addEventsToCalendar || removeEventsFromCalendar){
-    var calendarEvents = targetCalendar.getEvents(new Date(2000,01,01), new Date( 2100,01,01 ))
+    var currentYear = new Date().getFullYear();
+    // If someone does care about an event from way before they were even born or that will happen way after their death, then just increase these ranges
+    var calendarEvents = targetCalendar.getEvents(new Date(currentYear-100,01,01), new Date(currentYear+100,01,01 ));
     var calendarFids = []
     for (var i = 0; i < calendarEvents.length; i++)
       calendarFids[i] = calendarEvents[i].getTag("FID");
