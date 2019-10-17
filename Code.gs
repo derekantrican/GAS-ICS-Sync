@@ -19,10 +19,8 @@
 function Install(){
   //Delete any already existing triggers so we don't create excessive triggers
   DeleteAllTriggers();
-  
-  //Custom error for restriction here: https://developers.google.com/apps-script/reference/script/clock-trigger-builder#everyMinutes(Integer)
-  var validFrequencies = [1, 5, 10, 15, 30];
-  if (howFrequent < 1)){
+
+  if (howFrequent < 1){
     throw "[ERROR] \"howFrequent\" must be greater than 0.";
   }
   else{
