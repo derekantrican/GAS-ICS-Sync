@@ -1,19 +1,21 @@
-<a href="https://drive.google.com/open?id=1vHwCz1dGsBzapoxPjxkhMRzDI71q-eeFZdr6dw0vnl13IlVxVLQepJS_">Script Download</a>
+# GAS-ICS-Sync
 
-This script is a rework of <a href="https://github.com/derekantrican/GAS-ICS-Sync">derekantrican/GAS-ICS-Sync</a> modified to use the Google Calendar API v3.
+[If you want to use this, please copy the script from here](https://script.google.com/d/1QeZFLSM1EkuFvYcryECI_xH-IZVe1-IxGRq_n6OoXp1CmVtSeTeigEx4/edit?usp=sharing) 
+
+This is a standalone script (that consists of multiple files). The purpose is to sync ics/ical calendars to Google Calendar. Google Calendar *can* already do this, but updates only happen once every 12 or even 24 hrs. This script can be run much more frequently.
+
+---------------
+
+### Questions? Comments? Anything else?
+[Join the Discord!](https://discord.gg/DRBpb4k)
+
+![Discord](https://img.shields.io/discord/612735135120490496)
+
+----------------
+
+### Contributing
+
+If you would like to contribute to this repository, please fork the repository, make your changes, and start a pull request. If your pull request is approved, I will add you as a contributer directly to the repository
 
 
-<ul>Additional features:
-  <li><ul>Multicalendar support, merge multiple ical calendars to various google calendars
-    <li>Option to add sourcecalendar name to event title (if available)</li>
-    </ul></li>
-  <li>Support of VTODO-Elements</li>
-  <li><ul>Full Recurrence support
-    <li>RRULE, EXRULE, RDATE, EXDATE, RECURRENCE-ID</li></ul></li>
-  <li><ul>Full mapping of ICAL properties to Google Calendar Event Properties
-    <li>Attendees (Name, Mail, Response), Status, Sequence, Class, Transp, URL</li>
-    </ul></li>
-  <li>EMail notification when an event is updated by the script</li>
-  <li>Exponential Backoff to handle API-throttling</li>
-  <li>Support any Interval as trigger</li>
-</ul>
+**If you would like to fund an issue, you can do that through here: https://issuehunt.io/repos/136078981/**
