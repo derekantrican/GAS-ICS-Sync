@@ -83,7 +83,8 @@ function Install(){
   if(validFrequencies.indexOf(howFrequent) == -1)
     throw "[ERROR] Invalid value for \"howFrequent\". Must be either 1, 5, 10, 15, or 30";
 
-  ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create();
+  ScriptApp.newTrigger("main").timeBased().after(1000).create(); // Runs the script right after installing
+  ScriptApp.newTrigger("main").timeBased().everyMinutes(howFrequent).create(); // and then every "howFrequent" minutes
 }
 
 function Uninstall(){
