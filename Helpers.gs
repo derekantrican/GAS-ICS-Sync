@@ -11,7 +11,7 @@ function DeleteAllTriggers(){
   }
 }
 
-function fetchSourceCalendars(){
+function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
   for each (var url in sourceCalendarURLs){
     try{
@@ -31,7 +31,7 @@ function fetchSourceCalendars(){
   return result;
 }
 
-function setupTargetCalendar(){
+function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
     return cal.summary == targetCalendarName;
   })[0];
@@ -78,14 +78,13 @@ function parseResponses(responses, icsEventIds){
 
 function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startUpdateTime){
   event.removeProperty('dtstamp');
-  var icalEvent = new ICAL.Event(event, {strictExceptions: true});
-  if (onlyFutureEvents){
+  var icalEvent = new ICAL.Event(event);
+    if (onlyFutureEvents){
     if (icalEvent.isRecurrenceException()){
       if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
         Logger.log("Skipping past recurrence exception.");
         return; 
       }
-      
     }
     else if(icalEvent.isRecurring()){
       var skip = false;
@@ -110,7 +109,6 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
           Logger.log("Adjusted RRULE to exclude past instances.");
         }
         else{
-          //icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
           icalEvent.component.removeProperty('rrule');
           Logger.log("Removed RRULE.");
           skip = true;
@@ -134,9 +132,8 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
         return;
       }
     }
-    else{
+    else{//normal events
       if (icalEvent.endDate.compare(startUpdateTime) < 0){
-        //normal events
         icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
         Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
         return;
@@ -144,7 +141,6 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
     }
   }
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
-  
   if(calendarEventsMD5s.indexOf(digest) >= 0){
     Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
     return;
@@ -191,7 +187,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
     };
   }
   
-  if (event.hasProperty('attendee')){
+  if (addAttendees && event.hasProperty('attendee')){
     newEvent.attendees = [];
     for each (var att in icalEvent.attendees){
       var mail = ParseAttendeeMail(att.toICALString());
@@ -273,6 +269,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
       }
     }
   }
+  
   if (icalEvent.isRecurring()){
     // Calculate targetTZ's UTC-Offset
     var jsTime = new Date();
@@ -291,16 +288,16 @@ function processEventInstance(recEvent, targetCalendarId){
   var recIDStart = new Date(recEvent.recurringEventId);
   recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
   var eventInstanceToPatch = Calendar.Events.list(targetCalendarId, {timeZone:"etc/GMT", singleEvents: true, privateExtendedProperty: "fromGAS=true", privateExtendedProperty: "id=" + recEvent.extendedProperties.private['id']}).items.filter(function(item){
-      var origStart = item.originalStartTime.dateTime || item.originalStartTime.date
-      var instanceStart = new ICAL.Time.fromString(origStart);
-      return (instanceStart.compare(recIDStart) == 0);
+    var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
+    var instanceStart = new ICAL.Time.fromString(origStart);
+    return (instanceStart.compare(recIDStart) == 0);
   });
   if (eventInstanceToPatch.length == 0){
     Logger.log("No Instance found, skipping!");
   }
   else{
     try{
-      Logger.log("Patching event instance " + eventInstanceToPatch[0].id)
+      Logger.log("Patching event instance.");
       Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }
     catch(error){
