@@ -88,8 +88,8 @@ function Install(){
     throw "[ERROR] \"howFrequent\" must be greater than 0.";
   }
   else{
-    ScriptApp.newTrigger("Install").timeBased().after(howFrequent * 60 * 1000).create();//Shedule next Execution
-    ScriptApp.newTrigger("startSync").timeBased().after(1).create();//Start the sync routine
+    ScriptApp.newTrigger("Install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
+    ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
   }
 }
 

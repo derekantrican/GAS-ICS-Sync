@@ -5,7 +5,7 @@ String.prototype.includes = function(phrase){
 function DeleteAllTriggers(){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "main"){
+    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "Install"){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
