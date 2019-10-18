@@ -118,7 +118,13 @@ function startSync(){
     
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){ 
-      var calendarEvents = Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true"}).items;
+      var eventList = Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+      var calendarEvents = eventList.items;
+      //loop until we received all events
+      while(typeof eventList.nextPageToken !== 'undefined'){
+        eventList = Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
+        calendarEvents = [].concat(calendarEvents, eventList.items);
+      };
       var calendarEventsIds = [] 
       var calendarEventsMD5s = []
       Logger.log("Fetched " + calendarEvents.length + " existing Events from " + targetCalendarName); 
