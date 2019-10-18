@@ -8761,6 +8761,7 @@ ICAL.Event = (function() {
 
     this._rangeExceptionCache = Object.create(null);
     this.exceptions = Object.create(null);
+    this.except = [];
     this.rangeExceptions = [];
 
     if (options && options.strictExceptions) {
@@ -8824,6 +8825,7 @@ ICAL.Event = (function() {
       // we don't sort or manage exceptions directly
       // here the recurrence expander handles that.
       this.exceptions[id] = obj;
+      this.except.push(obj);
 
       // index RANGE=THISANDFUTURE exceptions so we can
       // look them up later in getOccurrenceDetails.
@@ -8858,7 +8860,7 @@ ICAL.Event = (function() {
       var range = this.component.getFirstProperty('recurrence-id').getParameter('range');
       return range === this.THISANDFUTURE;
     },
-
+    
     /**
      * Finds the range exception nearest to the given date.
      *
@@ -9204,7 +9206,7 @@ ICAL.Event = (function() {
     get recurrenceId() {
       return this._firstProp('recurrence-id');
     },
-
+    
     set recurrenceId(value) {
       this._setProp('recurrence-id', value);
     },

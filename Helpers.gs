@@ -11,6 +11,12 @@ function DeleteAllTriggers(){
   }
 }
 
+/**
+ * Gets the ressource from the specified URLs.
+ *
+ * @param {Array.string} sourceCalendarURLs - Array with URLs to fetch
+ * @return {Array.string} The ressources fetched from the specified URLs
+ */
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
   for each (var url in sourceCalendarURLs){
@@ -31,6 +37,13 @@ function fetchSourceCalendars(sourceCalendarURLs){
   return result;
 }
 
+/**
+ * Gets the user's Google Calendar with the specified name.
+ * A new Calendar will be created if the user does not have a Calendar with the specified name.
+ *
+ * @param {string} targetCalendarName - The name of the calendar to return
+ * @return {Array.string} The ressources fetched from the specified URLs
+ */
 function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
     return cal.summary == targetCalendarName;
@@ -47,6 +60,15 @@ function setupTargetCalendar(targetCalendarName){
   return targetCalendar;
 }
 
+/**
+ * Parses all sources using ical.js.
+ * Registers all found timezones with TimezoneService.
+ * Creates an Array with all events and adds the event-ids to the provided Array.
+ *
+ * @param {Array.string} responses - Array with all ical sources
+ * @param {Array.string} icsEventIds - Array with all IDs of the found events
+ * @return {Array.ICALComponent} Array with all events found
+ */
 function parseResponses(responses, icsEventIds){
   var result = [];
   for each (var resp in responses){
@@ -76,9 +98,85 @@ function parseResponses(responses, icsEventIds){
   return result;
 }
 
-function processEvent(event, calendarTz, calendarEventsMD5s){
+/**
+ * Creates a Google Calendar Event based on the specified ICALEvent.
+ * Will return null if the event has not changed since the last sync.
+ * If onlyFutureEvents is set to true:
+ * -It will return null if the event has already taken place.
+ * -Past instances of recurring events will be removed
+ *
+ * @param {ICALComponent} event - The event to process
+ * @param {string} calendarTz - The timezone of the target calendar
+ * @param {Array.string} calendarEventsMD5s - Array with all MD5s from the events in the target calendar
+ * @param {Array.string} icsEventIds - Array with all IDs of the found events
+ * @param {ICAL.Time} [startUpdateTime] - Current time to find past events
+ * @return {?CalendarEvent} The Calendar.Event that will be added to the target calendar
+ */
+function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startUpdateTime){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event);
+    if (onlyFutureEvents){
+    if (icalEvent.isRecurrenceException()){
+      if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
+        Logger.log("Skipping past recurrence exception.");
+        return; 
+      }
+    }
+    else if(icalEvent.isRecurring()){
+      var skip = false;
+      if (icalEvent.endDate.compare(startUpdateTime) < 0){
+        var recur = event.getFirstPropertyValue('rrule');
+        var dtstart = event.getFirstPropertyValue('dtstart');
+        var iter = recur.iterator(dtstart);
+        var newStartDate;
+        for (var next = iter.next(); next; next = iter.next()) {
+          if (next.compare(startUpdateTime) < 0) {
+            continue;
+          }
+          newStartDate = next;
+          break;
+        }
+        if (newStartDate != null){
+          var diff = newStartDate.subtractDate(icalEvent.startDate);
+          icalEvent.endDate.addDuration(diff);
+          var newEndDate = icalEvent.endDate;
+          icalEvent.endDate = newEndDate;
+          icalEvent.startDate = newStartDate;
+          Logger.log("Adjusted RRULE to exclude past instances.");
+        }
+        else{
+          icalEvent.component.removeProperty('rrule');
+          Logger.log("Removed RRULE.");
+          skip = true;
+        }
+      }
+      //check and filter recurrence-exceptions
+      for (i=0; i<icalEvent.except.length; i++){
+        //Exclude the instance if it was moved from future to past
+        if((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)){
+          Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+          icalEvent.component.addPropertyWithValue('exdate', icalEvent.except[i].recurrenceId.toString());
+        }//Readd the instance if it is moved from past to future
+        else if((icalEvent.except[i].startDate.compare(startUpdateTime) >= 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0)){
+          Logger.log("Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+          icalEvent.component.addPropertyWithValue('rdate', icalEvent.except[i].recurrenceId.toString());
+          skip = false;
+        }
+      }
+      if(skip){
+        icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+        Logger.log("Skipping past Recurring Event " + event.getFirstPropertyValue('uid').toString());
+        return;
+      }
+    }
+    else{//normal events
+      if (icalEvent.endDate.compare(startUpdateTime) < 0){
+        icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+        Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
+        return;
+      }
+    }
+  }
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
   if(calendarEventsMD5s.indexOf(digest) >= 0){
     Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
@@ -152,7 +250,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s){
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
   }
   if (event.hasProperty('sequence')){
-    newEvent.sequence = icalEvent.sequence;
+    //newEvent.sequence = icalEvent.sequence;
   }
   if (event.hasProperty('summary')){
     newEvent.summary = icalEvent.summary;
@@ -209,7 +307,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s){
     }
   }
   
-  if (event.hasProperty('rrule') || event.hasProperty('rdate')){
+  if (icalEvent.isRecurring()){
     // Calculate targetTZ's UTC-Offset
     var jsTime = new Date();
     var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
@@ -222,12 +320,19 @@ function processEvent(event, calendarTz, calendarEventsMD5s){
   return newEvent;
 }
 
+/**
+ * Patches an existing event instance with the provided Calendar.Event.
+ * The instance that needs to be updated is identified by the recurrence-id of the provided event.
+ *
+ * @param {Calendar.Event} recEvent - The event instance to process
+ * @param {string} targetCalendarId - The ID of the target calendar
+ */
 function processEventInstance(recEvent, targetCalendarId){
   Logger.log("-----" + recEvent.recurringEventId.substring(0,10));
   var recIDStart = new Date(recEvent.recurringEventId);
   recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
   var eventInstanceToPatch = Calendar.Events.list(targetCalendarId, {timeZone:"etc/GMT", singleEvents: true, privateExtendedProperty: "fromGAS=true", privateExtendedProperty: "id=" + recEvent.extendedProperties.private['id']}).items.filter(function(item){
-    var origStart = item.originalStartTime.dateTime || item.originalStartTime.date
+    var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
     var instanceStart = new ICAL.Time.fromString(origStart);
     return (instanceStart.compare(recIDStart) == 0);
   });
@@ -236,7 +341,7 @@ function processEventInstance(recEvent, targetCalendarId){
   }
   else{
     try{
-      Logger.log("Patching event instance " + eventInstanceToPatch[0].id)
+      Logger.log("Patching event instance.");
       Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }
     catch(error){
@@ -245,6 +350,15 @@ function processEventInstance(recEvent, targetCalendarId){
   }
 }
 
+/**
+ * Deletes all events from the target calendar that no longer exist in the source calendars.
+ * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
+ *
+ * @param {Array.CalendarEvent} calendarEvents - Array with all events from the target calendar
+ * @param {Array.strig} calendarEventsIds - Array with all IDs of the target calendar's events
+ * @param {Array.string} icsEventsIds - Array with all IDs of the source calendars' events
+ * @param {string} targetCalendarId - The ID of the target calendar
+ */
 function processEventCleanup(calendarEvents, calendarEventsIds, icsEventsIds, targetCalendarId){
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
@@ -262,6 +376,11 @@ function processEventCleanup(calendarEvents, calendarEventsIds, icsEventsIds, ta
     }
 }
 
+/**
+ * Processes and adds all vtodo components as Tasks to the user's Google Account
+ *
+ * @param {Array.string} responses - Array with all ical sources
+ */
 function processTasks(responses){
   var taskLists = Tasks.Tasklists.list().items;
   var taskList = taskLists[0];
@@ -313,6 +432,13 @@ function processTasks(responses){
   //----------------------------------------------------------------
 }
 
+/**
+ * Parses the provided ICAL.Component to find all recurrence rules.
+ *
+ * @param {ICAL.Component} vevent - The event to parse
+ * @param {number} utcOffset - utc offset of the target calendar
+ * @return {Array.String} Array with all recurrence components found in the provided event
+ */
 function ParseRecurrenceRule(vevent, utcOffset){
   var recurrenceRules = vevent.getAllProperties('rrule');
   var exRules = vevent.getAllProperties('exrule');//deprecated, for compatibility only
@@ -342,6 +468,13 @@ function ParseRecurrenceRule(vevent, utcOffset){
   return recurrence;
 }
 
+/**
+ * Parses the provided string to find the name of an Attendee.
+ * Will return null if no name is found.
+ *
+ * @param {string} veventString - The string to parse
+ * @return {?String} The Attendee's name found in the string, null if no name was found
+ */
 function ParseAttendeeName(veventString){
   var nameMatch = RegExp("(cn=)([^;$:]*)", "gi").exec(veventString);
   if (nameMatch != null && nameMatch.length > 1)
@@ -350,6 +483,13 @@ function ParseAttendeeName(veventString){
     return null;
 }
 
+/**
+ * Parses the provided string to find the mail adress of an Attendee.
+ * Will return null if no mail adress is found.
+ *
+ * @param {string} veventString - The string to parse
+ * @return {?String} The Attendee's mail adress found in the string, null if nothing was found
+ */
 function ParseAttendeeMail(veventString){
   var mailMatch = RegExp("(:mailto:)([^;$:]*)", "gi").exec(veventString);
   if (mailMatch != null && mailMatch.length > 1)
@@ -358,6 +498,13 @@ function ParseAttendeeMail(veventString){
     return null;
 }
 
+/**
+ * Parses the provided string to find the response of an Attendee.
+ * Will return null if no response is found or the response string is not supported by google calendar.
+ *
+ * @param {string} veventString - The string to parse
+ * @return {?String} The Attendee's response found in the string, null if nothing was found or unsupported
+ */
 function ParseAttendeeResp(veventString){
   var respMatch = RegExp("(partstat=)([^;$:]*)", "gi").exec(veventString);
   if (respMatch != null && respMatch.length > 1){
@@ -379,6 +526,13 @@ function ParseAttendeeResp(veventString){
   }
 }
 
+/**
+ * Parses the provided string to find the name of the event organizer.
+ * Will return null if no name is found.
+ *
+ * @param {string} veventString - The string to parse
+ * @return {?String} The organizer's name found in the string, null if no name was found
+ */
 function ParseOrganizerName(veventString){
   /*A regex match is necessary here because ICAL.js doesn't let us directly
   * get the "CN" part of an ORGANIZER property. With something like
@@ -394,6 +548,13 @@ function ParseOrganizerName(veventString){
     return null;
 }
 
+/**
+ * Parses the provided string to find the notification time of an event.
+ * Will return 0 by default.
+ *
+ * @param {string} notificationString - The string to parse
+ * @return {number} The notification time in seconds
+ */
 function ParseNotificationTime(notificationString){
   //https://www.kanzaki.com/docs/ical/duration-t.html
   var reminderTime = 0;

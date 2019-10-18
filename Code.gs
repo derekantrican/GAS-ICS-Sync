@@ -4,7 +4,7 @@
 *=========================================
 *
 * 1) Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Changes lines 19-36 to be the settings that you want to use
+* 2) Changes lines 19-37 to be the settings that you want to use
 * 3) Click in the menu "Run" > "Run function" > "Install" and authorize the program
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
 * 4) You can also run "startSync" if you want to sync only once.
@@ -21,6 +21,7 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
 ];
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
+var onlyFutureEvents = false;          // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
@@ -97,6 +98,9 @@ function Uninstall(){
 }
 
 function startSync(){
+  if (onlyFutureEvents)
+    var startUpdateTime = new ICAL.Time.fromJSDate(new Date());
+  
   for each (var calendar in sourceCalendars){
     var targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
@@ -139,7 +143,7 @@ function startSync(){
       
       vevents.forEach(function(e){
         //------------------------ Create the event object ------------------------
-        var newEvent = processEvent(e, calendarTz, calendarEventsMD5s);
+        var newEvent = processEvent(e, calendarTz, calendarEventsMD5s, icsEventsIds, startUpdateTime);
         if (newEvent == null)
           return;
         var index = calendarEventsIds.indexOf(newEvent.extendedProperties.private["id"]);
