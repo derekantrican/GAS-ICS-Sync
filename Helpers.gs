@@ -42,7 +42,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
  * A new Calendar will be created if the user does not have a Calendar with the specified name.
  *
  * @param {string} targetCalendarName - The name of the calendar to return
- * @return {Array.string} The ressources fetched from the specified URLs
+ * @return {Calendar} The calendar retrieved or created
  */
 function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
@@ -105,17 +105,17 @@ function parseResponses(responses, icsEventIds){
  * -It will return null if the event has already taken place.
  * -Past instances of recurring events will be removed
  *
- * @param {ICALComponent} event - The event to process
+ * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
  * @param {Array.string} calendarEventsMD5s - Array with all MD5s from the events in the target calendar
  * @param {Array.string} icsEventIds - Array with all IDs of the found events
  * @param {ICAL.Time} [startUpdateTime] - Current time to find past events
- * @return {?CalendarEvent} The Calendar.Event that will be added to the target calendar
+ * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
 function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startUpdateTime){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event);
-    if (onlyFutureEvents){
+  if (onlyFutureEvents){
     if (icalEvent.isRecurrenceException()){
       if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
         Logger.log("Skipping past recurrence exception.");
@@ -591,4 +591,29 @@ function ParseNotificationTime(notificationString){
     
     return reminderTime; //Return the notification time in seconds
   }
+}
+
+/**
+ * Runs the specified function with exponential backoff and returns the result.
+ * Will return null if the function did not succeed afterall.
+ *
+ * @param {function} func - The function that should be executed
+ * @param {Number} maxRetries - How many times the function should try if it fails
+ * @return {?Calendar.Event} The Calendar.Event that was added in the calendar, null if func did not complete successfully
+ */
+function callWithBackoff(func, maxRetries) {
+  var tries = 0;
+  var result;
+  do{
+    Utilities.sleep(tries * 100);
+    tries++;
+    try{
+      result = func();
+      return result;
+    }
+    catch(e){
+      Logger.log("Error, Retrying..." + e );
+    }
+  }while(tries <= maxRetries );
+  return null;
 }
