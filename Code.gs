@@ -26,6 +26,7 @@ var removeEventsFromCalendar = true;   // If you turn this to "true", any event 
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events
 var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
 var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
+var removeFWFromTitles = true;        // Whether to remove the 'FW:' from the start of event titles if you weren't the original recipient
 
 var emailWhenAdded = false;            // Will email you when an event is added to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
@@ -258,7 +259,11 @@ function ConvertToCustomEvent(vevent){
   if (descriptionAsTitles)
     event.title = vevent.getFirstPropertyValue('description') || '';
   else{
-    event.title = vevent.getFirstPropertyValue('summary') || '';
+    if(removeFWFromTitles)
+      event.title = vevent.getFirstPropertyValue('summary').replace('FW: ', '') || '';
+    else{
+      event.title = vevent.getFirstPropertyValue('summary') || '';
+    }
     event.description = vevent.getFirstPropertyValue('description') || '';
   }
   
