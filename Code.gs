@@ -123,7 +123,7 @@ function startSync(){
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
         eventList = callWithBackoff(function(){
-          Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
+          return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
         }, 2);
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
@@ -173,20 +173,24 @@ function startSync(){
               if (modifyExistingEvents){
                 Logger.log("Updating existing Event " + newEvent.extendedProperties.private["id"]);
                 newEvent = callWithBackoff(function(){
-                  Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+                  return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
               }, 2);
                 if (newEvent != null && emailWhenModified)
-                  GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + "\" at " + icalEvent.start.toString());
+                  try{
+                    GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + "\" at " + newEvent.start.toString());
+                  }catch(error){}
               }
             }
             else{
               if (addEventsToCalendar){
                 Logger.log("Adding new Event " + newEvent.extendedProperties.private["id"]);
                 newEvent = callWithBackoff(function(){
-                  Calendar.Events.insert(newEvent, targetCalendarId);
+                  return Calendar.Events.insert(newEvent, targetCalendarId);
                 }, 2);
                 if (newEvent != null && emailWhenAdded)
-                  GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + "\" at " + icalEvent.start.toString());
+                  try{
+                    GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + "\" at " + newEvent.start.toString());
+                  }catch(error){}
               }
             }
         }
