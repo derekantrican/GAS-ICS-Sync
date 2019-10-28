@@ -20,6 +20,8 @@ function DeleteAllTriggers(){
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
   for each (var url in sourceCalendarURLs){
+    url = url.replace("webcal://", "https://");      
+    
     try{
       var urlResponse = UrlFetchApp.fetch(url).getContentText();
       //------------------------ Error checking ------------------------
