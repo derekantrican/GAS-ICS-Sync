@@ -57,13 +57,13 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 *=========================================
 *
 * If you would like to donate and help Derek keep making awesome programs,
-* you can do that here: https://bulkeditcalendarevents.wordpress.com/donate/
+* you can do that here: https://paypal.me/derekantrican
 *
 *=========================================
 *             CONTRIBUTORS
 *=========================================
 * Andrew Brothers
-* Github: https://github.com/agentd00nut/
+* Github: https://github.com/agentd00nut
 * Twitter: @abrothers656
 *
 * Joel Balmer
@@ -106,7 +106,7 @@ function startSync(){
     var sourceCalendarURLs = calendar[1];
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
-    Logger.log("Syncing " + responses.length + " Calendars to " + targetCalendarName);
+    Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
     
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
@@ -114,7 +114,7 @@ function startSync(){
     Logger.log("Working on calendar: " + targetCalendarId);
     
     //Disable email notification if no mail adress is provided 
-    emailWhenAdded = (emailWhenAdded && email != "")
+    emailWhenAdded = emailWhenAdded && email != "";
     
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){ 
@@ -125,27 +125,30 @@ function startSync(){
         eventList = callWithBackoff(function(){
           return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
         }, 2);
+
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
-      };
-      var calendarEventsIds = [] 
-      var calendarEventsMD5s = []
-      Logger.log("Fetched " + calendarEvents.length + " existing Events from " + targetCalendarName); 
+      }
+
+      var calendarEventsIds = []; 
+      var calendarEventsMD5s = [];
+      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName); 
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
           calendarEventsMD5s[i] = calendarEvents[i].extendedProperties.private["MD5"];
         }
       }
+
       //------------------------ Parse ical events --------------------------
       var icsEventsIds = [];
       var vevents = parseResponses(responses, icsEventsIds);
-      Logger.log("Parsed " + vevents.length + " events from ical sources.");
+      Logger.log("Parsed " + vevents.length + " events from ical sources");
     }
     
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
-      Logger.log("Processing " + vevents.length + " Events.");
+      Logger.log("Processing " + vevents.length + " events");
       var calendarTz = Calendar.Settings.get("timezone").value;
       var calendarUTCOffset = 0;
       var recurringEvents = [];
@@ -155,11 +158,12 @@ function startSync(){
         var newEvent = processEvent(e, calendarTz, calendarEventsMD5s, icsEventsIds, startUpdateTime);
         if (newEvent == null)
           return;
+
         var index = calendarEventsIds.indexOf(newEvent.extendedProperties.private["id"]);
-        var needsUpdate = (index > -1);
+        var needsUpdate = index > -1;
         
-        //------------------------ save instance overrides ------------------------
-        //----------- to make sure the parent event is actually created -----------
+        //------------------------ Save instance overrides ------------------------
+        //----------- To make sure the parent event is actually created -----------
         if (e.hasProperty('recurrence-id')){
           newEvent.recurringEventId = e.getFirstPropertyValue('recurrence-id').toString();
           Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
@@ -171,48 +175,59 @@ function startSync(){
           //------------------------ Send event object to gcal ------------------------
             if (needsUpdate){
               if (modifyExistingEvents){
-                Logger.log("Updating existing Event " + newEvent.extendedProperties.private["id"]);
+                Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
                 newEvent = callWithBackoff(function(){
                   return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-              }, 2);
+                }, 2);
+                
                 if (newEvent != null && emailWhenModified)
                   try{
-                    GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + "\" at " + newEvent.start.toString());
-                  }catch(error){}
+                    GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + 
+                                                                                             "\" at " + newEvent.start.toString());
+                  }
+                  catch(error){}
               }
             }
             else{
               if (addEventsToCalendar){
-                Logger.log("Adding new Event " + newEvent.extendedProperties.private["id"]);
+                Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
                 newEvent = callWithBackoff(function(){
                   return Calendar.Events.insert(newEvent, targetCalendarId);
                 }, 2);
-                if (newEvent != null && emailWhenAdded)
+
+                if (newEvent != null && emailWhenAdded){
                   try{
-                    GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + "\" at " + newEvent.start.toString());
-                  }catch(error){}
+                    GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + 
+                                                                                              "\" at " + newEvent.start.toString());
+                  }
+                  catch(error){}
+                }
               }
             }
         }
       });
-      Logger.log("---done!");
+
+      Logger.log("Done processing events");
     }
     
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
       processEventCleanup(calendarEvents, calendarEventsIds, icsEventsIds, targetCalendarId);
-      Logger.log("---done!");
+      Logger.log("Done checking events for removal");
     }
+
     //------------------------ Process Tasks ------------------------
     if (addTasks){
       processTasks(responses);
     }
+
     //------------------------ Add Recurring Event Instances ------------------------
-    Logger.log("---Processing " + recurringEvents.length + " Recurrence Instances!");
+    Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
     for each (var recEvent in recurringEvents){
       processEventInstance(recEvent, targetCalendarId);
     }
   }
+
   Logger.log("Sync finished!");
 }
