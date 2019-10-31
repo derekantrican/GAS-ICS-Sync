@@ -16,8 +16,10 @@
 *=========================================
 */
 
-var sourceCalendars = [                // The ics/ical urls that you want to get events from
-  ["targetCalendar",[""]]              //[["targetCalendar1",["url","url"]], ["targetCalendar2",["url","url"]]]
+var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
+  ["icsUrl1", "targetCalendar1"],
+  ["icsUrl2", "targetCalendar2"],
+  ["icsUrl3", "targetCalendar1"]
 ];
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
@@ -114,6 +116,7 @@ function startSync(){
   //Disable email notification if no mail adress is provided 
   emailWhenAdded = emailWhenAdded && email != "";
   
+  sourceCalendars = condenseCalendarMap(sourceCalendars);
   for each (var calendar in sourceCalendars){
     calendarEvents = [];
     var targetCalendarName = calendar[0];
