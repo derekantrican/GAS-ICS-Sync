@@ -57,13 +57,13 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 *=========================================
 *
 * If you would like to donate and help Derek keep making awesome programs,
-* you can do that here: https://bulkeditcalendarevents.wordpress.com/donate/
+* you can do that here: https://paypal.me/derekantrican
 *
 *=========================================
 *             CONTRIBUTORS
 *=========================================
 * Andrew Brothers
-* Github: https://github.com/agentd00nut/
+* Github: https://github.com/agentd00nut
 * Twitter: @abrothers656
 *
 * Joel Balmer
@@ -110,7 +110,7 @@ function startSync(){
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   
   //Disable email notification if no mail adress is provided 
-  emailWhenAdded = (emailWhenAdded && email != "");
+  emailWhenAdded = emailWhenAdded && email != "";
   
   for each (var calendar in sourceCalendars){
     calendarEvents = [];
@@ -119,7 +119,7 @@ function startSync(){
     var vevents;
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
-    Logger.log("Syncing " + responses.length + " Calendars to " + targetCalendarName);
+    Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
     
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
@@ -135,47 +135,53 @@ function startSync(){
         eventList = callWithBackoff(function(){
           return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
         }, 2);
+
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
-      };
-      Logger.log("Fetched " + calendarEvents.length + " existing Events from " + targetCalendarName); 
+      }
+      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
           calendarEventsMD5s[i] = calendarEvents[i].extendedProperties.private["MD5"];
         }
       }
+
       //------------------------ Parse ical events --------------------------
       vevents = parseResponses(responses, icsEventsIds);
-      Logger.log("Parsed " + vevents.length + " events from ical sources.");
+      Logger.log("Parsed " + vevents.length + " events from ical sources");
     }
     
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
-      Logger.log("Processing " + vevents.length + " Events.");
+      Logger.log("Processing " + vevents.length + " events");
       var calendarTz = Calendar.Settings.get("timezone").value;
       
       vevents.forEach(function(e){
         processEvent(e, calendarTz);
       });
-      Logger.log("---done!");
+
+      Logger.log("Done processing events");
     }
     
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
       processEventCleanup();
-      Logger.log("---done!");
+      Logger.log("Done checking events for removal");
     }
+
     //------------------------ Process Tasks ------------------------
     if (addTasks){
       processTasks(responses);
     }
+
     //------------------------ Add Recurring Event Instances ------------------------
-    Logger.log("---Processing " + recurringEvents.length + " Recurrence Instances!");
+    Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
     for each (var recEvent in recurringEvents){
       processEventInstance(recEvent);
     }
   }
+
   Logger.log("Sync finished!");
 }
