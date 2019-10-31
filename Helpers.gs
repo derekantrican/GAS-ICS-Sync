@@ -68,10 +68,9 @@ function setupTargetCalendar(targetCalendarName){
  * Creates an Array with all events and adds the event-ids to the provided Array.
  *
  * @param {Array.string} responses - Array with all ical sources
- * @param {Array.string} icsEventIds - Array with all IDs of the found events
  * @return {Array.ICALComponent} Array with all events found
  */
-function parseResponses(responses, icsEventIds){
+function parseResponses(responses){
   var result = [];
   for each (var resp in responses){
     var jcalData = ICAL.parse(resp);
@@ -90,14 +89,66 @@ function parseResponses(responses, icsEventIds){
   }
   result.forEach(function(event){
     if(event.hasProperty('recurrence-id')){
-      icsEventIds.push(event.getFirstPropertyValue('uid').toString() + "_" + event.getFirstPropertyValue('recurrence-id').toString());
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + event.getFirstPropertyValue('recurrence-id').toString());
     }
     else{
-      icsEventIds.push(event.getFirstPropertyValue('uid').toString());
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
     }
   });
  
   return result;
+}
+
+/**
+ * Creates a Google Calendar event and inserts it to the target calendar.
+ *
+ * @param {ICAL.Component} event - The event to process
+ * @param {string} calendarTz - The timezone of the target calendar
+ */
+function processEvent(event, calendarTz){
+  //------------------------ Create the event object ------------------------
+  var newEvent = createEvent(event, calendarTz, icsEventsIds);
+  if (newEvent == null)
+    return;
+  var index = calendarEventsIds.indexOf(newEvent.extendedProperties.private["id"]);
+  var needsUpdate = (index > -1);
+  
+  //------------------------ save instance overrides ------------------------
+  //----------- to make sure the parent event is actually created -----------
+  if (e.hasProperty('recurrence-id')){
+    newEvent.recurringEventId = e.getFirstPropertyValue('recurrence-id').toString();
+    Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
+    newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
+    recurringEvents.push(newEvent);
+    return;
+  }
+  else{
+    //------------------------ Send event object to gcal ------------------------
+    if (needsUpdate){
+      if (modifyExistingEvents){
+        Logger.log("Updating existing Event " + newEvent.extendedProperties.private["id"]);
+        newEvent = callWithBackoff(function(){
+          return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+        }, 2);
+        if (newEvent != null && emailWhenModified)
+          try{
+            GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + "\" at " + newEvent.start.toString());
+          }catch(error){}
+      }
+    }
+    else{
+      if (addEventsToCalendar){
+        Logger.log("Adding new Event " + newEvent.extendedProperties.private["id"]);
+        newEvent = callWithBackoff(function(){
+          return Calendar.Events.insert(newEvent, targetCalendarId);
+        }, 2);
+        if (newEvent != null && emailWhenAdded)
+          try{
+            GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + "\" at " + newEvent.start.toString());
+          }catch(error){}
+      }
+    }
+  }
 }
 
 /**
@@ -109,75 +160,13 @@ function parseResponses(responses, icsEventIds){
  *
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
- * @param {Array.string} calendarEventsMD5s - Array with all MD5s from the events in the target calendar
- * @param {Array.string} icsEventIds - Array with all IDs of the found events
- * @param {ICAL.Time} [startUpdateTime] - Current time to find past events
  * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
-function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startUpdateTime){
+function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event);
-  if (onlyFutureEvents){
-    if (icalEvent.isRecurrenceException()){
-      if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
-        Logger.log("Skipping past recurrence exception.");
-        return; 
-      }
-    }
-    else if(icalEvent.isRecurring()){
-      var skip = false;
-      if (icalEvent.endDate.compare(startUpdateTime) < 0){
-        var recur = event.getFirstPropertyValue('rrule');
-        var dtstart = event.getFirstPropertyValue('dtstart');
-        var iter = recur.iterator(dtstart);
-        var newStartDate;
-        for (var next = iter.next(); next; next = iter.next()) {
-          if (next.compare(startUpdateTime) < 0) {
-            continue;
-          }
-          newStartDate = next;
-          break;
-        }
-        if (newStartDate != null){
-          var diff = newStartDate.subtractDate(icalEvent.startDate);
-          icalEvent.endDate.addDuration(diff);
-          var newEndDate = icalEvent.endDate;
-          icalEvent.endDate = newEndDate;
-          icalEvent.startDate = newStartDate;
-          Logger.log("Adjusted RRULE to exclude past instances.");
-        }
-        else{
-          icalEvent.component.removeProperty('rrule');
-          Logger.log("Removed RRULE.");
-          skip = true;
-        }
-      }
-      //check and filter recurrence-exceptions
-      for (i=0; i<icalEvent.except.length; i++){
-        //Exclude the instance if it was moved from future to past
-        if((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)){
-          Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
-          icalEvent.component.addPropertyWithValue('exdate', icalEvent.except[i].recurrenceId.toString());
-        }//Readd the instance if it is moved from past to future
-        else if((icalEvent.except[i].startDate.compare(startUpdateTime) >= 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0)){
-          Logger.log("Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
-          icalEvent.component.addPropertyWithValue('rdate', icalEvent.except[i].recurrenceId.toString());
-          skip = false;
-        }
-      }
-      if(skip){
-        icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
-        Logger.log("Skipping past Recurring Event " + event.getFirstPropertyValue('uid').toString());
-        return;
-      }
-    }
-    else{//normal events
-      if (icalEvent.endDate.compare(startUpdateTime) < 0){
-        icsEventIds.splice(icsEventIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
-        Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
-        return;
-      }
-    }
+  if (onlyFutureEvents && checkSkipEvent(icalEvent, event)){
+    return;
   }
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
   if(calendarEventsMD5s.indexOf(digest) >= 0){
@@ -311,6 +300,7 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
   
   if (icalEvent.isRecurring()){
     // Calculate targetTZ's UTC-Offset
+    var calendarUTCOffset = 0;
     var jsTime = new Date();
     var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
     var tgtTime = new Date(Utilities.formatDate(jsTime, calendarTz, "HH:mm:ss MM/dd/yyyy"));
@@ -323,13 +313,84 @@ function processEvent(event, calendarTz, calendarEventsMD5s, icsEventIds, startU
 }
 
 /**
+ * Checks if the provided event has taken place in the past.
+ * Removes all past instances of the provided icalEvent object.
+ *
+ * @param {ICAL.Component} event - The event to process
+ * @param {ICAL.Event} icalEvent - The event to process as ICAL.Event object
+ * @return {boolean} Wether it's a past event or not
+ */
+function checkSkipEvent(event, icalEvent){
+  if (icalEvent.isRecurrenceException()){
+    if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
+      Logger.log("Skipping past recurrence exception.");
+      return true; 
+    }
+  }
+  else if(icalEvent.isRecurring()){
+    var skip = false; //Indicates if the recurring event and all its instances are in the past
+    if (icalEvent.endDate.compare(startUpdateTime) < 0){//Parenting recurring event is the past
+      var recur = event.getFirstPropertyValue('rrule');
+      var dtstart = event.getFirstPropertyValue('dtstart');
+      var iter = recur.iterator(dtstart);
+      var newStartDate;
+      for (var next = iter.next(); next; next = iter.next()) {
+        if (next.compare(startUpdateTime) < 0) {
+          continue;
+        }
+        newStartDate = next;
+        break;
+      }
+      if (newStartDate != null){//At least one instance is in the future
+        var diff = newStartDate.subtractDate(icalEvent.startDate);
+        icalEvent.endDate.addDuration(diff);
+        var newEndDate = icalEvent.endDate;
+        icalEvent.endDate = newEndDate;
+        icalEvent.startDate = newStartDate;
+        Logger.log("Adjusted RRULE to exclude past instances.");
+      }
+      else{//All instances are in the past
+        icalEvent.component.removeProperty('rrule');
+        Logger.log("Removed RRULE.");
+        skip = true;
+      }
+    }
+    //check and filter recurrence-exceptions
+    for (i=0; i<icalEvent.except.length; i++){
+      //Exclude the instance if it was moved from future to past
+      if((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)){
+        Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+        icalEvent.component.addPropertyWithValue('exdate', icalEvent.except[i].recurrenceId.toString());
+      }//Re-add the instance if it is moved from past to future
+      else if((icalEvent.except[i].startDate.compare(startUpdateTime) >= 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0)){
+        Logger.log("Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+        icalEvent.component.addPropertyWithValue('rdate', icalEvent.except[i].recurrenceId.toString());
+        skip = false;
+      }
+    }
+    if(skip){//Completely remove the event as all instances of it are in the past
+      icsEventsIds.splice(icsEventsIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+      Logger.log("Skipping past Recurring Event " + event.getFirstPropertyValue('uid').toString());
+      return true;
+    }
+  }
+  else{//normal events
+    if (icalEvent.endDate.compare(startUpdateTime) < 0){
+      icsEventsIds.splice(icsEventsIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
+      Logger.log("Skipping previous Event " + event.getFirstPropertyValue('uid').toString());
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Patches an existing event instance with the provided Calendar.Event.
  * The instance that needs to be updated is identified by the recurrence-id of the provided event.
  *
  * @param {Calendar.Event} recEvent - The event instance to process
- * @param {string} targetCalendarId - The ID of the target calendar
  */
-function processEventInstance(recEvent, targetCalendarId){
+function processEventInstance(recEvent){
   Logger.log("-----" + recEvent.recurringEventId.substring(0,10));
   var recIDStart = new Date(recEvent.recurringEventId);
   recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
@@ -355,13 +416,8 @@ function processEventInstance(recEvent, targetCalendarId){
 /**
  * Deletes all events from the target calendar that no longer exist in the source calendars.
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
- *
- * @param {Array.CalendarEvent} calendarEvents - Array with all events from the target calendar
- * @param {Array.strig} calendarEventsIds - Array with all IDs of the target calendar's events
- * @param {Array.string} icsEventsIds - Array with all IDs of the source calendars' events
- * @param {string} targetCalendarId - The ID of the target calendar
  */
-function processEventCleanup(calendarEvents, calendarEventsIds, icsEventsIds, targetCalendarId){
+function processEventCleanup(){
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
