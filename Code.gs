@@ -5,11 +5,11 @@
 *
 * 1) Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
 * 2) Changes lines 19-37 to be the settings that you want to use
-* 3) Click in the menu "Run" > "Run function" > "Install" and authorize the program
+* 3) Click in the menu "Run" > "Run function" > "install" and authorize the program
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
 * 4) You can also run "startSync" if you want to sync only once.
 *
-* **To stop Script from running click in the menu "Run" > "Run function" > "Uninstall"
+* **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall"
 *
 *=========================================
 *               SETTINGS
@@ -80,21 +80,21 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
-function Install(){
+function install(){
   //Delete any already existing triggers so we don't create excessive triggers
-  DeleteAllTriggers();
+  deleteAllTriggers();
 
   if (howFrequent < 1){
     throw "[ERROR] \"howFrequent\" must be greater than 0.";
   }
   else{
-    ScriptApp.newTrigger("Install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
+    ScriptApp.newTrigger("install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
     ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
   }
 }
 
-function Uninstall(){
-  DeleteAllTriggers();
+function uninstall(){
+  deleteAllTriggers();
 }
 
 var targetCalendarId;
@@ -106,6 +106,8 @@ var recurringEvents = [];
 var startUpdateTime;
 
 function startSync(){
+  checkForUpdate();
+  
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   

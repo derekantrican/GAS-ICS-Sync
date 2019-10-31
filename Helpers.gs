@@ -2,10 +2,13 @@ String.prototype.includes = function(phrase){
   return this.indexOf(phrase) > -1;
 }
 
-function DeleteAllTriggers(){
+/**
+ * Removes all triggers for the script's 'startSync' and 'install' function.
+ */
+function deleteAllTriggers(){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "Install"){
+    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "install"){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -229,15 +232,15 @@ function createEvent(event, calendarTz){
   if (addAttendees && event.hasProperty('attendee')){
     newEvent.attendees = [];
     for each (var att in icalEvent.attendees){
-      var mail = ParseAttendeeMail(att.toICALString());
+      var mail = parseAttendeeMail(att.toICALString());
       if (mail != null){
         var newAttendee = {'email' : mail };
 
-        var name = ParseAttendeeName(att.toICALString());
+        var name = parseAttendeeName(att.toICALString());
         if (name != null)
           newAttendee['displayName'] = name;
 
-        var resp = ParseAttendeeResp(att.toICALString());
+        var resp = parseAttendeeResp(att.toICALString());
         if (resp != null)
           newAttendee['responseStatus'] = resp;
 
@@ -258,7 +261,7 @@ function createEvent(event, calendarTz){
   }
 
   if (event.hasProperty('sequence')){
-    //newEvent.sequence = icalEvent.sequence;
+    //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
   }
 
   if (event.hasProperty('summary')){
@@ -266,7 +269,7 @@ function createEvent(event, calendarTz){
   }
 
   if (addOrganizerToTitle){
-    var organizer = ParseOrganizerName(event.toString());   
+    var organizer = parseOrganizerName(event.toString());   
     if (organizer != null)
       newEvent.summary = organizer + ": " + newEvent.summary;
   }
@@ -304,7 +307,7 @@ function createEvent(event, calendarTz){
       for each (var valarm in valarms){
         var trigger = valarm.getFirstPropertyValue('trigger').toString();
         if (overrides.length < 5){ //Google supports max 5 reminder-overrides
-          var timer = ParseNotificationTime(trigger)/60;
+          var timer = parseNotificationTime(trigger)/60;
           if (0 <= timer <= 40320)
             overrides.push({'method' : 'popup', 'minutes' : timer});
         }
@@ -326,7 +329,7 @@ function createEvent(event, calendarTz){
     var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
     var tgtTime = new Date(Utilities.formatDate(jsTime, calendarTz, "HH:mm:ss MM/dd/yyyy"));
     calendarUTCOffset = tgtTime - utcTime;
-    newEvent.recurrence = ParseRecurrenceRule(event, calendarUTCOffset);
+    newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
   }
   
   newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
@@ -535,7 +538,7 @@ function processTasks(responses){
  * @param {number} utcOffset - utc offset of the target calendar
  * @return {Array.String} Array with all recurrence components found in the provided event
  */
-function ParseRecurrenceRule(vevent, utcOffset){
+function parseRecurrenceRule(vevent, utcOffset){
   var recurrenceRules = vevent.getAllProperties('rrule');
   var exRules = vevent.getAllProperties('exrule');//deprecated, for compatibility only
   var exDates = vevent.getAllProperties('exdate');
@@ -578,7 +581,7 @@ function ParseRecurrenceRule(vevent, utcOffset){
  * @param {string} veventString - The string to parse
  * @return {?String} The Attendee's name found in the string, null if no name was found
  */
-function ParseAttendeeName(veventString){
+function parseAttendeeName(veventString){
   var nameMatch = RegExp("(cn=)([^;$:]*)", "gi").exec(veventString);
   if (nameMatch != null && nameMatch.length > 1)
     return nameMatch[2];
@@ -593,7 +596,7 @@ function ParseAttendeeName(veventString){
  * @param {string} veventString - The string to parse
  * @return {?String} The Attendee's mail adress found in the string, null if nothing was found
  */
-function ParseAttendeeMail(veventString){
+function parseAttendeeMail(veventString){
   var mailMatch = RegExp("(:mailto:)([^;$:]*)", "gi").exec(veventString);
   if (mailMatch != null && mailMatch.length > 1)
     return mailMatch[2];
@@ -608,7 +611,7 @@ function ParseAttendeeMail(veventString){
  * @param {string} veventString - The string to parse
  * @return {?String} The Attendee's response found in the string, null if nothing was found or unsupported
  */
-function ParseAttendeeResp(veventString){
+function parseAttendeeResp(veventString){
   var respMatch = RegExp("(partstat=)([^;$:]*)", "gi").exec(veventString);
   if (respMatch != null && respMatch.length > 1){
     if (['NEEDS-ACTION'].indexOf(respMatch[2].toUpperCase()) > -1) {
@@ -640,7 +643,7 @@ function ParseAttendeeResp(veventString){
  * @param {string} veventString - The string to parse
  * @return {?String} The organizer's name found in the string, null if no name was found
  */
-function ParseOrganizerName(veventString){
+function parseOrganizerName(veventString){
   /*A regex match is necessary here because ICAL.js doesn't let us directly
   * get the "CN" part of an ORGANIZER property. With something like
   * ORGANIZER;CN="Sally Example":mailto:sally@example.com
@@ -662,7 +665,7 @@ function ParseOrganizerName(veventString){
  * @param {string} notificationString - The string to parse
  * @return {number} The notification time in seconds
  */
-function ParseNotificationTime(notificationString){
+function parseNotificationTime(notificationString){
   //https://www.kanzaki.com/docs/ical/duration-t.html
   var reminderTime = 0;
   
@@ -724,4 +727,31 @@ function callWithBackoff(func, maxRetries) {
   }while(tries <= maxRetries );
 
   return null;
+}
+
+/**
+ * Checks for a new version of the script at https://github.com/derekantrican/GAS-ICS-Sync/releases.
+ * Will notify the user once if a new version was released.
+ */
+function checkForUpdate(){
+  var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
+  if (alreadyAlerted == null){
+    try{
+      var thisVersion = 5.0;
+      var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
+      var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
+      var latestRelease = regex.exec(html)[0];
+      regex = RegExp("\"(\\d.\\d)\"", "g");
+      var latestVersion = Number(regex.exec(latestRelease)[1]);
+      
+      if (latestVersion > thisVersion){
+        if (email != ""){
+          GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
+        
+          PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", true);
+        }
+      }
+    }
+    catch(e){}
+  }
 }
