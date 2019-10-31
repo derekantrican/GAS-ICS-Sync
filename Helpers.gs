@@ -178,7 +178,7 @@ function processEvent(event, calendarTz){
  */
 function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
-  var icalEvent = new ICAL.Event(event);
+  var icalEvent = new ICAL.Event(event, {strictExceptions: true});
   if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
     return;
   }
@@ -300,7 +300,7 @@ function createEvent(event, calendarTz){
   if (addAlerts){
     var valarms = event.getAllSubcomponents('valarm');
     if (valarms.length == 0){
-      newEvent.reminders = { 'useDefault' : true };
+      newEvent.reminders = { 'useDefault' : true, 'overrides' : []};
     }
     else{
       var overrides = [];

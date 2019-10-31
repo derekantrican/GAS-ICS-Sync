@@ -8789,6 +8789,7 @@ ICAL.Event = (function() {
      * @type {ICAL.Event[]}
      */
     exceptions: null,
+    except: [],
 
     /**
      * When true, will verify exceptions are related by their UUID.
@@ -8817,7 +8818,10 @@ ICAL.Event = (function() {
       }
 
       if (this.strictExceptions && obj.uid !== this.uid) {
-        throw new Error('attempted to relate unrelated exception');
+        //throw new Error('attempted to relate unrelated exception');
+      }
+      else{
+        this.except.push(obj);
       }
 
       var id = obj.recurrenceId.toString();
@@ -8825,7 +8829,6 @@ ICAL.Event = (function() {
       // we don't sort or manage exceptions directly
       // here the recurrence expander handles that.
       this.exceptions[id] = obj;
-      this.except.push(obj);
 
       // index RANGE=THISANDFUTURE exceptions so we can
       // look them up later in getOccurrenceDetails.
