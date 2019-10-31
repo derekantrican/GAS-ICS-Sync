@@ -111,7 +111,7 @@ function parseResponses(responses){
  */
 function processEvent(event, calendarTz){
   //------------------------ Create the event object ------------------------
-  var newEvent = createEvent(event, calendarTz, icsEventsIds);
+  var newEvent = createEvent(event, calendarTz);
   if (newEvent == null)
     return;
   
@@ -120,8 +120,8 @@ function processEvent(event, calendarTz){
   
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
-  if (e.hasProperty('recurrence-id')){
-    newEvent.recurringEventId = e.getFirstPropertyValue('recurrence-id').toString();
+  if (event.hasProperty('recurrence-id')){
+    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
     Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
     recurringEvents.push(newEvent);
@@ -176,7 +176,7 @@ function processEvent(event, calendarTz){
 function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event);
-  if (onlyFutureEvents && checkSkipEvent(icalEvent, event)){
+  if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
     return;
   }
 
