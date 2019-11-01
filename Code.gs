@@ -17,9 +17,11 @@
 */
 
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
+                                       // For instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays"]
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
+  
 ];
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
