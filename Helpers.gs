@@ -3,6 +3,32 @@ String.prototype.includes = function(phrase){
 }
 
 /**
+ * Takes an array of ICS calendars and target Google calendars and combines them
+ *
+ * @param {Array.string} calendarMap - User-defined calendar map
+ * @return {Array.string} Condensed calendar map
+ */
+function condenseCalendarMap(calendarMap){
+  var result = [];
+  for each (var mapping in calendarMap){
+    var index = -1;
+    for (var i = 0; i < result.length; i++){
+      if (result[i][0] == mapping[1]){
+        index = i;
+        break;
+      }
+    }
+
+    if (index > -1)
+      result[index][1].push(mapping[0]);
+    else
+      result.push([ mapping[1], [ mapping[0] ] ]);
+  }
+
+  return result;
+}
+
+/**
  * Removes all triggers for the script's 'startSync' and 'install' function.
  */
 function deleteAllTriggers(){
