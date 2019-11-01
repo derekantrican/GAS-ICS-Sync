@@ -290,9 +290,10 @@ function createEvent(event, calendarTz){
     //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
   }
 
-  if (event.hasProperty('summary')){
+  if (descriptionAsTitles && event.hasProperty('description'))
+    newEvent.summary = icalEvent.description;
+  else if (event.hasProperty('summary'))
     newEvent.summary = icalEvent.summary;
-  }
 
   if (addOrganizerToTitle){
     var organizer = parseOrganizerName(event.toString());   

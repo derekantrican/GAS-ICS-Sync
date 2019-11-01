@@ -28,7 +28,8 @@ var addEventsToCalendar = true;        // If you turn this to "false", you can c
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;   // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
 var addAlerts = true;                  // Whether to add the ics/ical alerts as notifications on the Google Calendar events, this will override the standard reminders specified by the target calendar.
-var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity 
+var addOrganizerToTitle = false;       // Whether to prefix the event name with the event organiser for further clarity
+var descriptionAsTitles = false;       // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
 var addCalToTitle = false;             // Whether to add the source calendar to title
 var addAttendees = false;              // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 
