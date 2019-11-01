@@ -324,18 +324,27 @@ function createEvent(event, calendarTz){
       newEvent.transparency = transparency;
   }
 
-  if (addAlerts){
-    var valarms = event.getAllSubcomponents('valarm');
-    if (valarms.length == 0){
-      newEvent.reminders = { 'useDefault' : true, 'overrides' : []};
+  if (icalEvent.startDate.isDate){
+    if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320){
+      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : defaultAllDayReminder}]};//reminder as defined by the user
     }
     else{
+      newEvent.reminders = { 'useDefault' : false, 'overrides' : []};//no reminder
+    }
+  }
+  else{
+    newEvent.reminders = { 'useDefault' : true, 'overrides' : []};//will set the default reminders as set at calendar.google.com
+  }
+  
+  if (addAlerts){
+    var valarms = event.getAllSubcomponents('valarm');
+    if (valarms.length > 0){
       var overrides = [];
       for each (var valarm in valarms){
         var trigger = valarm.getFirstPropertyValue('trigger').toString();
         if (overrides.length < 5){ //Google supports max 5 reminder-overrides
           var timer = parseNotificationTime(trigger)/60;
-          if (0 <= timer <= 40320)
+          if (0 <= timer && timer <= 40320)
             overrides.push({'method' : 'popup', 'minutes' : timer});
         }
       }
