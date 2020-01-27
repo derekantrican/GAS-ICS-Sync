@@ -281,7 +281,7 @@ function createEvent(event, calendarTz){
       newEvent.status = status;
   }
 
-  if (event.hasProperty('url')){
+  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString() != ''){
     newEvent.source = Calendar.newEventSource()
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
   }
@@ -295,8 +295,8 @@ function createEvent(event, calendarTz){
   else if (event.hasProperty('summary'))
     newEvent.summary = icalEvent.summary;
 
-  if (addOrganizerToTitle){
-    var organizer = parseOrganizerName(event.toString());   
+  if (addOrganizerToTitle && event.hasProperty('organizer')){
+    var organizer = event.getFirstProperty('organizer').getParameter('cn').toString();   
     if (organizer != null)
       newEvent.summary = organizer + ": " + newEvent.summary;
   }
@@ -670,28 +670,6 @@ function parseAttendeeResp(veventString){
   else{
     return null;
   }
-}
-
-/**
- * Parses the provided string to find the name of the event organizer.
- * Will return null if no name is found.
- *
- * @param {string} veventString - The string to parse
- * @return {?String} The organizer's name found in the string, null if no name was found
- */
-function parseOrganizerName(veventString){
-  /*A regex match is necessary here because ICAL.js doesn't let us directly
-  * get the "CN" part of an ORGANIZER property. With something like
-  * ORGANIZER;CN="Sally Example":mailto:sally@example.com
-  * VEVENT.getFirstPropertyValue('organizer') returns "mailto:sally@example.com".
-  * Therefore we have to use a regex match on the VEVENT string instead
-  */
-  
-  var nameMatch = RegExp("organizer(?:;|:)cn=(.*?):", "gi").exec(veventString);
-  if (nameMatch != null && nameMatch.length > 1)
-    return nameMatch[1];
-  else
-    return null;
 }
 
 /**
