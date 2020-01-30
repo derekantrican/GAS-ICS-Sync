@@ -120,6 +120,23 @@ function parseResponses(responses){
     result = [].concat(allEvents, result);
   }
   
+  if (onlyFutureEvents){
+    result = result.filter(function(event){
+      try{
+        if (event.hasProperty('recurrence-id') || event.hasProperty('rrule') || event.hasProperty('rdate') || event.hasProperty('exdate')){
+          //Keep recurrences to properly filter them later on
+          return true;
+        }
+        var eventEnde;
+        eventEnde = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString());
+        eventEnde = eventEnde.adjust(1,0,0,0);//Avoid timezone issues
+        return (eventEnde.compare(startUpdateTime) >= 0);
+      }catch(e){
+        return true;
+      }
+    });
+  }
+  
   result.forEach(function(event){
     if(event.hasProperty('recurrence-id')){
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + event.getFirstPropertyValue('recurrence-id').toString());
