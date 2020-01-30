@@ -150,7 +150,8 @@ function processEvent(event, calendarTz){
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty('recurrence-id')){
-    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
+    var recID = new ICAL.Time.fromDateTimeString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
     Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
     recurringEvents.push(newEvent);
