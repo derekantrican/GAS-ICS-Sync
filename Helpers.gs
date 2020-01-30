@@ -34,7 +34,7 @@ function condenseCalendarMap(calendarMap){
 function deleteAllTriggers(){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "install"){
+    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "install" || triggers[i].getHandlerFunction() == "main"){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -113,11 +113,28 @@ function parseResponses(responses){
     }
     
     var allEvents = component.getAllSubcomponents("vevent");
-    var calName = component.getFirstPropertyValue("name");
+    var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
     if (calName != null)
       allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
 
     result = [].concat(allEvents, result);
+  }
+  
+  if (onlyFutureEvents){
+    result = result.filter(function(event){
+      try{
+        if (event.hasProperty('recurrence-id') || event.hasProperty('rrule') || event.hasProperty('rdate') || event.hasProperty('exdate')){
+          //Keep recurrences to properly filter them later on
+          return true;
+        }
+        var eventEnde;
+        eventEnde = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString());
+        eventEnde = eventEnde.adjust(1,0,0,0);//Avoid timezone issues
+        return (eventEnde.compare(startUpdateTime) >= 0);
+      }catch(e){
+        return true;
+      }
+    });
   }
   
   result.forEach(function(event){
@@ -150,7 +167,8 @@ function processEvent(event, calendarTz){
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty('recurrence-id')){
-    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
+    var recID = new ICAL.Time.fromDateTimeString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
     Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
     recurringEvents.push(newEvent);
@@ -281,7 +299,7 @@ function createEvent(event, calendarTz){
       newEvent.status = status;
   }
 
-  if (event.hasProperty('url')){
+  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString() != ''){
     newEvent.source = Calendar.newEventSource()
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
   }
@@ -295,8 +313,8 @@ function createEvent(event, calendarTz){
   else if (event.hasProperty('summary'))
     newEvent.summary = icalEvent.summary;
 
-  if (addOrganizerToTitle){
-    var organizer = parseOrganizerName(event.toString());   
+  if (addOrganizerToTitle && event.hasProperty('organizer')){
+    var organizer = event.getFirstProperty('organizer').getParameter('cn').toString();   
     if (organizer != null)
       newEvent.summary = organizer + ": " + newEvent.summary;
   }
@@ -673,28 +691,6 @@ function parseAttendeeResp(veventString){
 }
 
 /**
- * Parses the provided string to find the name of the event organizer.
- * Will return null if no name is found.
- *
- * @param {string} veventString - The string to parse
- * @return {?String} The organizer's name found in the string, null if no name was found
- */
-function parseOrganizerName(veventString){
-  /*A regex match is necessary here because ICAL.js doesn't let us directly
-  * get the "CN" part of an ORGANIZER property. With something like
-  * ORGANIZER;CN="Sally Example":mailto:sally@example.com
-  * VEVENT.getFirstPropertyValue('organizer') returns "mailto:sally@example.com".
-  * Therefore we have to use a regex match on the VEVENT string instead
-  */
-  
-  var nameMatch = RegExp("organizer(?:;|:)cn=(.*?):", "gi").exec(veventString);
-  if (nameMatch != null && nameMatch.length > 1)
-    return nameMatch[1];
-  else
-    return null;
-}
-
-/**
  * Parses the provided string to find the notification time of an event.
  * Will return 0 by default.
  *
@@ -773,7 +769,7 @@ function checkForUpdate(){
   var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   if (alreadyAlerted == null){
     try{
-      var thisVersion = 5.0;
+      var thisVersion = 5.1;
       var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
       var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
       var latestRelease = regex.exec(html)[0];

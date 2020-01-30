@@ -87,15 +87,19 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 function install(){
-  //Delete any already existing triggers so we don't create excessive triggers
-  deleteAllTriggers();
-
-  if (howFrequent < 1){
-    throw "[ERROR] \"howFrequent\" must be greater than 0.";
-  }
-  else{
-    ScriptApp.newTrigger("install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
-    ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
+  try{
+    //Delete any already existing triggers so we don't create excessive triggers
+    deleteAllTriggers();
+    
+    if (howFrequent < 1){
+      throw "[ERROR] \"howFrequent\" must be greater than 0.";
+    }
+    else{
+      ScriptApp.newTrigger("install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
+      ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
+    }
+  }catch(e){
+    install();//Retry on error
   }
 }
 
@@ -104,6 +108,7 @@ function uninstall(){
 }
 
 var targetCalendarId;
+var targetCalendarName;
 var calendarEvents = [];
 var calendarEventsIds = [];
 var icsEventsIds = [];
@@ -123,7 +128,7 @@ function startSync(){
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for each (var calendar in sourceCalendars){
     calendarEvents = [];
-    var targetCalendarName = calendar[0];
+    targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
     var vevents;
     //------------------------ Fetch URL items ------------------------
