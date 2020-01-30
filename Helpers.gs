@@ -113,7 +113,7 @@ function parseResponses(responses){
     }
     
     var allEvents = component.getAllSubcomponents("vevent");
-    var calName = component.getFirstPropertyValue("name");
+    var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
     if (calName != null)
       allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
 
