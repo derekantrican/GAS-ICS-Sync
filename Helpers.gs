@@ -516,7 +516,7 @@ function processEventCleanup(){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
       
-      if(processedIndex.indexOf(currentID) != -1 || feedIndex  == -1 && calendarEvents[i].recurringEventId == null){
+      if((feedIndex  == -1 && calendarEvents[i].recurringEventId == null) || processedIndex.indexOf(currentID) != -1){
         Logger.log("Deleting event " + currentID + " (clean up)");
         try{
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
