@@ -507,21 +507,25 @@ function processEventInstance(recEvent){
 
 /**
  * Deletes all events from the target calendar that no longer exist in the source calendars.
+ * Also deletes duplicate events on target calendar that may have been introduced by a script read error
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
  */
 function processEventCleanup(){
+  var processedIndex = []; // ensure no duplicates on Google Calendar
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
       
-      if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null){
-        Logger.log("Deleting old event " + currentID);
+      if(processedIndex.indexOf(currentID) != -1 || feedIndex  == -1 && calendarEvents[i].recurringEventId == null){
+        Logger.log("Deleting event " + currentID + " (clean up)");
         try{
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
         }
         catch (err){
           Logger.log(err);
         }
+      } else {
+        processedIndex.push(currentID);
       }
     }
 }
