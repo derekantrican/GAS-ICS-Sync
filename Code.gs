@@ -126,7 +126,7 @@ function startSync(){
   emailWhenAdded = emailWhenAdded && email != "";
   
   sourceCalendars = condenseCalendarMap(sourceCalendars);
-  for each (var calendar in sourceCalendars){
+  for (var calendar of sourceCalendars){
     calendarEvents = [];
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
@@ -192,7 +192,7 @@ function startSync(){
 
     //------------------------ Add Recurring Event Instances ------------------------
     Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
-    for each (var recEvent in recurringEvents){
+    for (var recEvent of recurringEvents){
       processEventInstance(recEvent);
     }
   }

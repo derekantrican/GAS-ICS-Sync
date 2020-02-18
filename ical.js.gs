@@ -2797,7 +2797,7 @@ ICAL.Property = (function() {
       return this._parent;
     },
 
-    set parent1(p) {
+    set parent(p) {
       // Before setting the parent, check if the design set has changed. If it
       // has, we later need to update the type if it was unknown before.
       var designSetChanged = !this._parent || (p && p._designSet != this._parent._designSet);

@@ -10,7 +10,7 @@ String.prototype.includes = function(phrase){
  */
 function condenseCalendarMap(calendarMap){
   var result = [];
-  for each (var mapping in calendarMap){
+  for (var mapping of calendarMap){
     var index = -1;
     for (var i = 0; i < result.length; i++){
       if (result[i][0] == mapping[1]){
@@ -48,7 +48,7 @@ function deleteAllTriggers(){
  */
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
-  for each (var url in sourceCalendarURLs){
+  for (var url of sourceCalendarURLs){
     url = url.replace("webcal://", "https://");      
     
     try{
@@ -102,13 +102,13 @@ function setupTargetCalendar(targetCalendarName){
  */
 function parseResponses(responses){
   var result = [];
-  for each (var resp in responses){
+  for (var resp of responses){
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
 
     ICAL.helpers.updateTimezones(component);
     var vtimezones = component.getAllSubcomponents("vtimezone");
-    for each (var tz in vtimezones){
+    for (var tz of vtimezones){
       ICAL.TimezoneService.register(tz);
     }
     
@@ -275,7 +275,7 @@ function createEvent(event, calendarTz){
   
   if (addAttendees && event.hasProperty('attendee')){
     newEvent.attendees = [];
-    for each (var att in icalEvent.attendees){
+    for (var att of icalEvent.attendees){
       var mail = parseAttendeeMail(att.toICALString());
       if (mail != null){
         var newAttendee = {'email' : mail };
@@ -331,9 +331,9 @@ function createEvent(event, calendarTz){
     newEvent.location = icalEvent.location;
 
   if (event.hasProperty('class')){
-    var class = event.getFirstPropertyValue('class').toString().toLowerCase();
-    if (["default", "public", "private", "confidential"].indexOf(class) > -1)
-      newEvent.visibility = class;
+    var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
+    if (["default", "public", "private", "confidential"].indexOf(classString) > -1)
+      newEvent.visibility = classString;
   }
 
   if (event.hasProperty('transp')){
@@ -358,7 +358,7 @@ function createEvent(event, calendarTz){
     var valarms = event.getAllSubcomponents('valarm');
     if (valarms.length > 0){
       var overrides = [];
-      for each (var valarm in valarms){
+      for (var valarm of valarms){
         var trigger = valarm.getFirstPropertyValue('trigger').toString();
         if (overrides.length < 5){ //Google supports max 5 reminder-overrides
           var timer = parseNotificationTime(trigger)/60;
@@ -545,7 +545,7 @@ function processTasks(responses){
   var icsTasksIds = [];
   var vtasks = [];
   
-  for each (var resp in responses){
+  for (var resp of responses){
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
     
@@ -555,7 +555,7 @@ function processTasks(responses){
   vtasks.forEach(function(task){ icsTasksIds.push(task.getFirstPropertyValue('uid').toString()); });
   
   Logger.log("\tProcessing " + vtasks.length + " tasks");
-  for each (var task in vtasks){
+  for (var task of vtasks){
     var newtask = Tasks.newTask();
     newtask.id = task.getFirstPropertyValue("uid").toString();
     newtask.title = task.getFirstPropertyValue("summary").toString();
@@ -599,7 +599,7 @@ function parseRecurrenceRule(vevent, utcOffset){
   var rDates = vevent.getAllProperties('rdate');
 
   var recurrence = [];
-  for each (var recRule in recurrenceRules){
+  for (var recRule of recurrenceRules){
     var recIcal = recRule.toICALString();
     var adjustedTime;
 
@@ -613,15 +613,15 @@ function parseRecurrenceRule(vevent, utcOffset){
     recurrence.push(recIcal);
   }
 
-  for each (var exRule in exRules){
+  for (var exRule of exRules){
     recurrence.push(exRule.toICALString()); 
   }
 
-  for each (var exDate in exDates){
+  for (var exDate of exDates){
     recurrence.push(exDate.toICALString());
   }
 
-  for each (var rDate in rDates){
+  for (var rDate of rDates){
     recurrence.push(rDate.toICALString());
   }
 
