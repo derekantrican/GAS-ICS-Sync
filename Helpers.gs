@@ -49,22 +49,28 @@ function deleteAllTriggers(){
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
   for (var url of sourceCalendarURLs){
-    url = url.replace("webcal://", "https://");      
+    url = url.replace("webcal://", "https://");
     
-    try{
-      var urlResponse = UrlFetchApp.fetch(url).getContentText();
-      //------------------------ Error checking ------------------------
-      if(!urlResponse.includes("BEGIN:VCALENDAR")){
-        Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+    callWithBackoff(function() {
+      var urlResponse = UrlFetchApp.fetch(url);
+      if (urlResponse.getResponseCode() == 200){
+        var urlContent = urlResponse.getContentText();
+        if(!urlContent.includes("BEGIN:VCALENDAR")){
+          Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+          return;
+        }
+        else{
+          result.push(urlContent);
+          Logger.log("Result: " + result.length);
+          return;
+        }     
       }
-      else{
-        result.push(urlResponse);
+      else{ //Throw here to make callWithBackoff run again
+        throw "Error: Encountered " + urlReponse.getReponseCode() + " when accessing " + url; 
       }
-    }
-    catch(e){
-      Logger.log(e);
-    }
+    }, 2);
   }
+  
   return result;
 }
 
