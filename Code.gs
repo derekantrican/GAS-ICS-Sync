@@ -117,6 +117,13 @@ var recurringEvents = [];
 var startUpdateTime;
 
 function startSync(){
+  if (PropertiesService.getUserProperties().getProperty('IsRunning') == "true") {
+    Logger.log("Another iteration is currently running! Exiting...");
+    return;
+  }
+  
+  PropertiesService.getUserProperties().setProperty('IsRunning', true);
+
   checkForUpdate();
   
   if (onlyFutureEvents)
@@ -198,4 +205,5 @@ function startSync(){
   }
 
   Logger.log("Sync finished!");
+  PropertiesService.getUserProperties().setProperty('IsRunning', false);
 }
