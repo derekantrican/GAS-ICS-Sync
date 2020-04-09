@@ -52,7 +52,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
     url = url.replace("webcal://", "https://");
     
     callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(url);
+      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false });
       if (urlResponse.getResponseCode() == 200){
         var urlContent = urlResponse.getContentText();
         if(!urlContent.includes("BEGIN:VCALENDAR")){
