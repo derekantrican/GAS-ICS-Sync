@@ -117,13 +117,13 @@ var recurringEvents = [];
 var startUpdateTime;
 
 function startSync(){
-  if (PropertiesService.getUserProperties().getProperty('IsRunning') == "true") {
+  if (PropertiesService.getScriptProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getScriptProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
   
-  PropertiesService.getUserProperties().setProperty('IsRunning', true);
-
+  PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
+  
   checkForUpdate();
   
   if (onlyFutureEvents)
@@ -205,5 +205,5 @@ function startSync(){
   }
 
   Logger.log("Sync finished!");
-  PropertiesService.getUserProperties().setProperty('IsRunning', false);
+  PropertiesService.getScriptProperties().setProperty('LastRun', 0);
 }
