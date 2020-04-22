@@ -38,8 +38,7 @@ var defaultAllDayReminder = -1;        // Default reminder for all day events in
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
 var addTasks = false;
 
-var emailWhenAdded = false;            // Will email you when an event is added to your calendar
-var emailWhenModified = false;         // Will email you when an existing event is updated in your calendar
+var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
 /*
@@ -114,6 +113,9 @@ var calendarEventsIds = [];
 var icsEventsIds = [];
 var calendarEventsMD5s = [];
 var recurringEvents = [];
+var addedEvents = [];
+var modifiedEvents = [];
+var removedEvents = [];
 var startUpdateTime;
 
 function startSync(){
@@ -130,7 +132,7 @@ function startSync(){
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   
   //Disable email notification if no mail adress is provided 
-  emailWhenAdded = emailWhenAdded && email != "";
+  emailSummary = emailSummary && email != "";
   
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
@@ -204,6 +206,9 @@ function startSync(){
     }
   }
 
+  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
+    sendSummary();
+  }
   Logger.log("Sync finished!");
   PropertiesService.getScriptProperties().setProperty('LastRun', 0);
 }
