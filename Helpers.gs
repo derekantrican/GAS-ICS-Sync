@@ -188,12 +188,8 @@ function processEvent(event, calendarTz){
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, 2);
-        if (newEvent != null && emailWhenModified){
-          try{
-            GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + 
-                                                                                             "\" at " + newEvent.start.toString());
-          }
-          catch(error){}
+        if (newEvent != null && emailSummary){
+          modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
       }
     }
@@ -203,12 +199,8 @@ function processEvent(event, calendarTz){
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, 2);
-        if (newEvent != null && emailWhenAdded){
-          try{
-            GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + 
-                                                                                              "\" at " + newEvent.start.toString());
-          }
-          catch(error){}
+        if (newEvent != null && emailSummary){
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
       }
     }
@@ -524,6 +516,9 @@ function processEventCleanup(){
         Logger.log("Deleting old event " + currentID);
         try{
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
+          if (emailSummary){
+            removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
+          }
         }
         catch (err){
           Logger.log(err);
@@ -739,6 +734,54 @@ function parseNotificationTime(notificationString){
     
     return reminderTime; //Return the notification time in seconds
   }
+}
+
+/**
+* Sends an email summary with added/modified/deleted events.
+*/            
+function sendSummary() {
+  var subject;
+  var body;
+  
+  var subject = `GAS-ICS-Sync Execution Summary: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  addedEvents = condenseCalendarMap(addedEvents);
+  modifiedEvents = condenseCalendarMap(modifiedEvents);
+  removedEvents = condenseCalendarMap(removedEvents);
+  
+  body = "GAS-ICS-Sync made the following changes to your calendar:<br/>";
+  for (var tgtCal of addedEvents){
+    body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
+    for (var addedEvent of tgtCal[1]){
+      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+    }
+    body += "</ul>";
+  }
+  
+  for (var tgtCal of modifiedEvents){
+    body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
+    for (var addedEvent of tgtCal[1]){
+      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+    }
+    body += "</ul>";
+  }
+  
+  for (var tgtCal of removedEvents){
+    body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
+    for (var addedEvent of tgtCal[1]){
+      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+    }
+    body += "</ul>";
+  }
+  
+  body += "<br/><br/>Do you have any problems or suggestions? Contact us at <a href='https://github.com/derekantrican/GAS-ICS-Sync/'>github</a>.";
+  var message = {
+    to: email,
+    subject: subject,
+    htmlBody: body,
+    name: "GAS-ICS-Sync"
+  };
+  
+  MailApp.sendEmail(message);
 }
 
 /**
