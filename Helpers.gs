@@ -358,8 +358,12 @@ function createEvent(event, calendarTz){
       var overrides = [];
       for (var valarm of valarms){
         var trigger = valarm.getFirstPropertyValue('trigger').toString();
+        try{
+          var alarmTime = new ICAL.Time.fromString(trigger);
+          trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
+        }catch(e){}
         if (overrides.length < 5){ //Google supports max 5 reminder-overrides
-          var timer = parseNotificationTime(trigger)/60;
+          var timer = parseNotificationTime(trigger);
           if (0 <= timer && timer <= 40320)
             overrides.push({'method' : 'popup', 'minutes' : timer});
         }
@@ -696,7 +700,7 @@ function parseAttendeeResp(veventString){
  * Will return 0 by default.
  *
  * @param {string} notificationString - The string to parse
- * @return {number} The notification time in seconds
+ * @return {number} The notification time in minutes
  */
 function parseNotificationTime(notificationString){
   //https://www.kanzaki.com/docs/ical/duration-t.html
@@ -708,31 +712,27 @@ function parseNotificationTime(notificationString){
   
   notificationString = notificationString.substr(1); //Remove "P" character
   
-  var secondMatch = RegExp("\\d+S", "g").exec(notificationString);
   var minuteMatch = RegExp("\\d+M", "g").exec(notificationString);
   var hourMatch = RegExp("\\d+H", "g").exec(notificationString);
   var dayMatch = RegExp("\\d+D", "g").exec(notificationString);
   var weekMatch = RegExp("\\d+W", "g").exec(notificationString);
   
   if (weekMatch != null){
-    reminderTime += parseInt(weekMatch[0].slice(0, -1)) & 7 * 24 * 60 * 60; //Remove the "W" off the end
+    reminderTime += parseInt(weekMatch[0].slice(0, -1)) & 7 * 24 * 60; //Remove the "W" off the end
     
-    return reminderTime; //Return the notification time in seconds
+    return reminderTime; //Return the notification time in minutes
   }
   else{
-    if (secondMatch != null)
-      reminderTime += parseInt(secondMatch[0].slice(0, -1)); //Remove the "S" off the end
-    
     if (minuteMatch != null)
-      reminderTime += parseInt(minuteMatch[0].slice(0, -1)) * 60; //Remove the "M" off the end
+      reminderTime += parseInt(minuteMatch[0].slice(0, -1)); //Remove the "M" off the end
     
     if (hourMatch != null)
-      reminderTime += parseInt(hourMatch[0].slice(0, -1)) * 60 * 60; //Remove the "H" off the end
+      reminderTime += parseInt(hourMatch[0].slice(0, -1)) * 60; //Remove the "H" off the end
     
     if (dayMatch != null)
-      reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60 * 60; //Remove the "D" off the end
+      reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60; //Remove the "D" off the end
     
-    return reminderTime; //Return the notification time in seconds
+    return reminderTime; //Return the notification time in minutes
   }
 }
 
