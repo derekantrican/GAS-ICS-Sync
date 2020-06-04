@@ -145,7 +145,10 @@ function parseResponses(responses){
   
   result.forEach(function(event){
     if(event.hasProperty('recurrence-id')){
-      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + event.getFirstPropertyValue('recurrence-id').toString());
+      var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+      var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
+    
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recUTC);
     }
     else{
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
@@ -173,7 +176,7 @@ function processEvent(event, calendarTz){
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty('recurrence-id')){
-    var recID = new ICAL.Time.fromDateTimeString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
     newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
     Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
@@ -494,7 +497,13 @@ function processEventInstance(recEvent){
   });
 
   if (eventInstanceToPatch.length == 0){
-    Logger.log("No Instance found, skipping!");
+    Logger.log("No Instance found, adding as new event!“);
+    try{
+      Calendar.Events.insert(recEvent, targetCalendarId);
+    }
+    catch(error){
+      Logger.log(error); 
+    }
   }
   else{
     try{
