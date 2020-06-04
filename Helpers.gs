@@ -497,7 +497,7 @@ function processEventInstance(recEvent){
   });
 
   if (eventInstanceToPatch.length == 0){
-    Logger.log("No Instance found, adding as new event!“);
+    Logger.log("No Instance found, adding as new event!");
     try{
       Calendar.Events.insert(recEvent, targetCalendarId);
     }
