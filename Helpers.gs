@@ -134,8 +134,7 @@ function parseResponses(responses){
           return true;
         }
         var eventEnde;
-        eventEnde = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString());
-        eventEnde = eventEnde.adjust(1,0,0,0);//Avoid timezone issues
+        eventEnde = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString(), event.getFirstProperty('dtend'));
         return (eventEnde.compare(startUpdateTime) >= 0);
       }catch(e){
         return true;
