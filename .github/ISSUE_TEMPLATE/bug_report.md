@@ -7,6 +7,10 @@ assignees: ''
 
 ---
 
+<!--
+BEFORE SUBMITTING A NEW ISSUE, PLEASE READ THIS: https://github.com/derekantrican/GAS-ICS-Sync/wiki/Before-submitting-a-new-issue...
+-->
+
 - Description of the problem
 - Screenshots
 - An input ics string that can reproduce the problem
