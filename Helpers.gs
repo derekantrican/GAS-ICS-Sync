@@ -687,7 +687,7 @@ function parseAttendeeResp(veventString){
     else if (['ACCEPTED', 'COMPLETED'].indexOf(respMatch[2].toUpperCase()) > -1) {
       respMatch[2] = 'accepted';
     } 
-    else if (['DECLINED'].indexOf(respMatch[2].toUpperCase(respMatch[2].toUpperCase())) > -1) {
+    else if (['DECLINED'].indexOf(respMatch[2].toUpperCase()) > -1) {
       respMatch[2] = 'declined';
     } 
     else if (['DELEGATED', 'IN-PROCESS', 'TENTATIVE'].indexOf(respMatch[2].toUpperCase())) {
