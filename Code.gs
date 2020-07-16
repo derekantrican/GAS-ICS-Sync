@@ -18,7 +18,7 @@
 
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
                                        // For instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays"]
-  ["icsUrl1", "targetCalendar1"],
+  ["icsUrl1", "targetCalendar1"],      //if you want to sync your MAIN/default account number - use your Gmail email address 
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
   
@@ -38,6 +38,8 @@ var defaultAllDayReminder = -1;        // Default reminder for all day events in
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
 var addTasks = false;
 
+var emailWhenModified = false;  
+var emailWhenAdded = false;  
 var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
 var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
 
@@ -98,6 +100,7 @@ function install(){
       ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
     }
   }catch(e){
+  Logger.log(e);
     install();//Retry on error
   }
 }
@@ -125,7 +128,7 @@ function startSync(){
   }
   
   PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
-  
+  Logger.log("Checking for updates:");
   checkForUpdate();
   
   if (onlyFutureEvents)
