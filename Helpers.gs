@@ -490,6 +490,7 @@ function processEventInstance(recEvent){
     }).items;
 
   var eventInstanceToPatch = calendarEvents.filter(function(item){
+    if (!item.originalStartTime) return false
     var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
     var instanceStart = new ICAL.Time.fromString(origStart);
 
