@@ -477,7 +477,7 @@ function checkSkipEvent(event, icalEvent){
  * @param {Calendar.Event} recEvent - The event instance to process
  */
 function processEventInstance(recEvent){
-  Logger.log("\t" + recEvent.recurringEventId.substring(0,10));
+  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId.substring(0,10));
   var recIDStart = new Date(recEvent.recurringEventId);
   recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
 
@@ -488,15 +488,21 @@ function processEventInstance(recEvent){
       privateExtendedProperty : "id=" + recEvent.extendedProperties.private['id']
     }).items;
 
+  Logger.log("Found " + calendarEvents.length + " possible instances");
   var eventInstanceToPatch = calendarEvents.filter(function(item){
-    var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
-    var instanceStart = new ICAL.Time.fromString(origStart);
+    try{
+      var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
+      var instanceStart = new ICAL.Time.fromString(origStart);
 
-    return (instanceStart.compare(recIDStart) == 0);
+      return (instanceStart.compare(recIDStart) == 0);
+    }catch(e){
+      Logger.log("Error: " + e);
+      return 0; 
+    }
   });
 
   if (eventInstanceToPatch.length == 0){
-    Logger.log("No Instance found, adding as new event!");
+    Logger.log("No Instance matched, adding as new event!");
     try{
       Calendar.Events.insert(recEvent, targetCalendarId);
     }
@@ -506,7 +512,7 @@ function processEventInstance(recEvent){
   }
   else{
     try{
-      Logger.log("Patching event instance");
+      Logger.log("Patching existing event instance");
       Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }
     catch(error){
@@ -826,7 +832,7 @@ function checkForUpdate(){
   var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   if (alreadyAlerted == null){
     try{
-      var thisVersion = 5.3;
+      var thisVersion = 5.4;
       var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
       var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
       var latestRelease = regex.exec(html)[0];
