@@ -1,3 +1,28 @@
+/**
+ * Takes an intended frequency in minutes and adjusts it to be the closest 
+ * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
+ * the following values: 1, 5, 10, 15, 30).
+ *
+ * @param {integer} The manually set frequency that the user intends to set
+ * @return {integer} The closest valid value to the intended frequency setting 
+ */
+function getValidTriggerFrequency(origFrequency) {
+  if (origFrequency == null) 
+    return 1; // if param is empty, just return 1, the lowest valid value.
+
+  
+  var adjFrequency = Math.round(origFrequency/5) * 5; // Set the number to be the closest divisible-by-5
+  adjFrequency = Math.max(adjFrequency, 1); // Make sure the number is at least 1 (0 is not valid for the trigger)
+  adjFrequency = Math.min(adjFrequency, 15); // Make sure the number is at most 15 (will check for the 30 value below)
+  
+  
+  if((adjFrequency == 15) && (Math.abs(origFrequency-30) < Math.abs(origFrequency-15)))
+    adjFrequency = 30; // If we adjusted to 15, but the original number is actually closer to 30, set it to 30 instead
+  
+  Logger.log("Intended frequency = "+origFrequency+", Adjusted frequency = "+adjFrequency);
+  return adjFrequency;
+}
+
 String.prototype.includes = function(phrase){ 
   return this.indexOf(phrase) > -1;
 }
