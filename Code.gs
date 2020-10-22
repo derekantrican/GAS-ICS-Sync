@@ -90,8 +90,8 @@ function install(){
     //Delete any already existing triggers so we don't create excessive triggers
     deleteAllTriggers();
 
-    if (howFrequent < 1){
-      throw "[ERROR] \"howFrequent\" must be greater than 0.";
+    if ([1, 5, 10, 15, 30].indexOf(howFrequent) == -1){
+      throw "[ERROR] \"howFrequent\" must be 1, 5, 10, 15 or 30.";
     }
     else{
       ScriptApp.newTrigger('startSync').timeBased().everyMinutes(howFrequent).create();//Schedule periodic Execution
