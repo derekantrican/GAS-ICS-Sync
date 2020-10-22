@@ -21,10 +21,10 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
-  
+
 ];
 
-var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
+var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events. Value must be 1, 5, 10, 15 or 30.
 var onlyFutureEvents = false;          // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;       // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
@@ -89,13 +89,13 @@ function install(){
   try{
     //Delete any already existing triggers so we don't create excessive triggers
     deleteAllTriggers();
-    
+
     if (howFrequent < 1){
       throw "[ERROR] \"howFrequent\" must be greater than 0.";
     }
     else{
-      ScriptApp.newTrigger("install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
-      ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
+      ScriptApp.newTrigger('startSync').timeBased().everyMinutes(howFrequent).create();//Schedule periodic Execution
+      ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine immediately
     }
   }catch(e){
     install();//Retry on error
@@ -123,17 +123,17 @@ function startSync(){
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
-  
+
   PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
-  
+
   checkForUpdate();
-  
+
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
-  
-  //Disable email notification if no mail adress is provided 
+
+  //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
-  
+
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
     calendarEvents = [];
@@ -143,12 +143,12 @@ function startSync(){
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
-    
+
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
     Logger.log("Working on calendar: " + targetCalendarId);
-    
+
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
       var eventList = Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
@@ -174,19 +174,19 @@ function startSync(){
       vevents = parseResponses(responses, icsEventsIds);
       Logger.log("Parsed " + vevents.length + " events from ical sources");
     }
-    
+
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
       Logger.log("Processing " + vevents.length + " events");
       var calendarTz = Calendar.Settings.get("timezone").value;
-      
+
       vevents.forEach(function(e){
         processEvent(e, calendarTz);
       });
 
       Logger.log("Done processing events");
     }
-    
+
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
