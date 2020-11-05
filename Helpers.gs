@@ -8,8 +8,8 @@
  */
 function getValidTriggerFrequency(origFrequency) {
   if (origFrequency == null) {
-    Logger.log("No frequency specified. Defaulting to 15 minutes.");
-    return 15; // if param is empty, just return 1, the lowest valid value.
+    Logger.log("No intended frequency specified. Defaulting to 15 minutes.");
+    return 15; // if param is empty, just return 15, the lowest valid value.
   }
 
   
