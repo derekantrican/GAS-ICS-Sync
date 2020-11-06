@@ -3,13 +3,13 @@
  * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
  * the following values: 1, 5, 10, 15, 30).
  *
- * @param {integer} The manually set frequency that the user intends to set. If blank, 15 is assumeed.
- * @return {integer} The closest valid value to the intended frequency setting 
+ * @param {?integer} The manually set frequency that the user intends to set.
+ * @return {integer} The closest valid value to the intended frequency setting. Defaulting to 15 if no valid input is provided.
  */
 function getValidTriggerFrequency(origFrequency) {
-  if (origFrequency == null) {
-    Logger.log("No intended frequency specified. Defaulting to 15 minutes.");
-    return 15; // if param is empty, just return the default value of 15.
+  if (!origFrequency > 0) {
+    Logger.log("No valid frequency specified. Defaulting to 15 minutes.");
+    return 15;
   }
 
   
