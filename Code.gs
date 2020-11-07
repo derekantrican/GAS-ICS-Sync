@@ -90,13 +90,8 @@ function install(){
     //Delete any already existing triggers so we don't create excessive triggers
     deleteAllTriggers();
     
-    if (howFrequent < 1){
-      throw "[ERROR] \"howFrequent\" must be greater than 0.";
-    }
-    else{
-      ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create(); //Schedule sync routine to explicitly repeat
-      ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
-    }
+    ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create(); //Schedule sync routine to explicitly repeat
+    ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
   }catch(e){
     install();//Retry on error
   }
