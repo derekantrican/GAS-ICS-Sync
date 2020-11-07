@@ -18,9 +18,10 @@
 
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
                                        // For instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays"]
+                                       // If you want to sync to your main Google Calendar, use your Gmail email address for targetCalendar1
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
-  ["icsUrl3", "targetCalendar1"]
+  ["icsUrl3", "targetCalendar3"]
   
 ];
 
@@ -39,7 +40,7 @@ var defaultAllDayReminder = -1;        // Default reminder for all day events in
 var addTasks = false;
 
 var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
-var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
+var email = "";                        // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
 
 /*
 *=========================================
