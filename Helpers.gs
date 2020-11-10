@@ -854,24 +854,30 @@ function callWithBackoff(func, maxRetries) {
  * Will notify the user once if a new version was released.
  */
 function checkForUpdate(){
-  var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
-  if (alreadyAlerted == null){
-    try{
-      var thisVersion = 5.4;
-      var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
-      var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
-      var latestRelease = regex.exec(html)[0];
-      regex = RegExp("\"(\\d.\\d)\"", "g");
-      var latestVersion = Number(regex.exec(latestRelease)[1]);
-      
-      if (latestVersion > thisVersion){
-        if (email != ""){
-          GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
-        
-          PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", true);
-        }
-      }
+  // No need to check if we can't alert anyway
+  if (email == "")
+    return;
+
+  var lastAlertedVersion = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
+  try {
+    var thisVersion = 5.4;
+    var latestVersion = getLatestVersion();
+
+    if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
+      GmailApp.sendEmail(email,
+        `Version ${latestVersion} of GAS-ICS-Sync is available! (You have ${thisVersion})`,
+        "You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
+
+      PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", latestVersion);
     }
-    catch(e){}
+  }
+  catch (e){}
+
+  function getLatestVersion(){
+    var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
+    var regex = RegExp("<a.*title=\"\\d\\.\\d\">", "g");
+    var latestRelease = regex.exec(html)[0];
+    regex = RegExp("\"(\\d.\\d)\"", "g");
+    return Number(regex.exec(latestRelease)[1]);
   }
 }

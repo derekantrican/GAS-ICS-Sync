@@ -39,7 +39,7 @@ var defaultAllDayReminder = -1;        // Default reminder for all day events in
 var addTasks = false;
 
 var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
-var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
+var email = "";                        // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
 
 /*
 *=========================================
