@@ -833,18 +833,25 @@ function sendSummary() {
  */
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
+  var timeout = 100;
   var result;
-  do{
-    Utilities.sleep(tries * 100);
+  while(tries < maxRetries){
     tries++;
     try{
       result = func();
       return result;
     }
     catch(e){
-      Logger.log("Error, Retrying..." + e );
+      if (tries < maxRetries){
+        Logger.log(`Error, retrying in ${timeout}ms... [${e}]`);
+        Utilities.sleep(timeout);
+        timeout*=2; // Exponentially increase timeout
+      }
+      else {
+        Logger.log(`Error, giving up after trying ${maxRetries} times [${e}]`);
+      }
     }
-  }while(tries <= maxRetries );
+  }
 
   return null;
 }
