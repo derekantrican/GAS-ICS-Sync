@@ -86,13 +86,12 @@ var email = "";                        // OPTIONAL: If "emailSummary" is set to 
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 function install(){
-  callWithBackoff(function() {
-    //Delete any already existing triggers so we don't create excessive triggers
-    deleteAllTriggers();
-    
-    ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create(); //Schedule sync routine to explicitly repeat
-    ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
-  }, 5);  // Retry max. 5 times
+  //Delete any already existing triggers so we don't create excessive triggers
+  deleteAllTriggers();
+
+  //Schedule sync routine to explicitly repeat and schedule the initial sync
+  ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
+  ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
 }
 
 function uninstall(){
