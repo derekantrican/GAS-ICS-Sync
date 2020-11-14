@@ -324,7 +324,7 @@ function createEvent(event, calendarTz){
       newEvent.status = status;
   }
 
-  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString() != ''){
+  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0,4) == 'http'){
     newEvent.source = Calendar.newEventSource()
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
   }
