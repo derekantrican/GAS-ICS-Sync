@@ -98,8 +98,9 @@ function uninstall(){
   deleteAllTriggers();
 }
 
-var targetCalendarId;
-var targetCalendarName;
+var startUpdateTime;
+
+// Per-calendar global variables (must be reset before processing each new calendar!)
 var calendarEvents = [];
 var calendarEventsIds = [];
 var icsEventsIds = [];
@@ -108,7 +109,8 @@ var recurringEvents = [];
 var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
-var startUpdateTime;
+var targetCalendarId;
+var targetCalendarName;
 
 function startSync(){
   if (PropertiesService.getScriptProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getScriptProperties().getProperty('LastRun')) < 360000) {
@@ -128,10 +130,20 @@ function startSync(){
   
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
+    //------------------------ Reset globals ------------------------
     calendarEvents = [];
+    calendarEventsIds = [];
+    icsEventsIds = [];
+    calendarEventsMD5s = [];
+    recurringEvents = [];
+    addedEvents = [];
+    modifiedEvents = [];
+    removedEvents = [];
+
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
     var vevents;
+
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
