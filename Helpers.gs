@@ -108,7 +108,8 @@ function fetchSourceCalendars(sourceCalendarURLs){
  */
 function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
-    return cal.summary == targetCalendarName;
+    var name = cal.summaryOverride || cal.summary;
+    return name == targetCalendarName && cal.accessRole == "owner";
   })[0];
   
   if(targetCalendar == null){
