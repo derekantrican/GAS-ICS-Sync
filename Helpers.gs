@@ -169,6 +169,9 @@ function parseResponses(responses){
   }
   
   result.forEach(function(event){
+    if (!event.hasProperty('uid')){
+      event.updatePropertyWithValue('uid', Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString());
+    }
     if(event.hasProperty('recurrence-id')){
       var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
       var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
