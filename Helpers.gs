@@ -524,43 +524,38 @@ function checkSkipEvent(event, icalEvent){
  * @param {Calendar.Event} recEvent - The event instance to process
  */
 function processEventInstance(recEvent){
-  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId.substring(0,10));
-  var recIDStart = new Date(recEvent.recurringEventId);
-  recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
-
-  var calendarEvents = Calendar.Events.list(targetCalendarId, 
-    { timeZone : "etc/GMT", 
-      singleEvents : true, 
+  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
+  
+  var eventInstanceToPatch = Calendar.Events.list(targetCalendarId, 
+    { singleEvents : true,
       privateExtendedProperty : "fromGAS=true", 
-      privateExtendedProperty : "id=" + recEvent.extendedProperties.private['id']
+      privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
     }).items;
 
-  Logger.log("Found " + calendarEvents.length + " possible instances");
-  var eventInstanceToPatch = calendarEvents.filter(function(item){
-    try{
-      var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
-      var instanceStart = new ICAL.Time.fromString(origStart);
-
-      return (instanceStart.compare(recIDStart) == 0);
-    }catch(e){
-      Logger.log("Error: " + e);
-      return 0; 
-    }
-  });
-
   if (eventInstanceToPatch.length == 0){
-    Logger.log("No Instance matched, adding as new event!");
+    eventInstanceToPatch = Calendar.Events.list(targetCalendarId, 
+      { singleEvents : true,
+        orderBy : "startTime",
+        maxResults: 1,
+        timeMin : recEvent.recurringEventId,
+        privateExtendedProperty : "fromGAS=true", 
+        privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
+      }).items;
+  }
+
+  if (eventInstanceToPatch.length == 1){
     try{
-      Calendar.Events.insert(recEvent, targetCalendarId);
+      Logger.log("Patching existing event instance");
+      Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }
     catch(error){
       Logger.log(error); 
     }
   }
   else{
+    Logger.log("No Instance matched, adding as new event!");
     try{
-      Logger.log("Patching existing event instance");
-      Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+      Calendar.Events.insert(recEvent, targetCalendarId);
     }
     catch(error){
       Logger.log(error); 
