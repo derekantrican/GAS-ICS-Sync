@@ -1923,9 +1923,8 @@ ICAL.parse = (function() {
        * is sane and its unlikely that we can serialize
        * the result correctly either.
        */
-      throw new ParserError(
-        'invalid line (no token ";" or ":") "' + line + '"'
-      );
+      Logger.log('invalid line (no token ";" or ":") "' + line + '"');
+      return;
     }
 
     var valueType;
