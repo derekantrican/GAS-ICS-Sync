@@ -574,15 +574,12 @@ function processEventCleanup(){
       
       if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null){
         Logger.log("Deleting old event " + currentID);
-        try{
+        callWithBackoff(function(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
           if (emailSummary){
             removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
           }
-        }
-        catch (err){
-          Logger.log(err);
-        }
+        }, 2);
       }
     }
 }
