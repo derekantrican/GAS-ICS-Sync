@@ -437,13 +437,16 @@ function checkSkipEvent(event, icalEvent){
   }
   else if(icalEvent.isRecurring()){
     var skip = false; //Indicates if the recurring event and all its instances are in the past
-    if (icalEvent.endDate.compare(startUpdateTime) < 0){//Parenting recurring event is the past
-      var recur = event.getFirstPropertyValue('rrule');
+    if (icalEvent.endDate.compare(startUpdateTime) < 0){//Parenting recurring event is in the past
       var dtstart = event.getFirstPropertyValue('dtstart');
-      var iter = recur.iterator(dtstart);
+      var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
+      var next;
       var newStartDate;
-      for (var next = iter.next(); next; next = iter.next()) {
-        if (next.compare(startUpdateTime) < 0) {
+      while (next = expand.next()) {
+        var diff = next.subtractDate(icalEvent.startDate);
+        var tempEnd = icalEvent.endDate.clone()
+        tempEnd.addDuration(diff);
+        if (tempEnd.compare(startUpdateTime) < 0) {
           continue;
         }
         
@@ -452,16 +455,34 @@ function checkSkipEvent(event, icalEvent){
       }
       
       if (newStartDate != null){//At least one instance is in the future
+        newStartDate.timezone = icalEvent.startDate.timezone;
         var diff = newStartDate.subtractDate(icalEvent.startDate);
         icalEvent.endDate.addDuration(diff);
         var newEndDate = icalEvent.endDate;
         icalEvent.endDate = newEndDate;
         icalEvent.startDate = newStartDate;
-        Logger.log("Adjusted RRULE to exclude past instances");
+        
+        var rdates = event.getAllProperties('rdate');
+        rdates.forEach(function(r){
+          var vals = r.getValues();
+          vals = vals.filter(function(v){
+            var valTime = new ICAL.Time.fromString(v.toString(), r);
+            return (valTime.compare(startUpdateTime) >= 0 && valTime.compare(icalEvent.startDate) > 0)
+          });
+          Logger.log(vals.length);
+          if (vals.length == 0){
+            event.removeProperty(r);
+          }
+          else if(vals.length == 1){
+            r.setValue(vals[0]);
+          }
+          else if(vals.length > 1){
+            r.setValues(vals);
+          }
+        });
+        Logger.log("Adjusted RRule/RDate to exclude past instances");
       }
       else{//All instances are in the past
-        icalEvent.component.removeProperty('rrule');
-        Logger.log("Removed RRULE");
         skip = true;
       }
     }
