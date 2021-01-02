@@ -536,6 +536,9 @@ function processEventInstance(recEvent){
     }).items;
 
   if (eventInstanceToPatch.length == 0){
+    if (recEvent.recurringEventId.length == 10){
+      recEvent.recurringEventId += "T00:00:00Z";
+    }
     eventInstanceToPatch = Calendar.Events.list(targetCalendarId, 
       { singleEvents : true,
         orderBy : "startTime",
@@ -548,8 +551,8 @@ function processEventInstance(recEvent){
 
   if (eventInstanceToPatch.length == 1){
     try{
-      Logger.log("Patching existing event instance");
-      Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+      Logger.log("Updating existing event instance");
+      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }
     catch(error){
       Logger.log(error); 
