@@ -881,10 +881,9 @@ function checkForUpdate(){
   catch (e){}
 
   function getLatestVersion(){
-    var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
-    var regex = RegExp("<a.*title=\"\\d\\.\\d\">", "g");
-    var latestRelease = regex.exec(html)[0];
-    regex = RegExp("\"(\\d.\\d)\"", "g");
-    return Number(regex.exec(latestRelease)[1]);
+    var json_encoded = UrlFetchApp.fetch("https://api.github.com/repos/derekantrican/GAS-ICS-Sync/releases?per_page=1");
+    json_decoded = JSON.parse(json_encoded);
+    var version = json_decoded[0]["tag_name"]
+    Logger.log("Version: " + version)
   }
 }
