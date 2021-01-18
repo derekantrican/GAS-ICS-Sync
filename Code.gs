@@ -38,9 +38,8 @@ var defaultAllDayReminder = -1;        // Default reminder for all day events in
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
 var addTasks = false;
 
-var emailWhenAdded = false;            // Will email you when an event is added to your calendar
-var emailWhenModified = false;         // Will email you when an existing event is updated in your calendar
-var email = "";                        // OPTIONAL: If "emailWhenAdded" is set to true, you will need to provide your email
+var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
+var email = "";                        // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
 
 /*
 *=========================================
@@ -87,50 +86,64 @@ var email = "";                        // OPTIONAL: If "emailWhenAdded" is set t
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 function install(){
-  try{
-    //Delete any already existing triggers so we don't create excessive triggers
-    deleteAllTriggers();
-    
-    if (howFrequent < 1){
-      throw "[ERROR] \"howFrequent\" must be greater than 0.";
-    }
-    else{
-      ScriptApp.newTrigger("install").timeBased().after(howFrequent * 60 * 1000).create();//Schedule next Execution
-      ScriptApp.newTrigger("startSync").timeBased().after(1000).create();//Start the sync routine
-    }
-  }catch(e){
-    install();//Retry on error
-  }
+  //Delete any already existing triggers so we don't create excessive triggers
+  deleteAllTriggers();
+
+  //Schedule sync routine to explicitly repeat and schedule the initial sync
+  ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
+  ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
 }
 
 function uninstall(){
   deleteAllTriggers();
 }
 
-var targetCalendarId;
-var targetCalendarName;
+var startUpdateTime;
+
+// Per-calendar global variables (must be reset before processing each new calendar!)
 var calendarEvents = [];
 var calendarEventsIds = [];
 var icsEventsIds = [];
 var calendarEventsMD5s = [];
 var recurringEvents = [];
-var startUpdateTime;
+var addedEvents = [];
+var modifiedEvents = [];
+var removedEvents = [];
+var targetCalendarId;
+var targetCalendarName;
 
 function startSync(){
+  if (PropertiesService.getScriptProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getScriptProperties().getProperty('LastRun')) < 360000) {
+    Logger.log("Another iteration is currently running! Exiting...");
+    return;
+  }
+  
+  PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
+  
   checkForUpdate();
   
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   
   //Disable email notification if no mail adress is provided 
-  emailWhenAdded = emailWhenAdded && email != "";
+  emailSummary = emailSummary && email != "";
   
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
+    //------------------------ Reset globals ------------------------
     calendarEvents = [];
+    calendarEventsIds = [];
+    icsEventsIds = [];
+    calendarEventsMD5s = [];
+    recurringEvents = [];
+    addedEvents = [];
+    modifiedEvents = [];
+    removedEvents = [];
+
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
     var vevents;
+
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
@@ -197,5 +210,9 @@ function startSync(){
     }
   }
 
+  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
+    sendSummary();
+  }
   Logger.log("Sync finished!");
+  PropertiesService.getScriptProperties().setProperty('LastRun', 0);
 }

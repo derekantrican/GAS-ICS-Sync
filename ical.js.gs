@@ -681,7 +681,11 @@ ICAL.design = (function() {
     },
     "date": {
       decorate: function(aValue, aProp) {
-        return ICAL.Time.fromDateString(aValue, aProp);
+        if (design.strict) {
+          return ICAL.Time.fromDateString(aValue, aProp);
+        } else {
+          return ICAL.Time.fromString(aValue, aProp);
+        }
       },
 
       /**
@@ -694,70 +698,90 @@ ICAL.design = (function() {
       fromICAL: function(aValue) {
         // from: 20120901
         // to: 2012-09-01
-        return aValue.substr(0, 4) + '-' +
-               aValue.substr(4, 2) + '-' +
-               aValue.substr(6, 2);
+        if (!design.strict && aValue.length >= 15) {
+          // This is probably a date-time, e.g. 20120901T130000Z
+          return icalValues["date-time"].fromICAL(aValue);
+        } else {
+          return aValue.substr(0, 4) + '-' +
+                 aValue.substr(4, 2) + '-' +
+                 aValue.substr(6, 2);
+        }
       },
 
       toICAL: function(aValue) {
         // from: 2012-09-01
         // to: 20120901
+        var len = aValue.length;
 
-        if (aValue.length > 11) {
+        if (len == 10) {
+          return aValue.substr(0, 4) +
+                 aValue.substr(5, 2) +
+                 aValue.substr(8, 2);
+        } else if (len >= 19) {
+          return icalValues["date-time"].toICAL(aValue);
+        } else {
           //TODO: serialize warning?
           return aValue;
         }
 
-        return aValue.substr(0, 4) +
-               aValue.substr(5, 2) +
-               aValue.substr(8, 2);
       }
     },
     "date-time": {
       fromICAL: function(aValue) {
         // from: 20120901T130000
         // to: 2012-09-01T13:00:00
-        var result = aValue.substr(0, 4) + '-' +
-                     aValue.substr(4, 2) + '-' +
-                     aValue.substr(6, 2) + 'T' +
-                     aValue.substr(9, 2) + ':' +
-                     aValue.substr(11, 2) + ':' +
-                     aValue.substr(13, 2);
+        if (!design.strict && aValue.length == 8) {
+          // This is probably a date, e.g. 20120901
+          return icalValues.date.fromICAL(aValue);
+        } else {
+          var result = aValue.substr(0, 4) + '-' +
+                       aValue.substr(4, 2) + '-' +
+                       aValue.substr(6, 2) + 'T' +
+                       aValue.substr(9, 2) + ':' +
+                       aValue.substr(11, 2) + ':' +
+                       aValue.substr(13, 2);
 
-        if (aValue[15] && aValue[15] === 'Z') {
-          result += 'Z';
+          if (aValue[15] && aValue[15] === 'Z') {
+            result += 'Z';
+          }
+
+          return result;
         }
-
-        return result;
       },
 
       toICAL: function(aValue) {
         // from: 2012-09-01T13:00:00
         // to: 20120901T130000
+        var len = aValue.length;
 
-        if (aValue.length < 19) {
+        if (len == 10 && !design.strict) {
+          return icalValues.date.toICAL(aValue);
+        } else if (len >= 19) {
+          var result = aValue.substr(0, 4) +
+                       aValue.substr(5, 2) +
+                       // grab the (DDTHH) segment
+                       aValue.substr(8, 5) +
+                       // MM
+                       aValue.substr(14, 2) +
+                       // SS
+                       aValue.substr(17, 2);
+
+          if (aValue[19] && aValue[19] === 'Z') {
+            result += 'Z';
+          }
+          return result;
+        } else {
           // TODO: error
           return aValue;
         }
-
-        var result = aValue.substr(0, 4) +
-                     aValue.substr(5, 2) +
-                     // grab the (DDTHH) segment
-                     aValue.substr(8, 5) +
-                     // MM
-                     aValue.substr(14, 2) +
-                     // SS
-                     aValue.substr(17, 2);
-
-        if (aValue[19] && aValue[19] === 'Z') {
-          result += 'Z';
-        }
-
-        return result;
       },
 
       decorate: function(aValue, aProp) {
-        return ICAL.Time.fromDateTimeString(aValue, aProp);
+        if (design.strict) {
+          return ICAL.Time.fromDateTimeString(aValue, aProp);
+        } else {
+          return ICAL.Time.fromString(aValue, aProp);
+        }
       },
 
       undecorate: function(aValue) {
@@ -786,17 +810,25 @@ ICAL.design = (function() {
       },
 
       toICAL: function(parts) {
-        parts[0] = icalValues['date-time'].toICAL(parts[0]);
+        if (!design.strict && parts[0].length == 10) {
+          parts[0] = icalValues.date.toICAL(parts[0]);
+        } else {
+          parts[0] = icalValues['date-time'].toICAL(parts[0]);
+        }
 
         if (!ICAL.Duration.isValueString(parts[1])) {
-          parts[1] = icalValues['date-time'].toICAL(parts[1]);
+          if (!design.strict && parts[1].length == 10) {
+            parts[1] = icalValues.date.toICAL(parts[1]);
+          } else {
+            parts[1] = icalValues['date-time'].toICAL(parts[1]);
+          }
         }
 
         return parts.join("/");
       },
 
       decorate: function(aValue, aProp) {
-        return ICAL.Period.fromJSON(aValue, aProp);
+        return ICAL.Period.fromJSON(aValue, aProp, !design.strict);
       },
 
       undecorate: function(aValue) {
@@ -1285,6 +1317,10 @@ ICAL.design = (function() {
      * @property {Object} property    Defintions for properties, keys are property names
      */
 
+    /**
+     * Can be set to false to make the parser more lenient.
+     */
+    strict: true,
 
     /**
      * The default set for new properties and components if none is specified.
@@ -2009,6 +2045,8 @@ ICAL.parse = (function() {
         throw new ParserError("Empty parameter name in '" + line + "'");
       }
       lcname = name.toLowerCase();
+      mvdelim = false;
+      multiValue = false;
 
       if (lcname in designSet.param && designSet.param[lcname].valueType) {
         type = designSet.param[lcname].valueType;
@@ -2076,9 +2114,22 @@ ICAL.parse = (function() {
       value = parser._rfc6868Escape(value);
       if (multiValue) {
         var delimiter = mvdelim || multiValue;
-        result[lcname] = parser._parseMultiValue(value, delimiter, type, [], null, designSet);
+        value = parser._parseMultiValue(value, delimiter, type, [], null, designSet);
       } else {
-        result[lcname] = parser._parseValue(value, type, designSet);
+        value = parser._parseValue(value, type, designSet);
+      }
+
+      if (multiValue && (lcname in result)) {
+        if (Array.isArray(result[lcname])) {
+          result[lcname].push(value);
+        } else {
+          result[lcname] = [
+            result[lcname],
+            value
+          ];
+        }
+      } else {
+        result[lcname] = value;
       }
     }
     return [result, value, valuePos];
@@ -2788,7 +2839,7 @@ ICAL.Property = (function() {
     get name() {
       return this.jCal[NAME_INDEX];
     },
-    
+
     /**
      * The parent component for this property.
      * @type {ICAL.Component}
@@ -3722,18 +3773,27 @@ ICAL.Binary = (function() {
    *
    * @param {Array<String,String>} aData    The jCal data array
    * @param {ICAL.Property} aProp           The property this jCal data is on
+   * @param {Boolean} aLenient              If true, data value can be both date and date-time
    * @return {ICAL.Period}                  The period instance
    */
-  ICAL.Period.fromJSON = function(aData, aProp) {
+  ICAL.Period.fromJSON = function(aData, aProp, aLenient) {
+    function fromDateOrDateTimeString(aValue, aProp) {
+      if (aLenient) {
+        return ICAL.Time.fromString(aValue, aProp);
+      } else {
+        return ICAL.Time.fromDateTimeString(aValue, aProp);
+      }
+    }
+
     if (ICAL.Duration.isValueString(aData[1])) {
       return ICAL.Period.fromData({
-        start: ICAL.Time.fromDateTimeString(aData[0], aProp),
+        start: fromDateOrDateTimeString(aData[0], aProp),
         duration: ICAL.Duration.fromString(aData[1])
       });
     } else {
       return ICAL.Period.fromData({
-        start: ICAL.Time.fromDateTimeString(aData[0], aProp),
-        end: ICAL.Time.fromDateTimeString(aData[1], aProp)
+        start: fromDateOrDateTimeString(aData[0], aProp),
+        end: fromDateOrDateTimeString(aData[1], aProp)
       });
     }
   };
@@ -4540,7 +4600,7 @@ ICAL.Binary = (function() {
    *
    * @param {ICAL.Time} tt                  The time to convert
    * @param {ICAL.Timezone} from_zone       The source zone to convert from
-   * @param {ICAL.Timezone} to_zone         The target zone to conver to
+   * @param {ICAL.Timezone} to_zone         The target zone to convert to
    * @return {ICAL.Time}                    The converted date/time object
    */
   ICAL.Timezone.convert_time = function icaltimezone_convert_time(tt, from_zone, to_zone) {
@@ -4648,6 +4708,10 @@ ICAL.TimezoneService = (function() {
    * @alias ICAL.TimezoneService
    */
   var TimezoneService = {
+    get count() {
+      return Object.keys(zones).length;
+    },
+
     reset: function() {
       zones = Object.create(null);
       var utc = ICAL.Timezone.utcTimezone;
@@ -5865,11 +5929,12 @@ ICAL.TimezoneService = (function() {
    * Returns a new ICAL.Time instance from a date or date-time string,
    *
    * @param {String} aValue         The string to create from
+   * @param {ICAL.Property=} prop   The property the date belongs to
    * @return {ICAL.Time}            The date/time instance
    */
-  ICAL.Time.fromString = function fromString(aValue) {
+  ICAL.Time.fromString = function fromString(aValue, aProperty) {
     if (aValue.length > 10) {
-      return ICAL.Time.fromDateTimeString(aValue);
+      return ICAL.Time.fromDateTimeString(aValue, aProperty);
     } else {
       return ICAL.Time.fromDateString(aValue);
     }
@@ -6759,7 +6824,6 @@ ICAL.TimezoneService = (function() {
 
     // split is slower in FF but fast enough.
     // v8 however this is faster then manual split?
-    string = string.substring(string.indexOf(':')+1);
     var values = string.split(';');
     var len = values.length;
 
@@ -8863,7 +8927,7 @@ ICAL.Event = (function() {
       var range = this.component.getFirstProperty('recurrence-id').getParameter('range');
       return range === this.THISANDFUTURE;
     },
-    
+
     /**
      * Finds the range exception nearest to the given date.
      *
@@ -9115,7 +9179,7 @@ ICAL.Event = (function() {
     get duration() {
       var duration = this._firstProp('duration');
       if (!duration) {
-        return this.endDate.subtractDate(this.startDate);
+        return this.endDate.subtractDateTz(this.startDate);
       }
       return duration;
     },
@@ -9209,9 +9273,9 @@ ICAL.Event = (function() {
     get recurrenceId() {
       return this._firstProp('recurrence-id');
     },
-    
+
     set recurrenceId(value) {
-      this._setProp('recurrence-id', value);
+      this._setTime('recurrence-id', value);
     },
 
     /**

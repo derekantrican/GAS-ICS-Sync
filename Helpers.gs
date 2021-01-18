@@ -1,3 +1,28 @@
+/**
+ * Takes an intended frequency in minutes and adjusts it to be the closest 
+ * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
+ * the following values: 1, 5, 10, 15, 30).
+ *
+ * @param {?integer} The manually set frequency that the user intends to set.
+ * @return {integer} The closest valid value to the intended frequency setting. Defaulting to 15 if no valid input is provided.
+ */
+function getValidTriggerFrequency(origFrequency) {
+  if (!origFrequency > 0) {
+    Logger.log("No valid frequency specified. Defaulting to 15 minutes.");
+    return 15;
+  }
+  
+  var adjFrequency = Math.round(origFrequency/5) * 5; // Set the number to be the closest divisible-by-5
+  adjFrequency = Math.max(adjFrequency, 1); // Make sure the number is at least 1 (0 is not valid for the trigger)
+  adjFrequency = Math.min(adjFrequency, 15); // Make sure the number is at most 15 (will check for the 30 value below)
+  
+  if((adjFrequency == 15) && (Math.abs(origFrequency-30) < Math.abs(origFrequency-15)))
+    adjFrequency = 30; // If we adjusted to 15, but the original number is actually closer to 30, set it to 30 instead
+  
+  Logger.log("Intended frequency = "+origFrequency+", Adjusted frequency = "+adjFrequency);
+  return adjFrequency;
+}
+
 String.prototype.includes = function(phrase){ 
   return this.indexOf(phrase) > -1;
 }
@@ -49,22 +74,28 @@ function deleteAllTriggers(){
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
   for (var url of sourceCalendarURLs){
-    url = url.replace("webcal://", "https://");      
+    url = url.replace("webcal://", "https://");
     
-    try{
-      var urlResponse = UrlFetchApp.fetch(url).getContentText();
-      //------------------------ Error checking ------------------------
-      if(!urlResponse.includes("BEGIN:VCALENDAR")){
-        Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+    callWithBackoff(function() {
+      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false });
+      if (urlResponse.getResponseCode() == 200){
+        var urlContent = urlResponse.getContentText();
+        if(!urlContent.includes("BEGIN:VCALENDAR")){
+          Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+          return;
+        }
+        else{
+          result.push(urlContent);
+          Logger.log("Result: " + result.length);
+          return;
+        }     
       }
-      else{
-        result.push(urlResponse);
+      else{ //Throw here to make callWithBackoff run again
+        throw "Error: Encountered " + urlReponse.getReponseCode() + " when accessing " + url; 
       }
-    }
-    catch(e){
-      Logger.log(e);
-    }
+    }, 2);
   }
+  
   return result;
 }
 
@@ -128,8 +159,7 @@ function parseResponses(responses){
           return true;
         }
         var eventEnde;
-        eventEnde = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString());
-        eventEnde = eventEnde.adjust(1,0,0,0);//Avoid timezone issues
+        eventEnde = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString(), event.getFirstProperty('dtend'));
         return (eventEnde.compare(startUpdateTime) >= 0);
       }catch(e){
         return true;
@@ -139,7 +169,10 @@ function parseResponses(responses){
   
   result.forEach(function(event){
     if(event.hasProperty('recurrence-id')){
-      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + event.getFirstPropertyValue('recurrence-id').toString());
+      var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+      var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
+    
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recUTC);
     }
     else{
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
@@ -167,7 +200,7 @@ function processEvent(event, calendarTz){
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty('recurrence-id')){
-    var recID = new ICAL.Time.fromDateTimeString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
     newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
     Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
@@ -182,12 +215,8 @@ function processEvent(event, calendarTz){
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, 2);
-        if (newEvent != null && emailWhenModified){
-          try{
-            GmailApp.sendEmail(email, "Event \"" + newEvent.summary + "\" modified", "Event was modified in calendar \"" + targetCalendarName + 
-                                                                                             "\" at " + newEvent.start.toString());
-          }
-          catch(error){}
+        if (newEvent != null && emailSummary){
+          modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
       }
     }
@@ -197,12 +226,8 @@ function processEvent(event, calendarTz){
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, 2);
-        if (newEvent != null && emailWhenAdded){
-          try{
-            GmailApp.sendEmail(email, "New Event \"" + newEvent.summary + "\" added", "New event added to calendar \"" + targetCalendarName + 
-                                                                                              "\" at " + newEvent.start.toString());
-          }
-          catch(error){}
+        if (newEvent != null && emailSummary){
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
       }
     }
@@ -360,8 +385,12 @@ function createEvent(event, calendarTz){
       var overrides = [];
       for (var valarm of valarms){
         var trigger = valarm.getFirstPropertyValue('trigger').toString();
+        try{
+          var alarmTime = new ICAL.Time.fromString(trigger);
+          trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
+        }catch(e){}
         if (overrides.length < 5){ //Google supports max 5 reminder-overrides
-          var timer = parseNotificationTime(trigger)/60;
+          var timer = parseNotificationTime(trigger);
           if (0 <= timer && timer <= 40320)
             overrides.push({'method' : 'popup', 'minutes' : timer});
         }
@@ -473,7 +502,7 @@ function checkSkipEvent(event, icalEvent){
  * @param {Calendar.Event} recEvent - The event instance to process
  */
 function processEventInstance(recEvent){
-  Logger.log("\t" + recEvent.recurringEventId.substring(0,10));
+  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId.substring(0,10));
   var recIDStart = new Date(recEvent.recurringEventId);
   recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
 
@@ -484,19 +513,31 @@ function processEventInstance(recEvent){
       privateExtendedProperty : "id=" + recEvent.extendedProperties.private['id']
     }).items;
 
+  Logger.log("Found " + calendarEvents.length + " possible instances");
   var eventInstanceToPatch = calendarEvents.filter(function(item){
-    var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
-    var instanceStart = new ICAL.Time.fromString(origStart);
+    try{
+      var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
+      var instanceStart = new ICAL.Time.fromString(origStart);
 
-    return (instanceStart.compare(recIDStart) == 0);
+      return (instanceStart.compare(recIDStart) == 0);
+    }catch(e){
+      Logger.log("Error: " + e);
+      return 0; 
+    }
   });
 
   if (eventInstanceToPatch.length == 0){
-    Logger.log("No Instance found, skipping!");
+    Logger.log("No Instance matched, adding as new event!");
+    try{
+      Calendar.Events.insert(recEvent, targetCalendarId);
+    }
+    catch(error){
+      Logger.log(error); 
+    }
   }
   else{
     try{
-      Logger.log("Patching event instance");
+      Logger.log("Patching existing event instance");
       Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }
     catch(error){
@@ -518,6 +559,9 @@ function processEventCleanup(){
         Logger.log("Deleting old event " + currentID);
         try{
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
+          if (emailSummary){
+            removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
+          }
         }
         catch (err){
           Logger.log(err);
@@ -674,7 +718,7 @@ function parseAttendeeResp(veventString){
     else if (['ACCEPTED', 'COMPLETED'].indexOf(respMatch[2].toUpperCase()) > -1) {
       respMatch[2] = 'accepted';
     } 
-    else if (['DECLINED'].indexOf(respMatch[2].toUpperCase(respMatch[2].toUpperCase())) > -1) {
+    else if (['DECLINED'].indexOf(respMatch[2].toUpperCase()) > -1) {
       respMatch[2] = 'declined';
     } 
     else if (['DELEGATED', 'IN-PROCESS', 'TENTATIVE'].indexOf(respMatch[2].toUpperCase())) {
@@ -695,7 +739,7 @@ function parseAttendeeResp(veventString){
  * Will return 0 by default.
  *
  * @param {string} notificationString - The string to parse
- * @return {number} The notification time in seconds
+ * @return {number} The notification time in minutes
  */
 function parseNotificationTime(notificationString){
   //https://www.kanzaki.com/docs/ical/duration-t.html
@@ -707,32 +751,76 @@ function parseNotificationTime(notificationString){
   
   notificationString = notificationString.substr(1); //Remove "P" character
   
-  var secondMatch = RegExp("\\d+S", "g").exec(notificationString);
   var minuteMatch = RegExp("\\d+M", "g").exec(notificationString);
   var hourMatch = RegExp("\\d+H", "g").exec(notificationString);
   var dayMatch = RegExp("\\d+D", "g").exec(notificationString);
   var weekMatch = RegExp("\\d+W", "g").exec(notificationString);
   
   if (weekMatch != null){
-    reminderTime += parseInt(weekMatch[0].slice(0, -1)) & 7 * 24 * 60 * 60; //Remove the "W" off the end
+    reminderTime += parseInt(weekMatch[0].slice(0, -1)) & 7 * 24 * 60; //Remove the "W" off the end
     
-    return reminderTime; //Return the notification time in seconds
+    return reminderTime; //Return the notification time in minutes
   }
   else{
-    if (secondMatch != null)
-      reminderTime += parseInt(secondMatch[0].slice(0, -1)); //Remove the "S" off the end
-    
     if (minuteMatch != null)
-      reminderTime += parseInt(minuteMatch[0].slice(0, -1)) * 60; //Remove the "M" off the end
+      reminderTime += parseInt(minuteMatch[0].slice(0, -1)); //Remove the "M" off the end
     
     if (hourMatch != null)
-      reminderTime += parseInt(hourMatch[0].slice(0, -1)) * 60 * 60; //Remove the "H" off the end
+      reminderTime += parseInt(hourMatch[0].slice(0, -1)) * 60; //Remove the "H" off the end
     
     if (dayMatch != null)
-      reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60 * 60; //Remove the "D" off the end
+      reminderTime += parseInt(dayMatch[0].slice(0, -1)) * 24 * 60; //Remove the "D" off the end
     
-    return reminderTime; //Return the notification time in seconds
+    return reminderTime; //Return the notification time in minutes
   }
+}
+
+/**
+* Sends an email summary with added/modified/deleted events.
+*/            
+function sendSummary() {
+  var subject;
+  var body;
+  
+  var subject = `GAS-ICS-Sync Execution Summary: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  addedEvents = condenseCalendarMap(addedEvents);
+  modifiedEvents = condenseCalendarMap(modifiedEvents);
+  removedEvents = condenseCalendarMap(removedEvents);
+  
+  body = "GAS-ICS-Sync made the following changes to your calendar:<br/>";
+  for (var tgtCal of addedEvents){
+    body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
+    for (var addedEvent of tgtCal[1]){
+      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+    }
+    body += "</ul>";
+  }
+  
+  for (var tgtCal of modifiedEvents){
+    body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
+    for (var addedEvent of tgtCal[1]){
+      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+    }
+    body += "</ul>";
+  }
+  
+  for (var tgtCal of removedEvents){
+    body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
+    for (var addedEvent of tgtCal[1]){
+      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+    }
+    body += "</ul>";
+  }
+  
+  body += "<br/><br/>Do you have any problems or suggestions? Contact us at <a href='https://github.com/derekantrican/GAS-ICS-Sync/'>github</a>.";
+  var message = {
+    to: email,
+    subject: subject,
+    htmlBody: body,
+    name: "GAS-ICS-Sync"
+  };
+  
+  MailApp.sendEmail(message);
 }
 
 /**
@@ -745,18 +833,25 @@ function parseNotificationTime(notificationString){
  */
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
+  var timeout = 100;
   var result;
-  do{
-    Utilities.sleep(tries * 100);
+  while(tries < maxRetries){
     tries++;
     try{
       result = func();
       return result;
     }
     catch(e){
-      Logger.log("Error, Retrying..." + e );
+      if (tries < maxRetries){
+        Logger.log(`Error, retrying in ${timeout}ms... [${e}]`);
+        Utilities.sleep(timeout);
+        timeout*=2; // Exponentially increase timeout
+      }
+      else {
+        Logger.log(`Error, giving up after trying ${maxRetries} times [${e}]`);
+      }
     }
-  }while(tries <= maxRetries );
+  }
 
   return null;
 }
@@ -766,24 +861,30 @@ function callWithBackoff(func, maxRetries) {
  * Will notify the user once if a new version was released.
  */
 function checkForUpdate(){
-  var alreadyAlerted = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
-  if (alreadyAlerted == null){
-    try{
-      var thisVersion = 5.2;
-      var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
-      var regex = RegExp("<a.*title=\"\\d\\.\\d\">","g");
-      var latestRelease = regex.exec(html)[0];
-      regex = RegExp("\"(\\d.\\d)\"", "g");
-      var latestVersion = Number(regex.exec(latestRelease)[1]);
-      
-      if (latestVersion > thisVersion){
-        if (email != ""){
-          GmailApp.sendEmail(email, "New version of GAS-ICS-Sync is available!", "There is a new version of \"GAS-ICS-Sync\". You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
-        
-          PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", true);
-        }
-      }
+  // No need to check if we can't alert anyway
+  if (email == "")
+    return;
+
+  var lastAlertedVersion = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
+  try {
+    var thisVersion = 5.5;
+    var latestVersion = getLatestVersion();
+
+    if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
+      GmailApp.sendEmail(email,
+        `Version ${latestVersion} of GAS-ICS-Sync is available! (You have ${thisVersion})`,
+        "You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
+
+      PropertiesService.getScriptProperties().setProperty("alertedForNewVersion", latestVersion);
     }
-    catch(e){}
+  }
+  catch (e){}
+
+  function getLatestVersion(){
+    var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
+    var regex = RegExp("<a.*title=\"\\d\\.\\d\">", "g");
+    var latestRelease = regex.exec(html)[0];
+    regex = RegExp("\"(\\d.\\d)\"", "g");
+    return Number(regex.exec(latestRelease)[1]);
   }
 }
