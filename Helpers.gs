@@ -884,5 +884,6 @@ function checkForUpdate(){
     var json_encoded = UrlFetchApp.fetch("https://api.github.com/repos/derekantrican/GAS-ICS-Sync/releases?per_page=1");
     json_decoded = JSON.parse(json_encoded);
     var version = json_decoded[0]["tag_name"];
+    return Number(version);
   }
 }
