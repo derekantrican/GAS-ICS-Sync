@@ -85,6 +85,9 @@ var email = "";                        // OPTIONAL: If "emailSummary" is set to 
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
+
+var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
+
 function install(){
   //Delete any already existing triggers so we don't create excessive triggers
   deleteAllTriggers();
@@ -161,7 +164,7 @@ function startSync(){
       while(typeof eventList.nextPageToken !== 'undefined'){
         eventList = callWithBackoff(function(){
           return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
-        }, 2);
+        }, defaultMaxRetries);
 
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);

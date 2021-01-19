@@ -93,7 +93,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
       else{ //Throw here to make callWithBackoff run again
         throw "Error: Encountered " + urlReponse.getReponseCode() + " when accessing " + url; 
       }
-    }, 2);
+    }, defaultMaxRetries);
   }
   
   return result;
@@ -214,7 +214,7 @@ function processEvent(event, calendarTz){
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-        }, 2);
+        }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
           modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
@@ -225,7 +225,7 @@ function processEvent(event, calendarTz){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
-        }, 2);
+        }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
           addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
