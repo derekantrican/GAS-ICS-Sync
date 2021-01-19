@@ -158,7 +158,10 @@ function startSync(){
     
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
-      var eventList = Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+      var eventList =
+        callWithBackoff(function(){
+            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+        }, defaultMaxRetries);
       calendarEvents = [].concat(calendarEvents, eventList.items);
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
@@ -185,7 +188,10 @@ function startSync(){
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
       Logger.log("Processing " + vevents.length + " events");
-      var calendarTz = Calendar.Settings.get("timezone").value;
+      var calendarTz =
+        callWithBackoff(function(){
+          return Calendar.Settings.get("timezone").value;
+        }, defaultMaxRetries);
       
       vevents.forEach(function(e){
         processEvent(e, calendarTz);
