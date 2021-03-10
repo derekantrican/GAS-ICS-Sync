@@ -4,7 +4,7 @@
 *=========================================
 * 
 * 1) Make a copy:
-*      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then cliick the "copy" icon on the top right (looks like two files on top of each other)
+*      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
 * 2) Changes lines 21-44 to be the settings that you want to use
 * 3) Click in the menu "Run" > "Run function" > "install" and authorize the program
