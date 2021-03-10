@@ -2,8 +2,10 @@
 *=========================================
 *       INSTALLATION INSTRUCTIONS
 *=========================================
-*
-* 1) Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
+* 
+* 1) Make a copy:
+*      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then cliick the "copy" icon on the top right (looks like two files on top of each other)
+*      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
 * 2) Changes lines 19-41 to be the settings that you want to use
 * 3) Click in the menu "Run" > "Run function" > "install" and authorize the program
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
