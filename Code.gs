@@ -42,7 +42,9 @@ var addAttendees = false;              // Whether to add the attendee list. If t
 var defaultAllDayReminder = -1;        // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
 var addTasks = false;                  // Add tasks from source calendars to target calendars
-var email = "";                        // OPTIONAL: If provided, a summary email will be sent if anything changes
+var enableUpdateEmail = true;          // Send an email if a new version of the script is available
+var enableSummaryEmail = false;        // Send a summary email after each run if anything changes
+var email = "";                        // To receive emails, an address must be provided
 
 /*
 *=========================================
@@ -124,7 +126,8 @@ function startSync(){
   
   PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
   
-  checkForUpdate();
+  if(enableUpdateEmail)
+    checkForUpdate(email);
   
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
@@ -211,7 +214,8 @@ function startSync(){
     }
   }
   
-  sendSummary(email, addedEvents, modifiedEvents, removedEvents);
+  if(enableSummaryEmail)
+    sendSummary(email, addedEvents, modifiedEvents, removedEvents);
 
   Logger.log("Sync finished!");
   PropertiesService.getScriptProperties().setProperty('LastRun', 0);

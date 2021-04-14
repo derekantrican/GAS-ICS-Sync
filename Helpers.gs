@@ -856,7 +856,7 @@ function callWithBackoff(func, maxRetries) {
  * Checks for a new version of the script at https://github.com/derekantrican/GAS-ICS-Sync/releases.
  * Will notify the user once if a new version was released.
  */
-function checkForUpdate(){
+function checkForUpdate(email){
   // No need to check if we can't alert anyway
   if (email == "")
     return;
