@@ -777,13 +777,7 @@ function parseNotificationTime(notificationString){
 * Sends an email summary with added/modified/deleted events.
 */            
 function sendSummary(email, addedEvents, modifiedEvents, removedEvents) {
-  if (email == "") {
-    Logger.log("A summary email will not be sent because an email address has not been provided.")
-    return;
-  }
-  
-  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) == 0) {
-    Logger.log("A summary email will not be sent because no changes were made to any calendars.")
+  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) == 0 || email == "") {
     return;
   }
     
