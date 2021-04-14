@@ -41,10 +41,10 @@ var addCalToTitle = false;             // Whether to add the source calendar to 
 var addAttendees = false;              // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 var defaultAllDayReminder = -1;        // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
-var addTasks = false;
-
-var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
-var email = "";                        // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
+var addTasks = false;                  // Add tasks from source calendars to target calendars
+var enableUpdateEmail = true;          // Send an email if a new version of the script is available
+var enableSummaryEmail = false;        // Send a summary email after each run if anything changes
+var email = "";                        // To receive emails, an address must be provided
 
 /*
 *=========================================
@@ -84,21 +84,24 @@ var email = "";                        // OPTIONAL: If "emailSummary" is set to 
 *
 * Jonas Geissler
 * Github: https://github.com/jonas0b1011001
+*
+* Anthony Andriano
+* Github: https://github.com/bandtank
 */
 
 
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
+// Remove all existing triggers, create a new set of triggers, and schedule the first run
 function install(){
-  //Delete any already existing triggers so we don't create excessive triggers
   deleteAllTriggers();
 
-  //Schedule sync routine to explicitly repeat and schedule the initial sync
   ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
 }
 
+// Remove all existing triggers to stop future executions
 function uninstall(){
   deleteAllTriggers();
 }
@@ -111,12 +114,10 @@ var calendarEventsIds = [];
 var icsEventsIds = [];
 var calendarEventsMD5s = [];
 var recurringEvents = [];
-var addedEvents = [];
-var modifiedEvents = [];
-var removedEvents = [];
 var targetCalendarId;
 var targetCalendarName;
 
+// Start the synchronization process
 function startSync(){
   if (PropertiesService.getScriptProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getScriptProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
@@ -125,25 +126,23 @@ function startSync(){
   
   PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
   
-  checkForUpdate();
+  if(enableUpdateEmail)
+    checkForUpdate(email);
   
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   
-  //Disable email notification if no mail adress is provided 
-  emailSummary = emailSummary && email != "";
-  
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
-  for (var calendar of sourceCalendars){
+  var addedEvents = [];
+  var modifiedEvents = [];
+  var removedEvents = [];
+
+  for (var calendar of condenseCalendarMap(sourceCalendars)){
     //------------------------ Reset globals ------------------------
     calendarEvents = [];
     calendarEventsIds = [];
     icsEventsIds = [];
     calendarEventsMD5s = [];
     recurringEvents = [];
-    addedEvents = [];
-    modifiedEvents = [];
-    removedEvents = [];
 
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
@@ -190,7 +189,7 @@ function startSync(){
       var calendarTz = Calendar.Settings.get("timezone").value;
       
       vevents.forEach(function(e){
-        processEvent(e, calendarTz);
+        processEvent(e, calendarTz, addedEvents, modifiedEvents);
       });
 
       Logger.log("Done processing events");
@@ -199,7 +198,7 @@ function startSync(){
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
-      processEventCleanup();
+      processEventCleanup(removedEvents);
       Logger.log("Done checking events for removal");
     }
 
@@ -214,10 +213,10 @@ function startSync(){
       processEventInstance(recEvent);
     }
   }
+  
+  if(enableSummaryEmail)
+    sendSummary(email, addedEvents, modifiedEvents, removedEvents);
 
-  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
-    sendSummary();
-  }
   Logger.log("Sync finished!");
   PropertiesService.getScriptProperties().setProperty('LastRun', 0);
 }

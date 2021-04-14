@@ -188,7 +188,7 @@ function parseResponses(responses){
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
  */
-function processEvent(event, calendarTz){
+function processEvent(event, calendarTz, addedEvents, modifiedEvents){
   //------------------------ Create the event object ------------------------
   var newEvent = createEvent(event, calendarTz);
   if (newEvent == null)
@@ -215,7 +215,7 @@ function processEvent(event, calendarTz){
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, 2);
-        if (newEvent != null && emailSummary){
+        if (newEvent != null){
           modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
       }
@@ -226,7 +226,7 @@ function processEvent(event, calendarTz){
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, 2);
-        if (newEvent != null && emailSummary){
+        if (newEvent != null){
           addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
       }
@@ -550,7 +550,7 @@ function processEventInstance(recEvent){
  * Deletes all events from the target calendar that no longer exist in the source calendars.
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
  */
-function processEventCleanup(){
+function processEventCleanup(removedEvents){
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
@@ -559,9 +559,7 @@ function processEventCleanup(){
         Logger.log("Deleting old event " + currentID);
         try{
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
-          if (emailSummary){
-            removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
-          }
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
         }
         catch (err){
           Logger.log(err);
@@ -778,17 +776,15 @@ function parseNotificationTime(notificationString){
 /**
 * Sends an email summary with added/modified/deleted events.
 */            
-function sendSummary() {
-  var subject;
-  var body;
-  
+function sendSummary(email, addedEvents, modifiedEvents, removedEvents) {
+  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) == 0 || email == "") {
+    return;
+  }
+    
   var subject = `GAS-ICS-Sync Execution Summary: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
-  addedEvents = condenseCalendarMap(addedEvents);
-  modifiedEvents = condenseCalendarMap(modifiedEvents);
-  removedEvents = condenseCalendarMap(removedEvents);
-  
-  body = "GAS-ICS-Sync made the following changes to your calendar:<br/>";
-  for (var tgtCal of addedEvents){
+  var body = "GAS-ICS-Sync made the following changes to your calendar:<br/>";
+
+  for (var tgtCal of condenseCalendarMap(addedEvents)){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
       body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
@@ -796,7 +792,7 @@ function sendSummary() {
     body += "</ul>";
   }
   
-  for (var tgtCal of modifiedEvents){
+  for (var tgtCal of condenseCalendarMap(modifiedEvents)){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
       body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
@@ -804,7 +800,7 @@ function sendSummary() {
     body += "</ul>";
   }
   
-  for (var tgtCal of removedEvents){
+  for (var tgtCal of condenseCalendarMap(removedEvents)){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
       body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
@@ -860,7 +856,7 @@ function callWithBackoff(func, maxRetries) {
  * Checks for a new version of the script at https://github.com/derekantrican/GAS-ICS-Sync/releases.
  * Will notify the user once if a new version was released.
  */
-function checkForUpdate(){
+function checkForUpdate(email){
   // No need to check if we can't alert anyway
   if (email == "")
     return;
