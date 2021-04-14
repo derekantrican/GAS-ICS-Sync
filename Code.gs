@@ -41,7 +41,7 @@ var addCalToTitle = false;             // Whether to add the source calendar to 
 var addAttendees = false;              // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 var defaultAllDayReminder = -1;        // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
-var addTasks = false;
+var addTasks = false;                  // Add tasks from source calendars to target calendars
 var email = "";                        // OPTIONAL: If provided, a summary email will be sent if anything changes
 
 /*
@@ -82,21 +82,24 @@ var email = "";                        // OPTIONAL: If provided, a summary email
 *
 * Jonas Geissler
 * Github: https://github.com/jonas0b1011001
+*
+* Anthony Andriano
+* Github: https://github.com/bandtank
 */
 
 
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
+// Remove all existing triggers, create a new set of triggers, and schedule the first run
 function install(){
-  //Delete any already existing triggers so we don't create excessive triggers
   deleteAllTriggers();
 
-  //Schedule sync routine to explicitly repeat and schedule the initial sync
   ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
 }
 
+// Remove all existing triggers to stop future executions
 function uninstall(){
   deleteAllTriggers();
 }
@@ -112,6 +115,7 @@ var recurringEvents = [];
 var targetCalendarId;
 var targetCalendarName;
 
+// Start the synchronization process
 function startSync(){
   if (PropertiesService.getScriptProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getScriptProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
