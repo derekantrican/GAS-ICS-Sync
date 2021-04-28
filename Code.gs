@@ -41,6 +41,7 @@ var addCalToTitle = false;             // Whether to add the source calendar to 
 var addAttendees = false;              // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 var defaultAllDayReminder = -1;        // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
                                        // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
+var defaultColor = true;               // Forces color of events (true: use calendar color otherwise use Enum CalendarApp.EventColor)
 var addTasks = false;
 
 var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
