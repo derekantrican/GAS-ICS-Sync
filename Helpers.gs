@@ -405,6 +405,10 @@ function createEvent(event, calendarTz){
     }
   }
   
+  if (defaultColor!=true) {
+    newEvent.colorId = defaultColor;
+  }
+  
   if (icalEvent.isRecurring()){
     // Calculate targetTZ's UTC-Offset
     var calendarUTCOffset = 0;
