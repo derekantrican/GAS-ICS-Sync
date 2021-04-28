@@ -355,10 +355,14 @@ function createEvent(event, calendarTz){
   if (event.hasProperty('location'))
     newEvent.location = icalEvent.location;
 
-  if (event.hasProperty('class')){
-    var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
-    if (["default", "public", "private", "confidential"].indexOf(classString) > -1)
-      newEvent.visibility = classString;
+  if ( ["default", "public", "private"].includes(forceVisibility.toLowerCase()) ) {
+    newEvent.visibility = forceVisibility;
+  } else {
+    if (event.hasProperty('class')){
+      var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
+      if (["default", "public", "private", "confidential"].includes(classString))
+        newEvent.visibility = classString;
+    }
   }
 
   if (event.hasProperty('transp')){
