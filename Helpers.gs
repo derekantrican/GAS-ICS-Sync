@@ -59,7 +59,7 @@ function condenseCalendarMap(calendarMap){
 function deleteAllTriggers(){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "install" || triggers[i].getHandlerFunction() == "main"){
+    if (["startSync","install","main","checkForUpdate"].includes(triggers[i].getHandlerFunction())){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
