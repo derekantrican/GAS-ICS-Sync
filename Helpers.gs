@@ -260,6 +260,9 @@ function createEvent(event, calendarTz){
 
   var newEvent = Calendar.newEvent();
   if(icalEvent.startDate.isDate){ //All-day event
+    if (ignoreAllDayEvents) {
+      return;
+    }
     if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
       //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
       icalEvent.endDate = icalEvent.endDate.adjust(1,0,0,0);
