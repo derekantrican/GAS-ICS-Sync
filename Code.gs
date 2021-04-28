@@ -118,12 +118,12 @@ var targetCalendarId;
 var targetCalendarName;
 
 function startSync(){
-  if (PropertiesService.getScriptProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getScriptProperties().getProperty('LastRun')) < 360000) {
+  if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
   
-  PropertiesService.getScriptProperties().setProperty('LastRun', new Date().getTime());
+  PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
   
   checkForUpdate();
   
@@ -219,5 +219,5 @@ function startSync(){
     sendSummary();
   }
   Logger.log("Sync finished!");
-  PropertiesService.getScriptProperties().setProperty('LastRun', 0);
+  PropertiesService.getUserProperties().setProperty('LastRun', 0);
 }
