@@ -357,13 +357,11 @@ function createEvent(event, calendarTz){
 
   var validVisibilityValues = ["default", "public", "private", "confidential"];
   if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
-    newEvent.visibility = overrideVisibility;
-  } else {
-    if (event.hasProperty('class')){
-      var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
-      if (validVisibilityValues.includes(classString))
-        newEvent.visibility = classString;
-    }
+    newEvent.visibility = overrideVisibility.toLowerCase();
+  } else if (event.hasProperty('class')){
+    var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
+    if (validVisibilityValues.includes(classString))
+      newEvent.visibility = classString;
   }
 
   if (event.hasProperty('transp')){
