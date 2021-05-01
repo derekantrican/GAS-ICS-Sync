@@ -98,6 +98,9 @@ function install(){
   //Schedule sync routine to explicitly repeat and schedule the initial sync
   ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
+  
+  //Schedule sync routine to look for update once per day
+  ScriptApp.newTrigger("checkForUpdate").timeBased().everyDays(1).create();
 }
 
 function uninstall(){
@@ -125,8 +128,6 @@ function startSync(){
   }
   
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-  
-  checkForUpdate();
   
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
