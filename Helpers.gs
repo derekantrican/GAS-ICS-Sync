@@ -59,7 +59,7 @@ function condenseCalendarMap(calendarMap){
 function deleteAllTriggers(){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (triggers[i].getHandlerFunction() == "startSync" || triggers[i].getHandlerFunction() == "install" || triggers[i].getHandlerFunction() == "main"){
+    if (["startSync","install","main","checkForUpdate"].includes(triggers[i].getHandlerFunction())){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -93,7 +93,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
       else{ //Throw here to make callWithBackoff run again
         throw "Error: Encountered " + urlReponse.getReponseCode() + " when accessing " + url; 
       }
-    }, 2);
+    }, defaultMaxRetries);
   }
   
   return result;
@@ -204,10 +204,7 @@ function processEvent(event, calendarTz){
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty('recurrence-id')){
-    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
     Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
-    newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
     recurringEvents.push(newEvent);
     return;
   }
@@ -218,7 +215,7 @@ function processEvent(event, calendarTz){
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-        }, 2);
+        }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
           modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
@@ -229,7 +226,7 @@ function processEvent(event, calendarTz){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
-        }, 2);
+        }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
           addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
         }
@@ -262,7 +259,10 @@ function createEvent(event, calendarTz){
     return;
   }
 
-  var newEvent = Calendar.newEvent();
+  var newEvent =
+    callWithBackoff(function() {
+        return Calendar.newEvent();
+      }, defaultMaxRetries);
   if(icalEvent.startDate.isDate){ //All-day event
     if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
       //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
@@ -329,7 +329,9 @@ function createEvent(event, calendarTz){
   }
 
   if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0,4) == 'http'){
-    newEvent.source = Calendar.newEventSource()
+    newEvent.source = callWithBackoff(function() {
+          return Calendar.newEventSource();
+        }, defaultMaxRetries);
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
   }
 
@@ -359,9 +361,12 @@ function createEvent(event, calendarTz){
   if (event.hasProperty('location'))
     newEvent.location = icalEvent.location;
 
-  if (event.hasProperty('class')){
+  var validVisibilityValues = ["default", "public", "private", "confidential"];
+  if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
+    newEvent.visibility = overrideVisibility.toLowerCase();
+  } else if (event.hasProperty('class')){
     var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
-    if (["default", "public", "private", "confidential"].indexOf(classString) > -1)
+    if (validVisibilityValues.includes(classString))
       newEvent.visibility = classString;
   }
 
@@ -420,6 +425,13 @@ function createEvent(event, calendarTz){
   }
   
   newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
+  
+  if (event.hasProperty('recurrence-id')){
+    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
+    newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
+  }
+  
   return newEvent;
 }
 
@@ -534,12 +546,13 @@ function processEventInstance(recEvent){
         privateExtendedProperty : "fromGAS=true", 
         privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
       }).items;
-  }, 2);
+  }, defaultMaxRetries);
 
   if (eventInstanceToPatch == null || eventInstanceToPatch.length == 0){
     if (recEvent.recurringEventId.length == 10){
       recEvent.recurringEventId += "T00:00:00Z";
-    }else if (recEvent.recurringEventId.substr(-1) !== "Z"){
+    }
+    else if (recEvent.recurringEventId.substr(-1) !== "Z"){
       recEvent.recurringEventId += "Z";
     }
     eventInstanceToPatch = callWithBackoff(function(){
@@ -551,20 +564,20 @@ function processEventInstance(recEvent){
           privateExtendedProperty : "fromGAS=true", 
           privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
         }).items;
-    }, 2);
+    }, defaultMaxRetries);
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-      Logger.log("Updating existing event instance");
-      callWithBackoff(function(){
-        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-      }, 2);
+    Logger.log("Updating existing event instance");
+    callWithBackoff(function(){
+      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+    }, defaultMaxRetries);
   }
   else{
     Logger.log("No Instance matched, adding as new event!");
     callWithBackoff(function(){
       Calendar.Events.insert(recEvent, targetCalendarId);
-    }, 2);
+    }, defaultMaxRetries);
   }
 }
 
@@ -581,10 +594,11 @@ function processEventCleanup(){
         Logger.log("Deleting old event " + currentID);
         callWithBackoff(function(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
-          if (emailSummary){
-            removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
-          }
-        }, 2);
+        }, defaultMaxRetries);
+
+        if (emailSummary){
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
+        }
       }
     }
 }
@@ -890,7 +904,7 @@ function checkForUpdate(){
     var latestVersion = getLatestVersion();
 
     if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
-      GmailApp.sendEmail(email,
+      MailApp.sendEmail(email,
         `Version ${latestVersion} of GAS-ICS-Sync is available! (You have ${thisVersion})`,
         "You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
 
@@ -900,10 +914,9 @@ function checkForUpdate(){
   catch (e){}
 
   function getLatestVersion(){
-    var html = UrlFetchApp.fetch("https://github.com/derekantrican/GAS-ICS-Sync/releases");
-    var regex = RegExp("<a.*title=\"\\d\\.\\d\">", "g");
-    var latestRelease = regex.exec(html)[0];
-    regex = RegExp("\"(\\d.\\d)\"", "g");
-    return Number(regex.exec(latestRelease)[1]);
+    var json_encoded = UrlFetchApp.fetch("https://api.github.com/repos/derekantrican/GAS-ICS-Sync/releases?per_page=1");
+    var json_decoded = JSON.parse(json_encoded);
+    var version = json_decoded[0]["tag_name"];
+    return Number(version);
   }
 }
