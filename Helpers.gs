@@ -472,7 +472,6 @@ function checkSkipEvent(event, icalEvent){
             var valTime = new ICAL.Time.fromString(v.toString(), r);
             return (valTime.compare(startUpdateTime) >= 0 && valTime.compare(icalEvent.startDate) > 0)
           });
-          Logger.log(vals.length);
           if (vals.length == 0){
             event.removeProperty(r);
           }
