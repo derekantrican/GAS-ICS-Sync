@@ -109,7 +109,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
 function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
     var name = cal.summaryOverride || cal.summary;
-    return name == targetCalendarName && cal.accessRole == "owner";
+    return name == targetCalendarName && (cal.accessRole == "owner" || cal.accessRole == "writer");
   })[0];
   
   if(targetCalendar == null){
@@ -529,43 +529,43 @@ function checkSkipEvent(event, icalEvent){
 function processEventInstance(recEvent){
   Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
   
-  var eventInstanceToPatch = Calendar.Events.list(targetCalendarId, 
-    { singleEvents : true,
-      privateExtendedProperty : "fromGAS=true", 
-      privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
-    }).items;
+  var eventInstanceToPatch = callWithBackoff(function(){
+    return Calendar.Events.list(targetCalendarId, 
+      { singleEvents : true,
+        privateExtendedProperty : "fromGAS=true", 
+        privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
+      }).items;
+  }, 2);
 
-  if (eventInstanceToPatch.length == 0){
+  if (eventInstanceToPatch == null || eventInstanceToPatch.length == 0){
     if (recEvent.recurringEventId.length == 10){
       recEvent.recurringEventId += "T00:00:00Z";
+    }else if (recEvent.recurringEventId.substr(-1) !== "Z"){
+      recEvent.recurringEventId += "Z";
     }
-    eventInstanceToPatch = Calendar.Events.list(targetCalendarId, 
-      { singleEvents : true,
-        orderBy : "startTime",
-        maxResults: 1,
-        timeMin : recEvent.recurringEventId,
-        privateExtendedProperty : "fromGAS=true", 
-        privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
-      }).items;
+    eventInstanceToPatch = callWithBackoff(function(){
+       return Calendar.Events.list(targetCalendarId, 
+        { singleEvents : true,
+          orderBy : "startTime",
+          maxResults: 1,
+          timeMin : recEvent.recurringEventId,
+          privateExtendedProperty : "fromGAS=true", 
+          privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
+        }).items;
+    }, 2);
   }
 
-  if (eventInstanceToPatch.length == 1){
-    try{
+  if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
       Logger.log("Updating existing event instance");
-      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-    }
-    catch(error){
-      Logger.log(error); 
-    }
+      callWithBackoff(function(){
+        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+      }, 2);
   }
   else{
     Logger.log("No Instance matched, adding as new event!");
-    try{
+    callWithBackoff(function(){
       Calendar.Events.insert(recEvent, targetCalendarId);
-    }
-    catch(error){
-      Logger.log(error); 
-    }
+    }, 2);
   }
 }
 
