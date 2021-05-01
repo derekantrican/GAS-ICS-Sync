@@ -355,9 +355,12 @@ function createEvent(event, calendarTz){
   if (event.hasProperty('location'))
     newEvent.location = icalEvent.location;
 
-  if (event.hasProperty('class')){
+  var validVisibilityValues = ["default", "public", "private", "confidential"];
+  if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
+    newEvent.visibility = overrideVisibility.toLowerCase();
+  } else if (event.hasProperty('class')){
     var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
-    if (["default", "public", "private", "confidential"].indexOf(classString) > -1)
+    if (validVisibilityValues.includes(classString))
       newEvent.visibility = classString;
   }
 
