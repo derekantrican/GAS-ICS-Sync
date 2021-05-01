@@ -91,6 +91,9 @@ var email = "";                        // OPTIONAL: If "emailSummary" is set to 
 //=====================================================================================================
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
+
+var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
+
 function install(){
   //Delete any already existing triggers so we don't create excessive triggers
   deleteAllTriggers();
@@ -162,13 +165,16 @@ function startSync(){
     
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
-      var eventList = Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+      var eventList =
+        callWithBackoff(function(){
+            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+        }, defaultMaxRetries);
       calendarEvents = [].concat(calendarEvents, eventList.items);
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
         eventList = callWithBackoff(function(){
           return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
-        }, 2);
+        }, defaultMaxRetries);
 
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
@@ -189,7 +195,10 @@ function startSync(){
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
       Logger.log("Processing " + vevents.length + " events");
-      var calendarTz = Calendar.Settings.get("timezone").value;
+      var calendarTz =
+        callWithBackoff(function(){
+          return Calendar.Settings.get("timezone").value;
+        }, defaultMaxRetries);
       
       vevents.forEach(function(e){
         processEvent(e, calendarTz);
