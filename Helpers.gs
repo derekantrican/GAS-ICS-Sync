@@ -878,7 +878,7 @@ function checkForUpdate(){
     var latestVersion = getLatestVersion();
 
     if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
-      GmailApp.sendEmail(email,
+      MailApp.sendEmail(email,
         `Version ${latestVersion} of GAS-ICS-Sync is available! (You have ${thisVersion})`,
         "You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
 
