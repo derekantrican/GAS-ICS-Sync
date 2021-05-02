@@ -834,7 +834,7 @@ function sendSummary() {
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
   var result;
-  while(true){
+  while ( tries > maxRetries ) {
     tries++;
     try{
       result = func();
@@ -847,7 +847,7 @@ function callWithBackoff(func, maxRetries) {
         throw e;
       } else if ( e.message.includes("Forbidden") ) {
         return null;
-      } else if ( maxRetries < tries ) {
+      } else if ( tries > maxRetries ) {
         Logger.log(`Error, giving up after trying ${maxRetries} times [${e}]`);
         return null;
       } else {
