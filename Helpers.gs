@@ -834,7 +834,7 @@ function sendSummary() {
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
   var result;
-  while ( tries > maxRetries ) {
+  while ( tries < maxRetries ) {
     tries++;
     try{
       result = func();
