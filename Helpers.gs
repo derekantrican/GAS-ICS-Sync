@@ -108,7 +108,8 @@ function fetchSourceCalendars(sourceCalendarURLs){
  */
 function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
-    return cal.summary == targetCalendarName;
+    var name = cal.summaryOverride || cal.summary;
+    return name == targetCalendarName && (cal.accessRole == "owner" || cal.accessRole == "writer");
   })[0];
   
   if(targetCalendar == null){
@@ -168,6 +169,9 @@ function parseResponses(responses){
   }
   
   result.forEach(function(event){
+    if (!event.hasProperty('uid')){
+      event.updatePropertyWithValue('uid', Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString());
+    }
     if(event.hasProperty('recurrence-id')){
       var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
       var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
@@ -324,9 +328,8 @@ function createEvent(event, calendarTz){
       newEvent.status = status;
   }
 
-  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString() != ''){
-    newEvent.source =
-      callWithBackoff(function() {
+  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0,4) == 'http'){
+    newEvent.source = callWithBackoff(function() {
           return Calendar.newEventSource();
         }, defaultMaxRetries);
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
@@ -449,13 +452,16 @@ function checkSkipEvent(event, icalEvent){
   }
   else if(icalEvent.isRecurring()){
     var skip = false; //Indicates if the recurring event and all its instances are in the past
-    if (icalEvent.endDate.compare(startUpdateTime) < 0){//Parenting recurring event is the past
-      var recur = event.getFirstPropertyValue('rrule');
+    if (icalEvent.endDate.compare(startUpdateTime) < 0){//Parenting recurring event is in the past
       var dtstart = event.getFirstPropertyValue('dtstart');
-      var iter = recur.iterator(dtstart);
+      var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
+      var next;
       var newStartDate;
-      for (var next = iter.next(); next; next = iter.next()) {
-        if (next.compare(startUpdateTime) < 0) {
+      while (next = expand.next()) {
+        var diff = next.subtractDate(icalEvent.startDate);
+        var tempEnd = icalEvent.endDate.clone()
+        tempEnd.addDuration(diff);
+        if (tempEnd.compare(startUpdateTime) < 0) {
           continue;
         }
         
@@ -464,16 +470,33 @@ function checkSkipEvent(event, icalEvent){
       }
       
       if (newStartDate != null){//At least one instance is in the future
+        newStartDate.timezone = icalEvent.startDate.timezone;
         var diff = newStartDate.subtractDate(icalEvent.startDate);
         icalEvent.endDate.addDuration(diff);
         var newEndDate = icalEvent.endDate;
         icalEvent.endDate = newEndDate;
         icalEvent.startDate = newStartDate;
-        Logger.log("Adjusted RRULE to exclude past instances");
+        
+        var rdates = event.getAllProperties('rdate');
+        rdates.forEach(function(r){
+          var vals = r.getValues();
+          vals = vals.filter(function(v){
+            var valTime = new ICAL.Time.fromString(v.toString(), r);
+            return (valTime.compare(startUpdateTime) >= 0 && valTime.compare(icalEvent.startDate) > 0)
+          });
+          if (vals.length == 0){
+            event.removeProperty(r);
+          }
+          else if(vals.length == 1){
+            r.setValue(vals[0]);
+          }
+          else if(vals.length > 1){
+            r.setValues(vals);
+          }
+        });
+        Logger.log("Adjusted RRule/RDate to exclude past instances");
       }
       else{//All instances are in the past
-        icalEvent.component.removeProperty('rrule');
-        Logger.log("Removed RRULE");
         skip = true;
       }
     }
@@ -515,54 +538,46 @@ function checkSkipEvent(event, icalEvent){
  * @param {Calendar.Event} recEvent - The event instance to process
  */
 function processEventInstance(recEvent){
-  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId.substring(0,10));
-  var recIDStart = new Date(recEvent.recurringEventId);
-  recIDStart = new ICAL.Time.fromJSDate(recIDStart, true);
+  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
+  
+  var eventInstanceToPatch = callWithBackoff(function(){
+    return Calendar.Events.list(targetCalendarId, 
+      { singleEvents : true,
+        privateExtendedProperty : "fromGAS=true", 
+        privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
+      }).items;
+  }, defaultMaxRetries);
 
-  var calendarEvents =
-    callWithBackoff(function() {
-      return  Calendar.Events.list(targetCalendarId,
-        { timeZone : "etc/GMT",
-          singleEvents : true,
-          privateExtendedProperty : "fromGAS=true",
-          privateExtendedProperty : "id=" + recEvent.extendedProperties.private['id'],
+  if (eventInstanceToPatch == null || eventInstanceToPatch.length == 0){
+    if (recEvent.recurringEventId.length == 10){
+      recEvent.recurringEventId += "T00:00:00Z";
+    }
+    else if (recEvent.recurringEventId.substr(-1) !== "Z"){
+      recEvent.recurringEventId += "Z";
+    }
+    eventInstanceToPatch = callWithBackoff(function(){
+       return Calendar.Events.list(targetCalendarId, 
+        { singleEvents : true,
+          orderBy : "startTime",
+          maxResults: 1,
+          timeMin : recEvent.recurringEventId,
+          privateExtendedProperty : "fromGAS=true", 
+          privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
         }).items;
-      }, defaultMaxRetries);
+    }, defaultMaxRetries);
+  }
 
-  Logger.log("Found " + calendarEvents.length + " possible instances");
-  var eventInstanceToPatch = calendarEvents.filter(function(item){
-    try{
-      var origStart = item.originalStartTime.dateTime || item.originalStartTime.date;
-      var instanceStart = new ICAL.Time.fromString(origStart);
-
-      return (instanceStart.compare(recIDStart) == 0);
-    }catch(e){
-      Logger.log("Error: " + e);
-      return 0; 
-    }
-  });
-
-  if (eventInstanceToPatch.length == 0){
-    Logger.log("No Instance matched, adding as new event!");
-    try{
-      callWithBackoff(function() {
-          return Calendar.Events.insert(recEvent, targetCalendarId);
-        }, defaultMaxRetries);
-    }
-    catch(error){
-      Logger.log(error); 
-    }
+  if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
+    Logger.log("Updating existing event instance");
+    callWithBackoff(function(){
+      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+    }, defaultMaxRetries);
   }
   else{
-    try{
-      Logger.log("Patching existing event instance");
-      callWithBackoff(function() {
-          return Calendar.Events.patch(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-        }, defaultMaxRetries);
-    }
-    catch(error){
-      Logger.log(error); 
-    }
+    Logger.log("No Instance matched, adding as new event!");
+    callWithBackoff(function(){
+      Calendar.Events.insert(recEvent, targetCalendarId);
+    }, defaultMaxRetries);
   }
 }
 
@@ -577,16 +592,12 @@ function processEventCleanup(){
       
       if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null){
         Logger.log("Deleting old event " + currentID);
-        try{
-          callWithBackoff(function() {
-              return Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
-            }, defaultMaxRetries);
-          if (emailSummary){
-            removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
-          }
-        }
-        catch (err){
-          Logger.log(err);
+        callWithBackoff(function(){
+          Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
+        }, defaultMaxRetries);
+
+        if (emailSummary){
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
         }
       }
     }
