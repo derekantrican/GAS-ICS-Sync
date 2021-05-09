@@ -832,16 +832,9 @@ function sendSummary() {
  * @return {?Calendar.Event} The Calendar.Event that was added in the calendar, null if func did not complete successfully
  */
 var backoffRecoverableErrors = [
-  "Exception: Service invoked too many times in a short time",
-  "Exception: Rate Limit Exceeded",
-  "Exception: Quota Error: User Rate Limit Exceeded",
-  "Service error: Spreadsheets",
-  "Exception: User rate limit exceeded",
-  "Exception: Internal error. Please try again.",
-  "Exception: Cannot execute AddColumn because another task",
-  "Service invoked too many times in a short time:",
-  "Exception: Internal error.",
-  "Exception: Limit Exceeded: DriveApp."];
+  "Service invoked too many times in a short time",
+  "Rate Limit Exceeded",
+  "Internal error"];
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
   var result;
@@ -853,8 +846,8 @@ function callWithBackoff(func, maxRetries) {
     }
     catch(err){
       if ( err.message.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
-              return  err.message.toString().slice(0,e.length) == e  ;
-            }); ) {
+              return new RegExp(e, 'i').test(err.toString())
+            }) ) {
         throw err;
       } else if ( err.message.includes("Forbidden") ) {
         return null;
@@ -862,7 +855,7 @@ function callWithBackoff(func, maxRetries) {
         Logger.log(`Error, giving up after trying ${maxRetries} times [${err}]`);
         return null;
       } else {
-        Logger.log( "Error, Retrying..." + err );
+        Logger.log( "Error, Retrying... [" + err  +"]");
         Utilities.sleep (Math.pow(2,tries)*100) + 
                             (Math.round(Math.random() * 100));
       }
