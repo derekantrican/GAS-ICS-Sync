@@ -110,6 +110,16 @@ function uninstall(){
   deleteAllTriggers();
 }
 
+function doGet(e) {
+  startSync();
+  return ContentService.createTextOutput(JSON.stringify({ "status": "ok" })).setMimeType(ContentService.MimeType.JSON); 
+}
+
+function doPost(e) {
+  startSync();
+  return ContentService.createTextOutput(JSON.stringify({ "status": "ok" })).setMimeType(ContentService.MimeType.JSON); 
+}
+
 var startUpdateTime;
 
 // Per-calendar global variables (must be reset before processing each new calendar!)
