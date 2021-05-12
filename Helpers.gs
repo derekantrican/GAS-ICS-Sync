@@ -864,28 +864,36 @@ function sendSummary() {
  * @param {Number} maxRetries - How many times the function should try if it fails
  * @return {?Calendar.Event} The Calendar.Event that was added in the calendar, null if func did not complete successfully
  */
+var backoffRecoverableErrors = [
+  "service invoked too many times in a short time",
+  "rate limit exceeded",
+  "internal error"];
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
-  var timeout = 100;
   var result;
-  while(tries < maxRetries){
+  while ( tries <= maxRetries ) {
     tries++;
     try{
       result = func();
       return result;
     }
-    catch(e){
-      if (tries < maxRetries){
-        Logger.log(`Error, retrying in ${timeout}ms... [${e}]`);
-        Utilities.sleep(timeout);
-        timeout*=2; // Exponentially increase timeout
-      }
-      else {
-        Logger.log(`Error, giving up after trying ${maxRetries} times [${e}]`);
+    catch(err){
+      if ( err.message.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
+              return err.message.toLowerCase().includes(e);
+            }) ) {
+        throw err;
+      } else if ( err.message.includes("Forbidden") ) {
+        return null;
+      } else if ( tries > maxRetries) {
+        Logger.log(`Error, giving up after trying ${maxRetries} times [${err}]`);
+        return null;
+      } else {
+        Logger.log( "Error, Retrying... [" + err  +"]");
+        Utilities.sleep (Math.pow(2,tries)*100) + 
+                            (Math.round(Math.random() * 100));
       }
     }
   }
-
   return null;
 }
 
