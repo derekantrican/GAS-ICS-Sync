@@ -846,7 +846,7 @@ function callWithBackoff(func, maxRetries) {
     }
     catch(err){
       if ( err.message.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
-              return new RegExp(e, 'i').test(err.toString())
+              return err.message.toLowerCase().includes(e);
             }) ) {
         throw err;
       } else if ( err.message.includes("Forbidden") ) {
