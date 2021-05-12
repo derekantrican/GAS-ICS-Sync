@@ -832,9 +832,9 @@ function sendSummary() {
  * @return {?Calendar.Event} The Calendar.Event that was added in the calendar, null if func did not complete successfully
  */
 var backoffRecoverableErrors = [
-  "Service invoked too many times in a short time",
-  "Rate Limit Exceeded",
-  "Internal error"];
+  "service invoked too many times in a short time",
+  "rate limit exceeded",
+  "internal error"];
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
   var result;
