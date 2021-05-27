@@ -720,11 +720,11 @@ tzidreplace = {
 "Russia Time Zone 11": "Asia/Kamchatka",
 "New Zealand Standard Time": "Pacific/Auckland",
 "UTC+12": "Pacific/Wallis",
-"Fiji Standard Time": "Pacific/Fiji",	
-"Chatham Islands Standard Time": "Pacific/Chatham",	
-"UTC+13": "Pacific/Enderbury",	
-"Tonga Standard Time": "Pacific/Tongatapu",	
-"Samoa Standard Time": "Pacific/Apia",	
+"Fiji Standard Time": "Pacific/Fiji",
+"Chatham Islands Standard Time": "Pacific/Chatham",
+"UTC+13": "Pacific/Enderbury",
+"Tonga Standard Time": "Pacific/Tongatapu",
+"Samoa Standard Time": "Pacific/Apia",
 "Line Islands Standard Time": "Pacific/Kiritimati",
 "Z": "Etc/GMT"
 };
