@@ -107,7 +107,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
  * @return {Calendar} The calendar retrieved or created
  */
 function setupTargetCalendar(targetCalendarName){
-  var targetCalendar = Calendar.CalendarList.list().items.filter(function(cal) {
+  var targetCalendar = Calendar.CalendarList.list({showHidden: true}).items.filter(function(cal) {
     var name = cal.summaryOverride || cal.summary;
     return name == targetCalendarName && (cal.accessRole == "owner" || cal.accessRole == "writer");
   })[0];
