@@ -118,11 +118,13 @@ var calendarEventsIds = [];
 var icsEventsIds = [];
 var calendarEventsMD5s = [];
 var recurringEvents = [];
+var targetCalendarId;
+var targetCalendarName;
+
+// Per-session global variables (must NOT be reset before processing each new calendar!)
 var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
-var targetCalendarId;
-var targetCalendarName;
 
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
@@ -146,9 +148,6 @@ function startSync(){
     icsEventsIds = [];
     calendarEventsMD5s = [];
     recurringEvents = [];
-    addedEvents = [];
-    modifiedEvents = [];
-    removedEvents = [];
 
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
