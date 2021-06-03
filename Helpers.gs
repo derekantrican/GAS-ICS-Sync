@@ -278,7 +278,7 @@ function createEvent(event, calendarTz){
     var tzid = icalEvent.startDate.timezone;
     if (tzids.indexOf(tzid) == -1){
 
-      Logger.log("Timezone " + tzid + " unsupported!");
+      var oldTzid = tzid;
       if (tzid in tzidreplace){
         tzid = tzidreplace[tzid];
       }
@@ -287,7 +287,7 @@ function createEvent(event, calendarTz){
         tzid = calendarTz;
       }
 
-      Logger.log("Using Timezone " + tzid + "!");
+      Logger.log("Converting ICS timezone " + oldTzid + " to Google Calendar (IANA) timezone " + tzid);
     }
 
     newEvent = {
