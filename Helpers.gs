@@ -412,6 +412,11 @@ function createEvent(event, calendarTz){
         };
       }
     }
+  } else {
+    newEvent.reminders = {
+      'useDefault' : false,
+      'overrides' : []
+    };
   }
   
   if (icalEvent.isRecurring()){
