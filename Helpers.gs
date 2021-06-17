@@ -388,32 +388,47 @@ function createEvent(event, calendarTz){
     newEvent.reminders = { 'useDefault' : true, 'overrides' : []};//will set the default reminders as set at calendar.google.com
   }
   
-  if (addAlerts){
-    var valarms = event.getAllSubcomponents('valarm');
-    if (valarms.length > 0){
-      var overrides = [];
-      for (var valarm of valarms){
-        var trigger = valarm.getFirstPropertyValue('trigger').toString();
-        try{
-          var alarmTime = new ICAL.Time.fromString(trigger);
-          trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
-        }catch(e){}
-        if (overrides.length < 5){ //Google supports max 5 reminder-overrides
-          var timer = parseNotificationTime(trigger);
-          if (0 <= timer && timer <= 40320)
-            overrides.push({'method' : 'popup', 'minutes' : timer});
+  switch (addAlerts) {
+    case "yes":
+      var valarms = event.getAllSubcomponents('valarm');
+      if (valarms.length > 0){
+        var overrides = [];
+        for (var valarm of valarms){
+          var trigger = valarm.getFirstPropertyValue('trigger').toString();
+          try{
+            var alarmTime = new ICAL.Time.fromString(trigger);
+            trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
+          }catch(e){}
+          if (overrides.length < 5){ //Google supports max 5 reminder-overrides
+            var timer = parseNotificationTime(trigger);
+            if (0 <= timer && timer <= 40320)
+              overrides.push({'method' : 'popup', 'minutes' : timer});
+          }
+        }
+
+        if (overrides.length > 0){
+          newEvent.reminders = {
+            'useDefault' : false,
+            'overrides' : overrides
+          };
         }
       }
-
-      if (overrides.length > 0){
-        newEvent.reminders = {
-          'useDefault' : false,
-          'overrides' : overrides
-        };
-      }
-    }
+      break;
+    case "no":
+      newEvent.reminders = {
+        'useDefault' : false,
+        'overrides' : []
+      };
+      break;
+    default:
+    case "default":
+      newEvent.reminders = {
+        'useDefault' : true,
+        'overrides' : []
+      };
+      break;
   }
-  
+
   if (icalEvent.isRecurring()){
     // Calculate targetTZ's UTC-Offset
     var calendarUTCOffset = 0;
