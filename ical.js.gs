@@ -5896,6 +5896,10 @@ ICAL.TimezoneService = (function() {
    * @return {ICAL.Time}            The date/time instance
    */
   ICAL.Time.fromDateTimeString = function(aValue, prop) {
+    if (aValue.length == 13 && aValue.substr(10) === "T::") {
+      aValue = aValue.substr(0,11) + "00:00:00";
+    }
+    
     if (aValue.length < 19) {
       throw new Error(
         'invalid date-time value: "' + aValue + '"'
