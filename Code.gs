@@ -154,7 +154,15 @@ function startSync(){
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
-    var responses = fetchSourceCalendars(sourceCalendarURLs);
+    try{
+      var responses = fetchSourceCalendars(sourceCalendarURLs);
+    }
+    catch(e)
+    {
+      Logger.log(e);
+      Logger.log("Skipping " + targetCalendarName);
+      continue;
+    }
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
     
     //------------------------ Get target calendar information------------------------
