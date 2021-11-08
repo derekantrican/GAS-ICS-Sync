@@ -516,6 +516,9 @@ function checkSkipEvent(event, icalEvent){
               mths += newStartDate.month - oldStartDate.month;
               ct -= mths;
             }
+            else if (v.freq=='YEARLY') {
+              ct -= newStartDate.year - oldStartDate.year;
+            }
             if (v.interval!=null) {
               ct /= v.interval;
             }
