@@ -502,6 +502,9 @@ function checkSkipEvent(event, icalEvent){
             if (ct==null){
               return;
             }
+            if (v.interval!=null) {
+              ct *= v.interval;
+            }
             if (v.freq=='DAILY') {
               ct -= diff.days;
             }
@@ -512,6 +515,9 @@ function checkSkipEvent(event, icalEvent){
               var mths = (newStartDate.year - oldStartDate.year) * 12;
               mths += newStartDate.month - oldStartDate.month;
               ct -= mths;
+            }
+            if (v.interval!=null) {
+              ct /= v.interval;
             }
             vals[i].count = ct;
           });
