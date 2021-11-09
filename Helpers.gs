@@ -478,7 +478,7 @@ function checkSkipEvent(event, icalEvent){
         var tempEnd = icalEvent.endDate.clone();
         tempEnd.addDuration(diff);
         if (tempEnd.compare(startUpdateTime) < 0) {
-          countskipped += 1;
+          countskipped ++;
           continue;
         }
         
