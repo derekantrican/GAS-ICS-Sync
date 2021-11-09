@@ -472,11 +472,13 @@ function checkSkipEvent(event, icalEvent){
       var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
       var next;
       var newStartDate;
+      var countskipped = 0;
       while (next = expand.next()) {
         var diff = next.subtractDate(icalEvent.startDate);
-        var tempEnd = icalEvent.endDate.clone()
+        var tempEnd = icalEvent.endDate.clone();
         tempEnd.addDuration(diff);
         if (tempEnd.compare(startUpdateTime) < 0) {
+          countskipped += 1;
           continue;
         }
         
@@ -486,61 +488,18 @@ function checkSkipEvent(event, icalEvent){
       
       if (newStartDate != null){//At least one instance is in the future
         newStartDate.timezone = icalEvent.startDate.timezone;
-        var oldStartDate = icalEvent.startDate;
         var diff = newStartDate.subtractDate(icalEvent.startDate);
         icalEvent.endDate.addDuration(diff);
         var newEndDate = icalEvent.endDate;
         icalEvent.endDate = newEndDate;
         icalEvent.startDate = newStartDate;
 
-        var rrules = event.getAllProperties('rrule');
-        Logger.log(icalEvent.summary);
-        rrules.forEach(function(r){
-          var vals = r.getValues();
-          vals.forEach(function(v,i){
-            var ct = v.count;
-            if (ct==null){
-              return;
-            }
-            if (v.interval!=null) {
-              ct *= v.interval;
-            }
-            if (v.freq=='DAILY') {
-              ct -= diff.days;
-            }
-            else if (v.freq=='WEEKLY') {
-              ct -= diff.weeks;
-            }
-            else if (v.freq=='MONTHLY') {
-              var mths = (newStartDate.year - oldStartDate.year) * 12;
-              mths += newStartDate.month - oldStartDate.month;
-              ct -= mths;
-            }
-            else if (v.freq=='YEARLY') {
-              ct -= newStartDate.year - oldStartDate.year;
-            }
-            if (v.interval!=null) {
-              ct /= v.interval;
-            }
-            vals[i].count = ct;
-          });
-          vals = vals.filter(function(v){
-            var ct = v.count;
-            if (ct==null){
-              return true;
-            }
-            return 0<ct;
-          });
-          if (vals.length == 0){
-            event.removeProperty(r);
-          }
-          else if(vals.length == 1){
-            r.setValue(vals[0]);
-          }
-          else if(vals.length > 1){
-            r.setValues(vals);
-          }
-        });
+        var rrule = event.getFirstProperty('rrule');
+        var recur = rrule.getFirstValue();
+        if (recur.isByCount()) {
+          recur.count -= countskipped;
+          rrule.setValue(recur);
+        }
 
         var rdates = event.getAllProperties('rdate');
         rdates.forEach(function(r){
