@@ -472,11 +472,13 @@ function checkSkipEvent(event, icalEvent){
       var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
       var next;
       var newStartDate;
+      var countskipped = 0;
       while (next = expand.next()) {
         var diff = next.subtractDate(icalEvent.startDate);
-        var tempEnd = icalEvent.endDate.clone()
+        var tempEnd = icalEvent.endDate.clone();
         tempEnd.addDuration(diff);
         if (tempEnd.compare(startUpdateTime) < 0) {
+          countskipped ++;
           continue;
         }
         
@@ -491,7 +493,14 @@ function checkSkipEvent(event, icalEvent){
         var newEndDate = icalEvent.endDate;
         icalEvent.endDate = newEndDate;
         icalEvent.startDate = newStartDate;
-        
+
+        var rrule = event.getFirstProperty('rrule');
+        var recur = rrule.getFirstValue();
+        if (recur.isByCount()) {
+          recur.count -= countskipped;
+          rrule.setValue(recur);
+        }
+
         var rdates = event.getAllProperties('rdate');
         rdates.forEach(function(r){
           var vals = r.getValues();
