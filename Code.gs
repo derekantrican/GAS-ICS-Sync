@@ -26,7 +26,7 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
                                        // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color, 
                                        // for instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays", "11"]
   ["icsUrl1", "targetCalendar1"],
-  ["icsUrl2", "targetCalendar2", "11"],
+  ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
   
 ];
