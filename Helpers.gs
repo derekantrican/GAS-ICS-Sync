@@ -77,7 +77,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
     url = url.replace("webcal://", "https://");
     
     callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false });
+      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
       if (urlResponse.getResponseCode() == 200){
         var urlContent = urlResponse.getContentText();
         if(!urlContent.includes("BEGIN:VCALENDAR")){
@@ -86,12 +86,11 @@ function fetchSourceCalendars(sourceCalendarURLs){
         }
         else{
           result.push(urlContent);
-          Logger.log("Result: " + result.length);
           return;
         }     
       }
       else{ //Throw here to make callWithBackoff run again
-        throw "Error: Encountered " + urlReponse.getReponseCode() + " when accessing " + url; 
+        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
       }
     }, defaultMaxRetries);
   }
@@ -907,12 +906,14 @@ function callWithBackoff(func, maxRetries) {
       return result;
     }
     catch(err){
-      if ( err.message.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
-              return err.message.toLowerCase().includes(e);
+      err = err.message  || err;
+      if ( err.includes("HTTP error") ) {
+        Logger.log(err);
+        return null;
+      } else if ( err.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
+              return err.toLowerCase().includes(e);
             }) ) {
         throw err;
-      } else if ( err.message.includes("Forbidden") ) {
-        return null;
       } else if ( tries > maxRetries) {
         Logger.log(`Error, giving up after trying ${maxRetries} times [${err}]`);
         return null;
