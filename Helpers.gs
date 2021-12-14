@@ -47,7 +47,7 @@ function condenseCalendarMap(calendarMap){
     if (index > -1)
       result[index][1].push(mapping[0]);
     else
-      result.push([ mapping[1], [ mapping[0] ] ]);
+      result.push([ mapping[1], [ mapping[0] ], mapping[2] ]);
   }
 
   return result;
@@ -106,7 +106,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
  * @param {string} targetCalendarName - The name of the calendar to return
  * @return {Calendar} The calendar retrieved or created
  */
-function setupTargetCalendar(targetCalendarName){
+function setupTargetCalendar(targetCalendarName, colorId){
   var targetCalendar = Calendar.CalendarList.list({showHidden: true}).items.filter(function(cal) {
     return ((cal.summaryOverride || cal.summary) == targetCalendarName) &&
                 (cal.accessRole == "owner" || cal.accessRole == "writer");
@@ -117,6 +117,7 @@ function setupTargetCalendar(targetCalendarName){
     targetCalendar = Calendar.newCalendar();
     targetCalendar.summary = targetCalendarName;
     targetCalendar.description = "Created by GAS";
+    targetCalendar.colorId = colorId;
     targetCalendar.timeZone = Calendar.Settings.get("timezone").value;
     targetCalendar = Calendar.Calendars.insert(targetCalendar);
   }
@@ -191,10 +192,11 @@ function parseResponses(responses){
  *
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
+ * @param {string} colorId - The colorId for the target calendar
  */
-function processEvent(event, calendarTz){
+function processEvent(event, calendarTz, colorId){
   //------------------------ Create the event object ------------------------
-  var newEvent = createEvent(event, calendarTz);
+  var newEvent = createEvent(event, calendarTz, colorId);
   if (newEvent == null)
     return;
   
@@ -244,9 +246,10 @@ function processEvent(event, calendarTz){
  *
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
+ * @param {string} colorId - The color id for the target calendar events
  * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
-function createEvent(event, calendarTz){
+function createEvent(event, calendarTz, colorId){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event, {strictExceptions: true});
   if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
@@ -446,6 +449,8 @@ function createEvent(event, calendarTz){
     newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
   }
+
+  newEvent.colorId = colorId;
   
   return newEvent;
 }
