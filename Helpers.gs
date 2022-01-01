@@ -665,7 +665,12 @@ function processTasks(responses){
     var newtask = Tasks.newTask();
     newtask.id = task.getFirstPropertyValue("uid").toString();
     newtask.title = task.getFirstPropertyValue("summary").toString();
-    var dueDate = task.getFirstPropertyValue("due").toJSDate();
+    if (task.getFirstPropertyValue("due") == null) {
+      var dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+    } else {
+      var dueDate = task.getFirstPropertyValue("due").toJSDate();
+    }
     newtask.due = (dueDate.getFullYear()) + "-" + ("0"+(dueDate.getMonth()+1)).slice(-2) + "-" + ("0" + dueDate.getDate()).slice(-2) + "T" + ("0" + dueDate.getHours()).slice(-2) + ":" + ("0" + dueDate.getMinutes()).slice(-2) + ":" + ("0" + dueDate.getSeconds()).slice(-2)+"Z";
     
     Tasks.Tasks.insert(newtask, taskList.id);
