@@ -673,7 +673,7 @@ function processTasks(responses){
     }
     newtask.due = (dueDate.getFullYear()) + "-" + ("0"+(dueDate.getMonth()+1)).slice(-2) + "-" + ("0" + dueDate.getDate()).slice(-2) + "T" + ("0" + dueDate.getHours()).slice(-2) + ":" + ("0" + dueDate.getMinutes()).slice(-2) + ":" + ("0" + dueDate.getSeconds()).slice(-2)+"Z";
     
-    if (task.getFirstPropertyValue("status") != "COMPLETED") {
+    if (task.getFirstPropertyValue("status") != "COMPLETED" && newtask.title != "No task.") {
     Tasks.Tasks.insert(newtask, taskList.id);
     }
   }
