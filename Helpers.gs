@@ -667,7 +667,7 @@ function processTasks(responses){
     newtask.title = task.getFirstPropertyValue("summary").toString();
     if (task.getFirstPropertyValue("due") == null) {
       var dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 30);
+      dueDate.setDate(dueDate.getDate() + emptyDueDateTasks);
     } else {
       var dueDate = task.getFirstPropertyValue("due").toJSDate();
     }
