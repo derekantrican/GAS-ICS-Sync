@@ -6,13 +6,15 @@
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Settings: Change lines 22-48 to be the settings that you want to use
-* 3) Install: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
+* 2) Settings: Change lines 24-50 to be the settings that you want to use
+* 3) Install:
+*      New Interface: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
+*      Old Interface: Click "Run" > "Run function" > "install"
 * 4) Authorize: You will be prompted to authorize the program and will need to click "Advanced" > "Go to GAS-ICS-Sync (unsafe)"
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
-* 5) You can also run "startSync" if you want to sync only once (change the dropdown to the right of "Debug" from "install" to "startSync")
+* 5) You can also run "startSync" if you want to sync only once (New Interface: change the dropdown to the right of "Debug" from "install" to "startSync")
 *
-* **To stop the Script from running change the dropdown to the right of "Debug" from "install" to "uninstall"
+* **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
 *
 *=========================================
 *               SETTINGS
