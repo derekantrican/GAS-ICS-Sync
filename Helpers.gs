@@ -45,9 +45,9 @@ function condenseCalendarMap(calendarMap){
     }
 
     if (index > -1)
-      result[index][1].push(mapping[0]);
+      result[index][1].push([mapping[0],mapping[2]]);
     else
-      result.push([ mapping[1], [ mapping[0] ], mapping[2] ]);
+      result.push([ mapping[1], [[mapping[0],mapping[2]]] ]);
   }
 
   return result;
@@ -73,19 +73,20 @@ function deleteAllTriggers(){
  */
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = []
-  for (var url of sourceCalendarURLs){
-    url = url.replace("webcal://", "https://");
+  for (var source of sourceCalendarURLs){
+    var url = source[0].replace("webcal://", "https://");
+    var colorId = source[1];
     
     callWithBackoff(function() {
       var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
       if (urlResponse.getResponseCode() == 200){
-        var urlContent = urlResponse.getContentText();
-        if(!urlContent.includes("BEGIN:VCALENDAR")){
+        var urlContent = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s").exec(urlResponse.getContentText());
+        if(urlContent == null){
           Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
           return;
         }
         else{
-          result.push(urlContent);
+          result.push([urlContent[0], colorId]);
           return;
         }     
       }
@@ -105,7 +106,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
  * @param {string} targetCalendarName - The name of the calendar to return
  * @return {Calendar} The calendar retrieved or created
  */
-function setupTargetCalendar(targetCalendarName, colorId){
+function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list({showHidden: true}).items.filter(function(cal) {
     return ((cal.summaryOverride || cal.summary) == targetCalendarName) &&
                 (cal.accessRole == "owner" || cal.accessRole == "writer");
@@ -116,7 +117,6 @@ function setupTargetCalendar(targetCalendarName, colorId){
     targetCalendar = Calendar.newCalendar();
     targetCalendar.summary = targetCalendarName;
     targetCalendar.description = "Created by GAS";
-    targetCalendar.colorId = colorId;
     targetCalendar.timeZone = Calendar.Settings.get("timezone").value;
     targetCalendar = Calendar.Calendars.insert(targetCalendar);
   }
@@ -134,7 +134,9 @@ function setupTargetCalendar(targetCalendarName, colorId){
  */
 function parseResponses(responses){
   var result = [];
-  for (var resp of responses){
+  for (var itm of responses){
+    var resp = itm[0];
+    var colorId = itm[1];
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
 
@@ -145,6 +147,9 @@ function parseResponses(responses){
     }
     
     var allEvents = component.getAllSubcomponents("vevent");
+    if (colorId != undefined)
+      allEvents.forEach(function(event){event.addPropertyWithValue("color", colorId);});
+
     var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
     if (calName != null)
       allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
@@ -191,11 +196,10 @@ function parseResponses(responses){
  *
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
- * @param {string} colorId - The colorId for the target calendar
  */
-function processEvent(event, calendarTz, colorId){
+function processEvent(event, calendarTz){
   //------------------------ Create the event object ------------------------
-  var newEvent = createEvent(event, calendarTz, colorId);
+  var newEvent = createEvent(event, calendarTz);
   if (newEvent == null)
     return;
   
@@ -245,10 +249,9 @@ function processEvent(event, calendarTz, colorId){
  *
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
- * @param {string} colorId - The color id for the target calendar events
  * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
-function createEvent(event, calendarTz, colorId){
+function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event, {strictExceptions: true});
   if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
@@ -449,8 +452,10 @@ function createEvent(event, calendarTz, colorId){
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
   }
 
-  newEvent.colorId = colorId;
-  
+  if (event.hasProperty('color')){
+    newEvent.colorId = event.getFirstPropertyValue('color').toString();
+  }
+
   return newEvent;
 }
 
