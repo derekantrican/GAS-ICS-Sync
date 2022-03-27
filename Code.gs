@@ -153,7 +153,6 @@ function startSync(){
 
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
-    var colorId = calendar[2];
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
@@ -161,9 +160,9 @@ function startSync(){
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
     
     //------------------------ Get target calendar information------------------------
-    var targetCalendar = setupTargetCalendar(targetCalendarName, colorId);
+    var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
-    Logger.log("Working on calendar: " + targetCalendarId + colorId !== undefined ? " with colorId: " + colorId : "");
+    Logger.log("Working on calendar: " + targetCalendarId);
     
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
@@ -203,7 +202,7 @@ function startSync(){
         }, defaultMaxRetries);
       
       vevents.forEach(function(e){
-        processEvent(e, calendarTz, colorId);
+        processEvent(e, calendarTz);
       });
 
       Logger.log("Done processing events");
