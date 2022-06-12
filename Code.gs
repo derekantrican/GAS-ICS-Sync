@@ -6,7 +6,7 @@
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Settings: Change lines 24-47 to be the settings that you want to use
+* 2) Settings: Change lines 24-50 to be the settings that you want to use
 * 3) Install:
 *      New Interface: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
 *      Old Interface: Click "Run" > "Run function" > "install"
@@ -14,7 +14,7 @@
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
 * 5) You can also run "startSync" if you want to sync only once (New Interface: change the dropdown to the right of "Debug" from "install" to "startSync")
 *
-* **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall"
+* **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
 *
 *=========================================
 *               SETTINGS
@@ -153,7 +153,6 @@ function startSync(){
 
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
-    var colorId = calendar[2];
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
@@ -161,9 +160,9 @@ function startSync(){
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
     
     //------------------------ Get target calendar information------------------------
-    var targetCalendar = setupTargetCalendar(targetCalendarName, colorId);
+    var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
-    Logger.log("Working on calendar: " + targetCalendarId + colorId !== undefined ? " with colorId: " + colorId : "");
+    Logger.log("Working on calendar: " + targetCalendarId);
     
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
@@ -203,7 +202,7 @@ function startSync(){
         }, defaultMaxRetries);
       
       vevents.forEach(function(e){
-        processEvent(e, calendarTz, colorId);
+        processEvent(e, calendarTz);
       });
 
       Logger.log("Done processing events");
