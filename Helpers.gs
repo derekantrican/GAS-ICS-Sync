@@ -172,6 +172,22 @@ function parseResponses(responses){
     if (calName != null)
       allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
 
+    if (0<excludeEmails.length) {
+      allEvents = allEvents.filter(function(event){
+        if (event.hasProperty('attendee')){
+          var atts = event.getAllProperties("attendee");
+          for (var att of event.getAllProperties("attendee")){
+            for (var val of att.getValues()) {
+              if (excludeEmails.includes(parseAttendeeMail(":"+val))) {
+                return false;
+              }
+            }
+          }
+        }
+        return true;
+      });
+    }
+
     result = [].concat(allEvents, result);
   }
   
