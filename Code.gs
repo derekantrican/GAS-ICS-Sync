@@ -25,9 +25,13 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
                                        // For instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays"]
                                        // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color, 
                                        // for instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays", "11"]
+                                       // Or with array of email addresses to ignore events where they are invited,
+                                       // for instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays", ["example1@domain.com","example2@domain.com"]]
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
-  ["icsUrl3", "targetCalendar1"]
+  ["icsUrl3", "targetCalendar1", CalendarApp.EventColor.GRAY],
+  ["icsUrl4", "targetCalendar2", ["example1@domain.com"]],
+  ["icsUrl5", "targetCalendar1", CalendarApp.EventColor.MAUVE, ["example1@domain.com"]]
   
 ];
 
