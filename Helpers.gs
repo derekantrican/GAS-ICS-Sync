@@ -44,10 +44,28 @@ function condenseCalendarMap(calendarMap){
       }
     }
 
-    if (index > -1)
-      result[index][1].push([mapping[0],mapping[2]]);
-    else
-      result.push([ mapping[1], [[mapping[0],mapping[2]]] ]);
+    var colorId_ = undefined;
+    var excludeEmails_ = undefined;
+    for (var i = 2; i < mapping.length; i++){
+      if (Object.values(CalendarApp.EventColor).includes(mapping[i])) {
+        colorId_ = mapping[i];
+      } else if (Array.isArray(mapping[i])) {
+        excludeEmails_ = mapping[i];
+      } else if (typeof myVar === 'string' || myVar instanceof String) {
+        if ( mapping[i].includes("@") ) {
+          excludeEmails_ = [mapping[i]];
+        } else {
+          colorId_ = mapping[i];
+        }
+      }
+    }
+
+    if (index > -1) {
+      result[index][1].push([mapping[0],colorId_]);
+      result[index][2].push(excludeEmails_);
+    } else {
+      result.push([ mapping[1], [[mapping[0],colorId_]], excludeEmails_ ]);
+    }
   }
 
   return result;
