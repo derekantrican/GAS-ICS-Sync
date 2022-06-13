@@ -44,27 +44,26 @@ function condenseCalendarMap(calendarMap){
       }
     }
 
-    var colorId_ = undefined;
-    var excludeEmails_ = undefined;
+    var colorId = undefined;
+    var excludeEmails = undefined;
     for (var i = 2; i < mapping.length; i++){
       if (Object.values(CalendarApp.EventColor).includes(mapping[i])) {
-        colorId_ = mapping[i];
+        colorId = mapping[i];
       } else if (Array.isArray(mapping[i])) {
-        excludeEmails_ = mapping[i];
+        excludeEmails = mapping[i];
       } else if (typeof myVar === 'string' || myVar instanceof String) {
         if ( mapping[i].includes("@") ) {
-          excludeEmails_ = [mapping[i]];
+          excludeEmails = [mapping[i]];
         } else {
-          colorId_ = mapping[i];
+          colorId = mapping[i];
         }
       }
     }
 
     if (index > -1) {
-      result[index][1].push([mapping[0],colorId_]);
-      result[index][2].push(excludeEmails_);
+      result[index][1].push([mapping[0],colorId,excludeEmails]);
     } else {
-      result.push([ mapping[1], [[mapping[0],colorId_]], excludeEmails_ ]);
+      result.push([ mapping[1], [[mapping[0],colorId,excludeEmails]] ]);
     }
   }
 
@@ -155,6 +154,7 @@ function parseResponses(responses){
   for (var itm of responses){
     var resp = itm[0];
     var colorId = itm[1];
+    var excludeEmails = itm[2];
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
 

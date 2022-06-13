@@ -126,7 +126,6 @@ var calendarEventsMD5s = [];
 var recurringEvents = [];
 var targetCalendarId;
 var targetCalendarName;
-var excludeEmails = [];
 
 // Per-session global variables (must NOT be reset before processing each new calendar!)
 var addedEvents = [];
@@ -158,7 +157,6 @@ function startSync(){
 
     targetCalendarName = calendar[0];
     var sourceCalendarURLs = calendar[1];
-    excludeEmails = calendar[2];
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
