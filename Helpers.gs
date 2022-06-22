@@ -456,6 +456,14 @@ function createEvent(event, calendarTz){
     newEvent.colorId = event.getFirstPropertyValue('color').toString();
   }
 
+  if (anonymizezEvents) {
+    //remove identifying info
+    newEvent.summary = "Busy";
+    newEvent.description = "";
+    newEvent.location = "";
+  }
+
+
   return newEvent;
 }
 
