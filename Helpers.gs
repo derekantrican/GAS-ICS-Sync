@@ -258,6 +258,13 @@ function createEvent(event, calendarTz){
     return;
   }
 
+  for (let i = 0; i < filters.length; i++) {
+    if(icalEvent.summary.includes(filters[i])) {
+      Logger.log("Skipping Filtered Event");
+      return;
+    }
+  }
+
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
   if(calendarEventsMD5s.indexOf(digest) >= 0){
     Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
