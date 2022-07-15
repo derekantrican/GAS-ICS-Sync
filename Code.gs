@@ -31,7 +31,7 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
   
 ];
 
-var addUpdateTrigger = true;           // EXPERIMENTAL: use Google Calendar native "onEventUpdated" trigger
+var addUpdateTrigger = false;          // EXPERIMENTAL: use Google Calendar native "onEventUpdated" trigger
 var sourceCalendarOwners = [           // EXPERIMENTAL: list of email addresses of sourceCalendars owners, to set "onEventUpdated" triggers
   "user@example.com"
 ];
