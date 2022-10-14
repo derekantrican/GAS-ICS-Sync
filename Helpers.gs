@@ -338,6 +338,7 @@ function createEvent(event, calendarTz){
           return Calendar.newEventSource();
         }, defaultMaxRetries);
     newEvent.source.url = event.getFirstPropertyValue('url').toString();
+    newEvent.source.title = 'link';
   }
 
   if (event.hasProperty('sequence')){
