@@ -188,6 +188,15 @@ function parseResponses(responses){
     }
   });
  
+  //No need to process calcelled events as they will be added to gcal's trash anyway
+  result = result.filter(function(event){
+    try{
+      return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
+    }catch(e){
+      return true;
+    }
+  });
+  
   return result;
 }
 
@@ -511,6 +520,14 @@ function checkSkipEvent(event, icalEvent){
           rrule.setValue(recur);
         }
 
+        var exDates = event.getAllProperties('exdate');
+        exDates.forEach(function(e){
+          var ex = new ICAL.Time.fromString(e.getFirstValue().toString());
+          if (ex < newStartDate){
+            event.removeProperty(e);
+          }
+        });
+        
         var rdates = event.getAllProperties('rdate');
         rdates.forEach(function(r){
           var vals = r.getValues();
