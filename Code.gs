@@ -22,9 +22,9 @@
 */
 
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
-                                       // For instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays"]
+                                       // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
                                        // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color, 
-                                       // for instance: ["https://www.calendarlabs.com/ical-calendar/ics/76/US_Holidays.ics", "US Holidays", "11"]
+                                       // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
