@@ -172,6 +172,15 @@ function parseResponses(responses){
       }
     });
   }
+ 
+  //No need to process calcelled events as they will be added to gcal's trash anyway
+  result = result.filter(function(event){
+    try{
+      return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
+    }catch(e){
+      return true;
+    }
+  });
   
   result.forEach(function(event){
     if (!event.hasProperty('uid')){
@@ -185,15 +194,6 @@ function parseResponses(responses){
     }
     else{
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
-    }
-  });
- 
-  //No need to process calcelled events as they will be added to gcal's trash anyway
-  result = result.filter(function(event){
-    try{
-      return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
-    }catch(e){
-      return true;
     }
   });
   
