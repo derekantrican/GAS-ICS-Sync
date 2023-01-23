@@ -33,7 +33,6 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
 ];
 
 var sourceCalendarMap = [
-  "DELETE THIS LINE TO USE THE NEW FORMAT",
   {
     name: "targetCalendar1",           // The name of the target calendar
     sources: [                         // A list of the ics/ical urls that you want to get events from
@@ -195,7 +194,7 @@ function startSync(){
 }
 
 function _startSync(){
-  if (sourceCalendarMap[0] == "DELETE THIS LINE TO USE THE NEW FORMAT")
+  if (typeof sourceCalendarMap == "undefined" && typeof sourceCalendars != "undefined")
     sourceCalendarMap = convertCalendarSourceArray(sourceCalendars);
 
   if (onlyFutureEvents)
