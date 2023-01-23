@@ -21,6 +21,7 @@
 *=========================================
 */
 
+// Below is the old format. You may still use this format, but it is recommended to use the new format below.
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
                                        // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
                                        // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color, 
@@ -28,7 +29,37 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
-  
+
+];
+
+var sourceCalendarMap = [
+  "DELETE THIS LINE TO USE THE NEW FORMAT",
+  {
+    name: "targetCalendar1",           // The name of the target calendar
+    sources: [                         // A list of the ics/ical urls that you want to get events from
+      {
+        url: "icsUrl1",                // Required: the ics/ical url
+        authorization: {               // Optional: authorization information
+          basic: "username:password",  // Basic authorization uses a username-password pair separated by a colon
+        },
+        color: 4                       // Optional: color for events in this calendar
+      },
+      {
+        url: "icsUrl2",
+        authorization: {
+          bearer: "token",
+        },
+      },
+    ],
+  },
+
+  {                                    // A second calendar
+    name: "targetCalendar2",
+    sources: [
+      { url: "icsUrl3", color: 11 },
+      { url: "icsUrl4" },
+    ],
+  },
 ];
 
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
@@ -47,7 +78,8 @@ var overrideVisibility = "";           // Changes the visibility of the event ("
 var addTasks = false;
 
 var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
-var email = "";                        // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
+var emailOnError = true;               // Will email when an error occurs
+var email = "";                        // OPTIONAL: If "emailSummary" or "emailOnError" is set to true or you want to receive update notifications, you will need to provide your email address
 
 /*
 *=========================================
@@ -128,22 +160,51 @@ var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
 
+function clearRunning(){
+  PropertiesService.getUserProperties().setProperty('LastRun', 0);
+}
+
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
-  
+
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-  
+
+  let error = undefined;
+
+  try {
+    _startSync();
+  } catch (e) {
+    error = e;
+  }
+
+  PropertiesService.getUserProperties().setProperty('LastRun', 0);
+
+  if (error === undefined) {
+    Logger.log("Sync finished!");
+  } else {
+    Logger.log("Sync failed with error:");
+    Logger.log(error);
+
+    if (emailOnError) {
+      sendError(error);
+    }
+  }
+}
+
+function _startSync(){
+  if (sourceCalendarMap[0] == "DELETE THIS LINE TO USE THE NEW FORMAT")
+    sourceCalendarMap = convertCalendarSourceArray(sourceCalendars);
+
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
   
   //Disable email notification if no mail adress is provided 
   emailSummary = emailSummary && email != "";
   
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
-  for (var calendar of sourceCalendars){
+  for (var calendar of sourceCalendarMap){
     //------------------------ Reset globals ------------------------
     calendarEvents = [];
     calendarEventsIds = [];
@@ -151,8 +212,8 @@ function startSync(){
     calendarEventsMD5s = [];
     recurringEvents = [];
 
-    targetCalendarName = calendar[0];
-    var sourceCalendarURLs = calendar[1];
+    targetCalendarName = calendar.name;
+    var sourceCalendarURLs = calendar.sources;
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
@@ -230,6 +291,4 @@ function startSync(){
   if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
     sendSummary();
   }
-  Logger.log("Sync finished!");
-  PropertiesService.getUserProperties().setProperty('LastRun', 0);
 }
