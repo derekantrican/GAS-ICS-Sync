@@ -203,6 +203,8 @@ function _startSync(){
   
   //Disable email notification if no mail adress is provided 
   emailSummary = emailSummary && email != "";
+
+  var sourceErrors = [];
   
   for (var calendar of sourceCalendarMap){
     //------------------------ Reset globals ------------------------
@@ -217,8 +219,11 @@ function _startSync(){
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
-    var responses = fetchSourceCalendars(sourceCalendarURLs);
+    var [responses, errors] = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
+    if (errors.length > 0) {
+      sourceErrors = sourceErrors.concat(errors);
+    }
     
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
@@ -270,7 +275,7 @@ function _startSync(){
     }
     
     //------------------------ Remove old events from calendar ------------------------
-    if(removeEventsFromCalendar){
+    if(removeEventsFromCalendar && sourceErrors.length == 0){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
       processEventCleanup();
       Logger.log("Done checking events for removal");
@@ -290,5 +295,9 @@ function _startSync(){
 
   if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
     sendSummary();
+  }
+
+  if (sourceErrors.length > 0) {
+    throw sourceErrors.join("\n\n");
   }
 }
