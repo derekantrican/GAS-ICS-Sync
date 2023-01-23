@@ -28,6 +28,40 @@ String.prototype.includes = function(phrase){
 }
 
 /**
+ * Takes an array of ICS calendars and target Google calendars and converts them
+ * into the new object format
+ *
+ * @param {Array.string} sourceCalendars - User-defined calendar map
+ * @return {Object} Converted calendar map
+ */
+function convertCalendarSourceArray(sourceCalendars){
+  var convertedObj = {};
+
+  for (var mapping of sourceCalendars){
+    var [url, targetName, color] = mapping;
+    if (convertedObj[targetName] === undefined){
+      convertedObj[targetName] = [];
+    }
+
+    convertedObj[targetName].push({
+      url,
+      color,
+    });
+  }
+
+  // Convert into an array with key -> name, value -> sources
+  var convertedArray = Object.entries(convertedObj).map(([targetName, sources]) => ({
+    name: targetName,
+    sources,
+  }));
+
+  Logger.log("sourceCalendars is using the old format. Please replace with the new format:");
+  Logger.log("var sourceCalendarMap = " + JSON.stringify(convertedArray, null, 2) + ";");
+
+  return convertedArray;
+}
+
+/**
  * Takes an array of ICS calendars and target Google calendars and combines them
  *
  * @param {Array.string} calendarMap - User-defined calendar map
@@ -72,31 +106,56 @@ function deleteAllTriggers(){
  * @return {Array.string} The ressources fetched from the specified URLs
  */
 function fetchSourceCalendars(sourceCalendarURLs){
-  var result = []
+  var result = [];
+  var errors = []
   for (var source of sourceCalendarURLs){
-    var url = source[0].replace("webcal://", "https://");
-    var colorId = source[1];
+    var url = source.url.replace("webcal://", "https://");
+    var colorId = source.color;
     
-    callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
-      if (urlResponse.getResponseCode() == 200){
-        var urlContent = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s").exec(urlResponse.getContentText());
-        if(urlContent == null){
-          Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
-          return;
+    try {
+      callWithBackoff(function() {
+        var urlResponse;
+
+        var params = {
+          method: "GET",
+          validateHttpsCertificates: false,
+          muteHttpExceptions: true,
+        };
+
+        if (source.authorization != undefined) {
+          if (source.authorization.basic != undefined) {
+            params.headers = {
+              "Authorization": "Basic " + Utilities.base64Encode(source.authorization.basic),
+            };
+          } else if (source.authorization.bearer != undefined) {
+            params.headers = {
+              "Authorization": "Bearer " + source.authorization.bearer,
+            };
+          }
         }
-        else{
-          result.push([urlContent[0], colorId]);
-          return;
-        }     
-      }
-      else{ //Throw here to make callWithBackoff run again
-        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
-      }
-    }, defaultMaxRetries);
+        var urlResponse = UrlFetchApp.fetch(url, params);
+        if (urlResponse.getResponseCode() == 200){
+          var urlContent = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s").exec(urlResponse.getContentText());
+          if(urlContent == null){
+            Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
+            return;
+          }
+          else{
+            result.push([urlContent[0], colorId]);
+            return;
+          }     
+        }
+        else{ //Throw here to make callWithBackoff run again
+          errors.push("Url: " + source.url + "\nError:\n" + urlResponse.getContentText());
+          throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
+        }
+      }, defaultMaxRetries);
+    } catch (e) {
+      errors.push("Url: " + source.url + "\nError:\n" + e);
+    }
   }
   
-  return result;
+  return [result, errors];
 }
 
 /**
@@ -908,6 +967,30 @@ function sendSummary() {
 }
 
 /**
+ * Sends an email when an error occurs.
+ *
+ * @param {string} error - The error message to send
+ */
+function sendError(error) {
+  var subject;
+  var body;
+
+  var subject = `GAS-ICS-Sync Execution Failed with Error`;
+
+  body = "GAS-ICS-Sync failed with the following error:<br/><br/>";
+  body += escapeHtml(error).replaceAll("\n", "<br/>");
+  body += "<br/><br/><a href='https://script.google.com/home/projects/" + ScriptApp.getScriptId() + "/edit'>Edit the script</a>."
+  var message = {
+    to: email,
+    subject: subject,
+    htmlBody: body,
+    name: "GAS-ICS-Sync"
+  };
+
+  MailApp.sendEmail(message);
+}
+
+/**
  * Runs the specified function with exponential backoff and returns the result.
  * Will return null if the function did not succeed afterall.
  *
@@ -980,4 +1063,21 @@ function checkForUpdate(){
     var version = json_decoded[0]["tag_name"];
     return Number(version);
   }
+}
+
+var entityMap = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+  '/': '&#x2F;',
+  '`': '&#x60;',
+  '=': '&#x3D;'
+};
+
+function escapeHtml (string) {
+  return String(string).replace(/[&<>"'`=\/]/g, function (s) {
+    return entityMap[s];
+  });
 }
