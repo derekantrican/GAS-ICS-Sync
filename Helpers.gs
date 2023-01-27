@@ -875,7 +875,7 @@ function sendSummary() {
   for (var tgtCal of addedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
-      body += "<li>" + addedEvent[0] + " at " + addedEvent[1] + "</li>";
+      body += "<li>" + addedEvent[0][0] + " at " + addedEvent[0][1] + "</li>";
     }
     body += "</ul>";
   }
@@ -883,7 +883,7 @@ function sendSummary() {
   for (var tgtCal of modifiedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
     for (var modifiedEvent of tgtCal[1]){
-      body += "<li>" + modifiedEvent[0] + " at " + modifiedEvent[1] + "</li>";
+      body += "<li>" + modifiedEvent[0][0] + " at " + modifiedEvent[0][1] + "</li>";
     }
     body += "</ul>";
   }
@@ -891,7 +891,7 @@ function sendSummary() {
   for (var tgtCal of removedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
     for (var removedEvent of tgtCal[1]){
-      body += "<li>" + removedEvent[0] + " at " + removedEvent[1] + "</li>";
+      body += "<li>" + removedEvent[0][0] + " at " + removedEvent[0][1] + "</li>";
     }
     body += "</ul>";
   }
