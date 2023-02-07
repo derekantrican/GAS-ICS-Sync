@@ -31,6 +31,11 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
   
 ];
 
+var addUpdateTrigger = false;          // EXPERIMENTAL: use Google Calendar native "onEventUpdated" trigger
+var sourceCalendarOwners = [           // EXPERIMENTAL: list of email addresses of sourceCalendars owners, to set "onEventUpdated" triggers
+  "user@example.com"
+];
+
 var howFrequent = 15;                  // What interval (minutes) to run this script on to check for new events
 var onlyFutureEvents = false;          // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
 var addEventsToCalendar = true;        // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
@@ -104,6 +109,13 @@ function install(){
   ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
   
+  //Add push trigger if enabled
+  if (addUpdateTrigger) {
+    sourceCalendarOwners.forEach(ownerEmail =>
+      ScriptApp.newTrigger("startSync").forUserCalendar(ownerEmail).onEventUpdated().create()
+    )
+  }
+
   //Schedule sync routine to look for update once per day
   ScriptApp.newTrigger("checkForUpdate").timeBased().everyDays(1).create();
 }
