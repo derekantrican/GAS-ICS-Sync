@@ -465,6 +465,12 @@ function createEvent(event, calendarTz){
   if (event.hasProperty('color')){
     newEvent.colorId = event.getFirstPropertyValue('color').toString();
   }
+  for (const element of colorRegex) {
+    if (newEvent.summary.match(element[0])){
+      newEvent.colorId = element[1];
+      break;
+    }
+  };
 
   return newEvent;
 }

@@ -49,6 +49,18 @@ var addTasks = false;
 var emailSummary = false;              // Will email you when an event is added/modified/removed to your calendar
 var email = "";                        // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
 
+var colorRegex = [                       // OPTIONAL: If you want to color code your events, you can use regex to match the event title and assign it a color (the first match will be used)
+                                         // For instance: [/^US Holidays/, 11] will match any event that starts with "US Holidays" and assign it the color "Red"
+                                         // following mapping https://developers.google.com/apps-script/reference/calendar/event-color
+  [/Elec.*LTL/, 4],  // Pale red
+  [/Elec.*PRA/, 11], // Red
+  [/Elec.*WRK/, 6],  // Orange
+  [/Math.*L01/, 1],  // Pale Blue
+  [/Math.*L02/, 3],  // Mauve
+  [/Engi.*LTL/, 2],  // Pale Green
+  [/Engi.*PRA/, 10]  // Green
+]
+
 /*
 *=========================================
 *           ABOUT THE AUTHOR
