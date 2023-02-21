@@ -636,12 +636,12 @@ function processEventInstance(recEvent){
  * Deletes all events from the target calendar that no longer exist in the source calendars.
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
  */
-function processEventCleanup(){
+function processEventCleanup(cleaupPastEvents){
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
       
-      if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null){
+      if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null && (cleaupPastEvents || calendarEvents[i].start.dateTime > new Date().toISOString())){
         Logger.log("Deleting old event " + currentID);
         callWithBackoff(function(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
