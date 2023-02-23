@@ -1,0 +1,81 @@
+---
+name: Bug report
+about: Please provide any information to help us reproduce the issue
+title: ''
+labels: bug
+assignees: ''
+
+---
+
+<!--
+BEFORE SUBMITTING A NEW ISSUE, PLEASE READ THIS: https://github.com/derekantrican/GAS-ICS-Sync/wiki/Before-submitting-a-new-issue
+-->
+
+- Description of the problem
+- Screenshots
+- An input ics string that can reproduce the problem (you can remove sensitive information with https://derekantrican.com/icssanitizer)
+
+You can see [this issue](https://github.com/derekantrican/GAS-ICS-Sync/issues/34) for an example of good information when submitting a bug
+
+
+name: 🐛 Report a bug
+description: Help improve GAS-ICS-Sync by reporting observed bugs. Got a question or need support? See "Have questions or need support?" instead!
+body:
+  - type: markdown
+    attributes:
+      value: >
+
+        ### ✋ **[READ FIRST] This is bug tracker, not a support forum**
+
+
+        If something isn't working right, you have questions or need help, [**create a discussion instead**](https://github.com/derekantrican/GAS-ICS-Sync/discussions).
+
+
+        Only proceed here if you are 100% sure the issue you are seeing is actually a bug. If in doubt, check
+        the discussions first, we can always file a bug from a support request later.
+
+
+        ---
+
+
+        **Thank you for wanting to report a bug!**
+  - type: textarea
+    attributes:
+      label: The problem
+      description: >-
+        Describe the issue you are experiencing here. Tell us what you were trying to do
+        step by step, and what happened that you did not expect.
+
+        Provide a clear and concise description of what the problem is and include as many
+        details as possible.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Environment
+  - type: input
+    attributes:
+      label: Version of GAS-ICS-Sync
+      description: Can be found near the bottom of the Helpers.gs file (look for `var thisVersion = 5.7;`)
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        ## Other helpful information
+  - type: markdown
+    attributes:
+      value: >-
+        If you have any of the following, please include it:
+          
+          * Screenshots
+          * An input ics string that can reproduce the problem (you can remove sensitive information with https://derekantrican.com/icssanitizer)
+          * Your settings (approx lines 34-50 of Code.gs. eg `var howFrequent = ....` and the following lines) 
+  - type: textarea
+    attributes:
+      label: Additional information & file uploads
