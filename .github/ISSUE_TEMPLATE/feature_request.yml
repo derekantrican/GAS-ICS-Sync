@@ -18,7 +18,7 @@ body:
   - type: textarea
     attributes:
       label: Is your feature request related to a problem? Please describe.
-      description: - Please describe the feature you would like to see (it would be helpful if you could add any necessary screenshots, [ics strings](https://github.com/derekantrican/GAS-ICS-Sync/wiki/Debugging-tips#using-an-explicit-ics-string-instead-of-an-url), etc)
+      description: Please describe the feature you would like to see (it would be helpful if you could add any necessary screenshots, [ics strings](https://github.com/derekantrican/GAS-ICS-Sync/wiki/Debugging-tips#using-an-explicit-ics-string-instead-of-an-url), etc)
   - type: textarea
     attributes:
       label: Describe the solution you'd like
