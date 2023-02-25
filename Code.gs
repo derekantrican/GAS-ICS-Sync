@@ -2,7 +2,7 @@
 *=========================================
 *       INSTALLATION INSTRUCTIONS
 *=========================================
-* 
+*
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
@@ -23,12 +23,12 @@
 
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
                                        // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
-                                       // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color, 
+                                       // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
                                        // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
-  
+
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events
@@ -104,7 +104,7 @@ function install(){
   //Schedule sync routine to explicitly repeat and schedule the initial sync
   ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
-  
+
   //Schedule sync routine to look for update once per day
   ScriptApp.newTrigger("checkForUpdate").timeBased().everyDays(1).create();
 }
@@ -134,15 +134,15 @@ function startSync(){
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
-  
+
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-  
+
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
-  
-  //Disable email notification if no mail adress is provided 
+
+  //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
-  
+
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
     //------------------------ Reset globals ------------------------
@@ -159,12 +159,12 @@ function startSync(){
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
-    
+
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
     Logger.log("Working on calendar: " + targetCalendarId);
-    
+
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
       var eventList =
@@ -193,7 +193,7 @@ function startSync(){
       vevents = parseResponses(responses, icsEventsIds);
       Logger.log("Parsed " + vevents.length + " events from ical sources");
     }
-    
+
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
       Logger.log("Processing " + vevents.length + " events");
@@ -201,18 +201,18 @@ function startSync(){
         callWithBackoff(function(){
           return Calendar.Settings.get("timezone").value;
         }, defaultMaxRetries);
-      
+
       vevents.forEach(function(e){
         processEvent(e, calendarTz);
       });
 
       Logger.log("Done processing events");
     }
-    
+
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
-      processEventCleanup(removePastEventsFromCalendar);
+      processEventCleanup();
       Logger.log("Done checking events for removal");
     }
 
