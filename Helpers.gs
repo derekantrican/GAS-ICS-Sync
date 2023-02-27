@@ -641,7 +641,7 @@ function processEventCleanup(){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
 
-      if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null && (removePastEventsFromCalendar || new Date(calendarEvents[i].start.dateTime) > new Date())){
+      if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null && (removePastEventsFromCalendar || new Date(calendarEvents[i].start.dateTime) > new Date() || new Date(calendarEvents[i].start.date) > new Date())){
         Logger.log("Deleting old event " + currentID);
         callWithBackoff(function(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
