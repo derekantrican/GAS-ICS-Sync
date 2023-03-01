@@ -359,10 +359,20 @@ function createEvent(event, calendarTz){
   else if (event.hasProperty('summary'))
     newEvent.summary = icalEvent.summary;
 
-  if (addOrganizerToTitle && event.hasProperty('organizer')){
-    var organizer = event.getFirstProperty('organizer').getParameter('cn').toString();
-    if (organizer != null)
-      newEvent.summary = organizer + ": " + newEvent.summary;
+  if (event.hasProperty('organizer')){
+    var organizerName = event.getFirstProperty('organizer').getParameter('cn');
+    var organizerMail = event.getFirstProperty('organizer').getParameter('mailto');
+    newEvent.organizer = callWithBackoff(function() {
+          return Calendar.newEventOrganizer();
+        }, defaultMaxRetries);
+    if (organizerName)
+      newEvent.organizer.displayName = organizerName.toString();
+    if (organizerMail)
+      newEvent.organizer.email = organizerMail.toString();
+
+    if (addOrganizerToTitle && organizerName){  
+        newEvent.summary = organizerName + ": " + newEvent.summary;
+    }
   }
 
   if (addCalToTitle && event.hasProperty('parentCal')){
