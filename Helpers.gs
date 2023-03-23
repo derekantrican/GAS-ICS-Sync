@@ -641,7 +641,15 @@ function processEventCleanup(){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
 
-      if(feedIndex  == -1 && calendarEvents[i].recurringEventId == null && (removePastEventsFromCalendar || new Date(calendarEvents[i].start.dateTime) > new Date() || new Date(calendarEvents[i].start.date) > new Date())){
+      if(feedIndex  == -1                                             // Event is no longer in source
+        && calendarEvents[i].recurringEventId == null                 // And it's not a recurring event
+        && (                                                          // And one of:
+          removePastEventsFromCalendar                                // We want to remove past events
+          || new Date(calendarEvents[i].start.dateTime) > new Date()  // Or the event is in the future
+          || new Date(calendarEvents[i].start.date) > new Date()      // (2 different ways event start can be stored)
+        )
+      )
+      {
         Logger.log("Deleting old event " + currentID);
         callWithBackoff(function(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
