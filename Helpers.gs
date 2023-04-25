@@ -226,12 +226,13 @@ function processEvent(event, calendarTz){
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
       if (modifyExistingEvents){
+        oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
+          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], targetCalendarName]);
         }
       }
     }
@@ -242,7 +243,7 @@ function processEvent(event, calendarTz){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], targetCalendarName]);
         }
       }
     }
@@ -666,7 +667,7 @@ function processEventCleanup(){
         }, defaultMaxRetries);
 
         if (emailSummary){
-          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime, calendarEvents[i].end.date||calendarEvents[i].end.dateTime, calendarEvents[i].location, calendarEvents[i].description], targetCalendarName]);
         }
       }
     }
@@ -893,7 +894,13 @@ function sendSummary() {
   for (var tgtCal of addedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
-      body += "<li>" + addedEvent[0][0] + " at " + addedEvent[0][1] + "</li>";
+      body += "<li>"
+        + "Name: " + addedEvent[0][0] + "<br/>"
+        + "Start: " + addedEvent[0][1] + "<br/>"
+        + "End: " + addedEvent[0][2] + "<br/>"
+        + (addedEvent[0][3] ? ("Location: " + addedEvent[0][3] + "<br/>") : "")
+        + (addedEvent[0][4] ? ("Description: " + addedEvent[0][4] + "<br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -901,7 +908,18 @@ function sendSummary() {
   for (var tgtCal of modifiedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
     for (var modifiedEvent of tgtCal[1]){
-      body += "<li>" + modifiedEvent[0][0] + " at " + modifiedEvent[0][1] + "</li>";
+      body += "<li>"
+        + (modifiedEvent[0][0] != modifiedEvent[0][1] ? ("<del>Name: " + modifiedEvent[0][0] + "</del><br/>") : "")
+        + "Name: " + modifiedEvent[0][1] + "<br/>"
+        + (modifiedEvent[0][2] != modifiedEvent[0][3] ? ("<del>Start: " + modifiedEvent[0][2] + "</del><br/>") : "")
+        + " Start: " + modifiedEvent[0][3] + "<br/>"
+        + (modifiedEvent[0][4] != modifiedEvent[0][5] ? ("<del>End: " + modifiedEvent[0][4] + "</del><br/>") : "")
+        + " End: " + modifiedEvent[0][5] + "<br/>"
+        + (modifiedEvent[0][6] != modifiedEvent[0][7] ? ("<del>Location: " + (modifiedEvent[0][6] ? modifiedEvent[0][6] : "") + "</del><br/>") : "")
+        + (modifiedEvent[0][7] ? (" Location: " + modifiedEvent[0][7] + "<br/>") : "")
+        + (modifiedEvent[0][8] != modifiedEvent[0][9] ? ("<del>Description: " + (modifiedEvent[0][8] ? modifiedEvent[0][8] : "") + "</del><br/>") : "")
+        + (modifiedEvent[0][9] ? (" Description: " + modifiedEvent[0][9] + "<br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -909,7 +927,13 @@ function sendSummary() {
   for (var tgtCal of removedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
     for (var removedEvent of tgtCal[1]){
-      body += "<li>" + removedEvent[0][0] + " at " + removedEvent[0][1] + "</li>";
+      body += "<li>"
+        + "<del>Name: " + removedEvent[0][0] + "</del><br/>"
+        + "<del>Start: " + removedEvent[0][1] + "</del><br/>"
+        + "<del>End: " + removedEvent[0][2] + "</del><br/>"
+        + (removedEvent[0][3] ? ("<del>Location: " + removedEvent[0][3] + "</del><br/>") : "")
+        + (removedEvent[0][4] ? ("<del>Description: " + removedEvent[0][4] + "</del><br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
