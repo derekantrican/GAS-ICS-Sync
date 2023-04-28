@@ -885,6 +885,9 @@ function sendSummary() {
   var body;
 
   var subject = `GAS-ICS-Sync Execution Summary: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  if (emailSummaryIncludeTime) {
+    subject = `[${new Date().toLocaleString(emailSummaryTimeLocale)}] ${subject}`;
+    }
   addedEvents = condenseCalendarMap(addedEvents);
   modifiedEvents = condenseCalendarMap(modifiedEvents);
   removedEvents = condenseCalendarMap(removedEvents);
