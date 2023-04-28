@@ -49,6 +49,8 @@ var addTasks = false;
 
 var emailSummary = false;                 // Will email you when an event is added/modified/removed to your calendar
 var email = "";                           // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
+var emailSummaryIncludeTime = true;       // OPTIONAL: If "emailSummary" is set to true, include whether to include timr as prefix.
+var emailSummaryTimeLocale = 'sv-SE';       // OPTIONAL: If "emailSummaryIncludeTime" is set to true, set the locale of the time prefix.
 
 /*
 *=========================================
