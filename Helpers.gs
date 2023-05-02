@@ -1,3 +1,48 @@
+function formatDate(date) {
+  const year = date.slice(0,4);
+  const month = date.slice(5,7);
+  const day = date.slice(8,10);
+  let formattedDate;
+
+  if (dateFormat == "YYYY/MM/DD") {
+    formattedDate = year + "/" + month + "/" + day
+  }
+  else if (dateFormat == "DD/MM/YYYY") {
+    formattedDate = day + "/" + month + "/" + year
+  }
+  else if (dateFormat == "MM/DD/YYYY") {
+    formattedDate = month + "/" + day + "/" + year
+  }
+  else if (dateFormat == "YYYY-MM-DD") {
+    formattedDate = year + "-" + month + "-" + day
+  }
+  else if (dateFormat == "DD-MM-YYYY") {
+    formattedDate = day + "-" + month + "-" + year
+  }
+  else if (dateFormat == "MM-DD-YYYY") {
+    formattedDate = month + "-" + day + "-" + year
+  }
+  else if (dateFormat == "YYYY.MM.DD") {
+    formattedDate = year + "." + month + "." + day
+  }
+  else if (dateFormat == "DD.MM.YYYY") {
+    formattedDate = day + "." + month + "." + year
+  }
+  else if (dateFormat == "MM.DD.YYYY") {
+    formattedDate = month + "." + day + "." + year
+  }
+
+  if (date.length < 11) {
+    return formattedDate
+  }
+
+  const time = date.slice(11,16)
+  const timeZone = date.slice(19)
+  
+  return formattedDate + " at " + time + " (UTC" + (timeZone == "Z" ? "": timeZone) + ")"
+}
+
+
 /**
  * Takes an intended frequency in minutes and adjusts it to be the closest
  * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
@@ -896,8 +941,8 @@ function sendSummary() {
     for (var addedEvent of tgtCal[1]){
       body += "<li>"
         + "Name: " + addedEvent[0][0] + "<br/>"
-        + "Start: " + addedEvent[0][1] + "<br/>"
-        + "End: " + addedEvent[0][2] + "<br/>"
+        + "Start: " + formatDate(addedEvent[0][1]) + "<br/>"
+        + "End: " + formatDate(addedEvent[0][2]) + "<br/>"
         + (addedEvent[0][3] ? ("Location: " + addedEvent[0][3] + "<br/>") : "")
         + (addedEvent[0][4] ? ("Description: " + addedEvent[0][4] + "<br/>") : "")
         + "</li>";
@@ -911,10 +956,10 @@ function sendSummary() {
       body += "<li>"
         + (modifiedEvent[0][0] != modifiedEvent[0][1] ? ("<del>Name: " + modifiedEvent[0][0] + "</del><br/>") : "")
         + "Name: " + modifiedEvent[0][1] + "<br/>"
-        + (modifiedEvent[0][2] != modifiedEvent[0][3] ? ("<del>Start: " + modifiedEvent[0][2] + "</del><br/>") : "")
-        + " Start: " + modifiedEvent[0][3] + "<br/>"
-        + (modifiedEvent[0][4] != modifiedEvent[0][5] ? ("<del>End: " + modifiedEvent[0][4] + "</del><br/>") : "")
-        + " End: " + modifiedEvent[0][5] + "<br/>"
+        + (modifiedEvent[0][2] != modifiedEvent[0][3] ? ("<del>Start: " + formatDate(modifiedEvent[0][2]) + "</del><br/>") : "")
+        + " Start: " + formatDate(modifiedEvent[0][3]) + "<br/>"
+        + (modifiedEvent[0][4] != modifiedEvent[0][5] ? ("<del>End: " + formatDate(modifiedEvent[0][4]) + "</del><br/>") : "")
+        + " End: " + formatDate(modifiedEvent[0][5]) + "<br/>"
         + (modifiedEvent[0][6] != modifiedEvent[0][7] ? ("<del>Location: " + (modifiedEvent[0][6] ? modifiedEvent[0][6] : "") + "</del><br/>") : "")
         + (modifiedEvent[0][7] ? (" Location: " + modifiedEvent[0][7] + "<br/>") : "")
         + (modifiedEvent[0][8] != modifiedEvent[0][9] ? ("<del>Description: " + (modifiedEvent[0][8] ? modifiedEvent[0][8] : "") + "</del><br/>") : "")
@@ -929,8 +974,8 @@ function sendSummary() {
     for (var removedEvent of tgtCal[1]){
       body += "<li>"
         + "<del>Name: " + removedEvent[0][0] + "</del><br/>"
-        + "<del>Start: " + removedEvent[0][1] + "</del><br/>"
-        + "<del>End: " + removedEvent[0][2] + "</del><br/>"
+        + "<del>Start: " + formatDate(removedEvent[0][1]) + "</del><br/>"
+        + "<del>End: " + formatDate(removedEvent[0][2]) + "</del><br/>"
         + (removedEvent[0][3] ? ("<del>Location: " + removedEvent[0][3] + "</del><br/>") : "")
         + (removedEvent[0][4] ? ("<del>Description: " + removedEvent[0][4] + "</del><br/>") : "")
         + "</li>";
