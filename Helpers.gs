@@ -1,3 +1,9 @@
+/**
+ * Formats the date and time according to the format specified in the configuration.
+ *
+ * @param {string} date The date to be formatted.
+ * @return {string} The formatted date string.
+ */
 function formatDate(date) {
   const year = date.slice(0,4);
   const month = date.slice(5,7);
