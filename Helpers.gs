@@ -532,9 +532,18 @@ function checkSkipEvent(event, icalEvent){
 
         var exDates = event.getAllProperties('exdate');
         exDates.forEach(function(e){
-          var ex = new ICAL.Time.fromString(e.getFirstValue().toString());
-          if (ex < newStartDate){
+          var values = e.getValues();
+          values = values.filter(function(value){
+            return (new ICAL.Time.fromString(value.toString()) > newStartDate);
+          });
+          if (values.length == 0){
             event.removeProperty(e);
+          }
+          else if(values.length == 1){
+            e.setValue(values[0]);
+          }
+          else if(values.length > 1){
+            e.setValues(values);
           }
         });
 
