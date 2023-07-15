@@ -2,7 +2,7 @@
 *=========================================
 *       INSTALLATION INSTRUCTIONS
 *=========================================
-* 
+*
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
@@ -49,11 +49,6 @@ var addTasks = false;
 
 var emailSummary = false;                 // Will email you when an event is added/modified/removed to your calendar
 var email = "";                           // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
-
-var ignoredEvents = [                     // Titles (summaries) of events to be ignored. It will remove existing events and avoid adding new ones whose summary matches with any of these strings
-  "eventTitle1",
-  "eventTitle2",
-]
 
 /*
 *=========================================
@@ -109,7 +104,7 @@ function install(){
   //Schedule sync routine to explicitly repeat and schedule the initial sync
   ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
-  
+
   //Schedule sync routine to look for update once per day
   ScriptApp.newTrigger("checkForUpdate").timeBased().everyDays(1).create();
 }
@@ -139,15 +134,15 @@ function startSync(){
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
-  
+
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-  
+
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date());
-  
-  //Disable email notification if no mail adress is provided 
+
+  //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
-  
+
   sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
     //------------------------ Reset globals ------------------------
@@ -164,12 +159,12 @@ function startSync(){
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
-    
+
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
     Logger.log("Working on calendar: " + targetCalendarId);
-    
+
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
       var eventList =
@@ -198,7 +193,7 @@ function startSync(){
       vevents = parseResponses(responses, icsEventsIds);
       Logger.log("Parsed " + vevents.length + " events from ical sources");
     }
-    
+
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
       Logger.log("Processing " + vevents.length + " events");
@@ -206,14 +201,14 @@ function startSync(){
         callWithBackoff(function(){
           return Calendar.Settings.get("timezone").value;
         }, defaultMaxRetries);
-      
+
       vevents.forEach(function(e){
         processEvent(e, calendarTz);
       });
 
       Logger.log("Done processing events");
     }
-    
+
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
