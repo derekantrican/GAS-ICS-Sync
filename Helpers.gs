@@ -213,7 +213,7 @@ function processEvent(event, calendarTz){
     return;
 
   if (ignoredEvents.includes(newEvent.summary)) {
-    Logger.log("Ignoring event " + newEvent.summary + " (" + event.getFirstPropertyValue('uid').toString() + ")")
+    Logger.log("  * Ignoring event " + newEvent.summary + " (" + event.getFirstPropertyValue('uid').toString() + ")")
     return;
   }
 
@@ -223,7 +223,7 @@ function processEvent(event, calendarTz){
   //------------------------ Save instance overrides ------------------------
   //----------- To make sure the parent event is actually created -----------
   if (event.hasProperty('recurrence-id')){
-    Logger.log("Saving event instance for later: " + newEvent.recurringEventId);
+    Logger.log("  * Saving event instance for later: " + newEvent.recurringEventId);
     recurringEvents.push(newEvent);
     return;
   }
@@ -231,7 +231,7 @@ function processEvent(event, calendarTz){
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
       if (modifyExistingEvents){
-        Logger.log("Updating existing event " + newEvent.summary + " (" + newEvent.extendedProperties.private["id"] + ")");
+        Logger.log("  * Updating existing event " + newEvent.summary + " (" + newEvent.extendedProperties.private["id"] + ")");
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
@@ -242,7 +242,7 @@ function processEvent(event, calendarTz){
     }
     else{
       if (addEventsToCalendar){
-        Logger.log("Adding new event " + newEvent.summary + " (" + newEvent.extendedProperties.private["id"] + ")");
+        Logger.log("  * Adding new event " + newEvent.summary + " (" + newEvent.extendedProperties.private["id"] + ")");
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
@@ -274,7 +274,7 @@ function createEvent(event, calendarTz){
 
   var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString()).toString();
   if(calendarEventsMD5s.indexOf(digest) >= 0){
-    Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('summary').toString() + " (" + event.getFirstPropertyValue('uid').toString() + ")");
+    Logger.log("  * Skipping unchanged Event " + event.getFirstPropertyValue('summary').toString() + " (" + event.getFirstPropertyValue('uid').toString() + ")");
     return;
   }
 
@@ -306,7 +306,7 @@ function createEvent(event, calendarTz){
         tzid = calendarTz;
       }
 
-      Logger.log("Converting ICS timezone " + oldTzid + " to Google Calendar (IANA) timezone " + tzid);
+      Logger.log("    - Converting ICS timezone " + oldTzid + " to Google Calendar (IANA) timezone " + tzid);
     }
 
     newEvent = {
@@ -495,13 +495,13 @@ function createEvent(event, calendarTz){
 function checkSkipEvent(event, icalEvent){
   if (icalEvent.isRecurrenceException()){
     if((icalEvent.startDate.compare(startUpdateTime) < 0) && (icalEvent.recurrenceId.compare(startUpdateTime) < 0)){
-      Logger.log("Skipping past recurrence exception");
+      Logger.log("  * Skipping past recurrence exception");
       return true; 
     }
   }
   else if(icalEvent.isRecurring()){
     var skip = false; //Indicates if the recurring event and all its instances are in the past
-    if (icalEvent.endDate.compare(startUpdateTime) < 0){//Parenting recurring event is in the past
+    if (icalEvent.endDate.compare(startUpdateTime) < 0){ //Parenting recurring event is in the past
       var dtstart = event.getFirstPropertyValue('dtstart');
       var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
       var next;
@@ -520,7 +520,7 @@ function checkSkipEvent(event, icalEvent){
         break;
       }
       
-      if (newStartDate != null){//At least one instance is in the future
+      if (newStartDate != null){ //At least one instance is in the future
         newStartDate.timezone = icalEvent.startDate.timezone;
         var diff = newStartDate.subtractDate(icalEvent.startDate);
         icalEvent.endDate.addDuration(diff);
@@ -571,26 +571,26 @@ function checkSkipEvent(event, icalEvent){
     for (i=0; i<icalEvent.except.length; i++){
       //Exclude the instance if it was moved from future to past
       if((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)){
-        Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+        Logger.log("  * Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
         icalEvent.component.addPropertyWithValue('exdate', icalEvent.except[i].recurrenceId.toString());
       }//Re-add the instance if it is moved from past to future
       else if((icalEvent.except[i].startDate.compare(startUpdateTime) >= 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0)){
-        Logger.log("Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
+        Logger.log("  * Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
         icalEvent.component.addPropertyWithValue('rdate', icalEvent.except[i].recurrenceId.toString());
         skip = false;
       }
     }
     
-    if(skip){//Completely remove the event as all instances of it are in the past
+    if(skip){ //Completely remove the event as all instances of it are in the past
       icsEventsIds.splice(icsEventsIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
-      Logger.log("Skipping past recurring event " + event.getFirstPropertyValue('uid').toString());
+      Logger.log("  * Skipping past recurring event " + event.getFirstPropertyValue('uid').toString());
       return true;
     }
   }
   else{//normal events
     if (icalEvent.endDate.compare(startUpdateTime) < 0){
       icsEventsIds.splice(icsEventsIds.indexOf(event.getFirstPropertyValue('uid').toString()),1);
-      Logger.log("Skipping previous event " + event.getFirstPropertyValue('uid').toString());
+      Logger.log("  * Skipping previous event " + event.getFirstPropertyValue('uid').toString());
       return true;
     }
   }
@@ -634,13 +634,13 @@ function processEventInstance(recEvent){
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    Logger.log("Updating existing event instance");
+    Logger.log("  * Updating existing event instance");
     callWithBackoff(function(){
       Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
     }, defaultMaxRetries);
   }
   else{
-    Logger.log("No Instance matched, adding as new event!");
+    Logger.log("  * No Instance matched, adding as new event!");
     callWithBackoff(function(){
       Calendar.Events.insert(recEvent, targetCalendarId);
     }, defaultMaxRetries);
@@ -656,16 +656,16 @@ function processEventCleanup(){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
       
-      if(feedIndex  == -1                                             // Event is no longer in source
-        && calendarEvents[i].recurringEventId == null                 // And it's not a recurring event
-        && (                                                          // And one of:
-          removePastEventsFromCalendar                                // We want to remove past events
-          || new Date(calendarEvents[i].start.dateTime) > new Date()  // Or the event is in the future
-          || new Date(calendarEvents[i].start.date) > new Date()      // (2 different ways event start can be stored)
-        )
+      if((feedIndex  == -1                                            // Event is no longer in source
+        && calendarEvents[i].recurringEventId == null                   // And it's not a recurring event
+        && (                                                            // And one of:
+          removePastEventsFromCalendar                                  // We want to remove past events
+          || new Date(calendarEvents[i].start.dateTime) > new Date()    // Or the event is in the future
+          || new Date(calendarEvents[i].start.date) > new Date()        // (2 different ways event start can be stored)
+        )) || ignoredEvents.includes(calendarEvents[i].summary)      // Or the event is ignored
       )
       {
-        Logger.log("Deleting old event " + currentID);
+        Logger.log("  * Deleting old event " + calendarEvents[i].summary + " (" + currentID + ")");
         callWithBackoff(function(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
         }, defaultMaxRetries);
@@ -726,7 +726,7 @@ function processTasks(responses){
       var feedIndex = icsTasksIds.indexOf(currentID);
       
       if(feedIndex == -1){
-        Logger.log("Deleting old task " + currentID);
+        Logger.log("  * Deleting old task " + currentID);
         Tasks.Tasks.remove(taskList.id, currentID);
       }
     }
