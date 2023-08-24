@@ -12,15 +12,20 @@ function getValidTriggerFrequency(origFrequency) {
     return 15;
   }
 
-  var adjFrequency = Math.round(origFrequency/5) * 5; // Set the number to be the closest divisible-by-5
-  adjFrequency = Math.max(adjFrequency, 1); // Make sure the number is at least 1 (0 is not valid for the trigger)
-  adjFrequency = Math.min(adjFrequency, 15); // Make sure the number is at most 15 (will check for the 30 value below)
+  // Limit the original frequency to 1440
+  origFrequency = Math.min(origFrequency, 1440);
 
-  if((adjFrequency == 15) && (Math.abs(origFrequency-30) < Math.abs(origFrequency-15)))
-    adjFrequency = 30; // If we adjusted to 15, but the original number is actually closer to 30, set it to 30 instead
+  var acceptableValues = [5, 10, 15, 30].concat(
+    Array.from({ length: 24 }, (_, i) => (i + 1) * 60)
+  ); // [5, 10, 15, 30, 60, 120, ..., 1440]
 
-  Logger.log("Intended frequency = "+origFrequency+", Adjusted frequency = "+adjFrequency);
-  return adjFrequency;
+  // Find the smallest acceptable value greater than or equal to the original frequency
+  var roundedUpValue = acceptableValues.find(value => value >= origFrequency);
+
+  Logger.log(
+    "Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue
+  );
+  return roundedUpValue;
 }
 
 String.prototype.includes = function(phrase){
