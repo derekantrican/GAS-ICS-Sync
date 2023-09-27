@@ -473,7 +473,12 @@ function createEvent(event, calendarTz){
   }
 
   if (event.hasProperty('color')){
-    newEvent.colorId = event.getFirstPropertyValue('color').toString();
+    let colorID = event.getFirstPropertyValue('color').toString();
+    if (Object.keys(CalendarApp.EventColor).includes(colorID)){
+      newEvent.colorId = CalendarApp.EventColor[colorID];
+    }else if(Object.values(CalendarApp.EventColor).includes(colorID)){
+      newEvent.colorId = colorID;
+    }; //else unsupported value
   }
 
   return newEvent;
