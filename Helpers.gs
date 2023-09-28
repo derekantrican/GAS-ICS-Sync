@@ -187,9 +187,18 @@ function parseResponses(responses){
       event.updatePropertyWithValue('uid', Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString());
     }
     if(event.hasProperty('recurrence-id')){
-      var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-      var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
-
+      let recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+      let recUTCOffset = 0;
+      let tz = event.getFirstProperty('recurrence-id').getParameter('tzid').toString();
+      if (tz in tzidreplace){
+        tz = tzidreplace[tz];
+      }
+      let jsTime = new Date();
+      let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+      let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
+      recUTCOffset = (tgtTime - utcTime)/-1000;
+      let recUTC = recID.adjust(0,0,0,recUTCOffset).toString() + "Z";
+      event.updatePropertyWithValue('recurrence-id', recUTC);
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recUTC);
     }
     else{
@@ -467,8 +476,7 @@ function createEvent(event, calendarTz){
   newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
 
   if (event.hasProperty('recurrence-id')){
-    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
+    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
   }
 
