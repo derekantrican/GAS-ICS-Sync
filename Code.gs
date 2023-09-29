@@ -21,18 +21,38 @@
 *=========================================
 */
 
-var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
-                                       // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
-                                       // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
-                                       // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
-  ["icsUrl1", "targetCalendar1"],
-  ["icsUrl2", "targetCalendar2"],
-  ["icsUrl3", "targetCalendar1"]
+var sourceCalendars = [                // The ics/ical urls that you want to get events from with a friendly name for the source calendar along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
+                                       /* For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics",
+                                                          "Holidays", //Calendar Name *REQUIRED - Must be unique name from other source calendars in this script
+                                                          "US Holidays", //Target Calendar Name *REQUIRED - This is the name of the Google Calendar the script writes to
+                                                          "11", //Color *OPTIONAL - following mapping at https://developers.google.com/apps-script/reference/calendar/event-color
+                                                          "60" //SyncDelay *OPTIONAL - Won't sync within 60 minutes of last run in this example. If SyncDelay is omitted or 0, calendar will sync every time the script runs.
+                                                          ], 
+                                        */
+  ["icsUrl1",// *REQUIRED - URL
+    "Calendar1Name", // *REQUIRED - Calendar Name
+    "targetCalendar1",// *REQUIRED - Target Calendar
+    "", // *OPTIONAL - Color
+    "" // *OPTIONAL - Sync Delay
+    ],
+  ["icsUrl2",// *REQUIRED - URL
+    "Calendar2Name", // *REQUIRED - Calendar Name
+    "targetCalendar1",// *REQUIRED - Target Calendar
+    "", // *OPTIONAL - Color
+    "" // *OPTIONAL - Sync Delay
+    ],
+  ["icsUrl3",// *REQUIRED - URL
+    "Calendar3Name", // *REQUIRED - Calendar Name
+    "targetCalendar2",// *REQUIRED - Target Calendar
+    "", // *OPTIONAL - Color
+    "" // *OPTIONAL - Sync Delay
+    ]
 
 ];
 
-var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events
-var onlyFutureEvents = false;             // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
+var howFrequent = 5;                      // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
+var onlyFutureEvents = true;              // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
+var getPastDaysIfOnlyFutureEvents = 30;   // If onlyFutureEvents is set to "true", you can get still some days in the past
 var addEventsToCalendar = true;           // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
@@ -96,17 +116,32 @@ var email = "";                           // OPTIONAL: If "emailSummary" is set 
 //=====================================================================================================
 
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
+//var howFrequent = getValidTriggerFrequency(howFrequent);                     // What interval (minutes) to run this script on to check for new events
 
-function install(){
-  //Delete any already existing triggers so we don't create excessive triggers
+function install() {
+  // Delete any already existing triggers so we don't create excessive triggers
   deleteAllTriggers();
 
-  //Schedule sync routine to explicitly repeat and schedule the initial sync
-  ScriptApp.newTrigger("startSync").timeBased().everyMinutes(getValidTriggerFrequency(howFrequent)).create();
+  // Schedule sync routine to explicitly repeat and schedule the initial sync
+  var adjustedMinutes = getValidTriggerFrequency(howFrequent);
+  if (adjustedMinutes >= 60) {
+    ScriptApp.newTrigger("startSync")
+      .timeBased()
+      .everyHours(adjustedMinutes / 60)
+      .create();
+  } else {
+    ScriptApp.newTrigger("startSync")
+      .timeBased()
+      .everyMinutes(adjustedMinutes)
+      .create();
+  }
   ScriptApp.newTrigger("startSync").timeBased().after(1000).create();
 
-  //Schedule sync routine to look for update once per day
-  ScriptApp.newTrigger("checkForUpdate").timeBased().everyDays(1).create();
+  // Schedule sync routine to look for update once per day using everyDays
+  ScriptApp.newTrigger("checkForUpdate")
+    .timeBased()
+    .everyDays(1)
+    .create();
 }
 
 function uninstall(){
@@ -137,45 +172,62 @@ function startSync(){
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
 
+  var currentDate = new Date();
+
   if (onlyFutureEvents)
-    startUpdateTime = new ICAL.Time.fromJSDate(new Date());
+    startUpdateTime = new ICAL.Time.fromJSDate(new Date(currentDate.setDate(currentDate.getDate() - getPastDaysIfOnlyFutureEvents)));
 
   //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
 
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
     //------------------------ Reset globals ------------------------
+    var sourceURL = calendar[0];
+    var sourceCalendarName = calendar[1];
+    var targetCalendarName = calendar[2];
+    var color = calendar[3];
     calendarEvents = [];
     calendarEventsIds = [];
     icsEventsIds = [];
     calendarEventsMD5s = [];
     recurringEvents = [];
-
-    targetCalendarName = calendar[0];
-    var sourceCalendarURLs = calendar[1];
     var vevents;
 
+    //------------------------ Determine whether to sync each calendar based on SyncDelay ------------------------
+        let sourceSyncDelay = Number(calendar[4])*60*1000;
+    let currentTime = Number(new Date().getTime());
+    let lastSyncTime = Number(PropertiesService.getUserProperties().getProperty(sourceCalendarName));
+    var lastSyncDelta = currentTime - lastSyncTime;
+
+    if (isNaN(sourceSyncDelay)) {
+      Logger.log("Syncing " + sourceCalendarName + " because no SyncDelay defined.");
+    } else if (lastSyncDelta >= sourceSyncDelay) {
+      Logger.log("Syncing " + sourceCalendarName + " because lastSyncDelta ("+ (lastSyncDelta/60/1000).toFixed(1) + ") is greater than sourceSyncDelay (" + (sourceSyncDelay/60/1000).toFixed(0) + ").");
+    } else if (lastSyncDelta < sourceSyncDelay) {
+      Logger.log("Skipping " + sourceCalendarName + " because lastSyncDelta ("+ (lastSyncDelta/60/1000).toFixed(1) + ") is less than sourceSyncDelay (" + (sourceSyncDelay/60/1000).toFixed(0) + ").");
+      continue;
+    }
+
     //------------------------ Fetch URL items ------------------------
-    var responses = fetchSourceCalendars(sourceCalendarURLs);
-    Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
+    var responses = fetchSourceCalendars([[sourceURL, color]]);
+    Logger.log("Syncing " + sourceCalendarName + " calendar to " + targetCalendarName); //" - " + responses.length + 
 
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
-    Logger.log("Working on calendar: " + targetCalendarId);
+    Logger.log("Working on target calendar: " + targetCalendarId);
 
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
       var eventList =
         callWithBackoff(function(){
-            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: 'fromGAS=' + sourceCalendarName, maxResults: 2500});
         }, defaultMaxRetries);
       calendarEvents = [].concat(calendarEvents, eventList.items);
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
         eventList = callWithBackoff(function(){
-          return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
+          return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: 'fromGAS=' + sourceCalendarName, maxResults: 2500, pageToken: eventList.nextPageToken});
         }, defaultMaxRetries);
 
         if (eventList != null)
@@ -201,9 +253,8 @@ function startSync(){
         callWithBackoff(function(){
           return Calendar.Settings.get("timezone").value;
         }, defaultMaxRetries);
-
       vevents.forEach(function(e){
-        processEvent(e, calendarTz);
+        processEvent(e, calendarTz, targetCalendarId, sourceCalendarName);
       });
 
       Logger.log("Done processing events");
@@ -212,7 +263,7 @@ function startSync(){
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
-      processEventCleanup();
+      processEventCleanup(sourceURL);
       Logger.log("Done checking events for removal");
     }
 
@@ -226,6 +277,9 @@ function startSync(){
     for (var recEvent of recurringEvents){
       processEventInstance(recEvent);
     }
+
+  //Set last sync time for given sourceCalendar
+  PropertiesService.getUserProperties().setProperty(sourceCalendarName, new Date().getTime());
   }
 
   if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){

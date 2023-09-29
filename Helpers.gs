@@ -12,15 +12,20 @@ function getValidTriggerFrequency(origFrequency) {
     return 15;
   }
 
-  var adjFrequency = Math.round(origFrequency/5) * 5; // Set the number to be the closest divisible-by-5
-  adjFrequency = Math.max(adjFrequency, 1); // Make sure the number is at least 1 (0 is not valid for the trigger)
-  adjFrequency = Math.min(adjFrequency, 15); // Make sure the number is at most 15 (will check for the 30 value below)
+  // Limit the original frequency to 1440
+  origFrequency = Math.min(origFrequency, 1440);
 
-  if((adjFrequency == 15) && (Math.abs(origFrequency-30) < Math.abs(origFrequency-15)))
-    adjFrequency = 30; // If we adjusted to 15, but the original number is actually closer to 30, set it to 30 instead
+  var acceptableValues = [5, 10, 15, 30].concat(
+    Array.from({ length: 24 }, (_, i) => (i + 1) * 60)
+  ); // [5, 10, 15, 30, 60, 120, ..., 1440]
 
-  Logger.log("Intended frequency = "+origFrequency+", Adjusted frequency = "+adjFrequency);
-  return adjFrequency;
+  // Find the smallest acceptable value greater than or equal to the original frequency
+  var roundedUpValue = acceptableValues.find(value => value >= origFrequency);
+
+  Logger.log(
+    "Intended frequency = " + origFrequency + ", Adjusted frequency = " + roundedUpValue
+  );
+  return roundedUpValue;
 }
 
 String.prototype.includes = function(phrase){
@@ -206,9 +211,9 @@ function parseResponses(responses){
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
  */
-function processEvent(event, calendarTz){
+function processEvent(event, calendarTz, targetCalendarId, sourceCalendarName){
   //------------------------ Create the event object ------------------------
-  var newEvent = createEvent(event, calendarTz);
+  var newEvent = createEvent(event, calendarTz, sourceCalendarName);
   if (newEvent == null)
     return;
 
@@ -238,6 +243,7 @@ function processEvent(event, calendarTz){
     else{
       if (addEventsToCalendar){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
+        
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
@@ -260,7 +266,7 @@ function processEvent(event, calendarTz){
  * @param {string} calendarTz - The timezone of the target calendar
  * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
-function createEvent(event, calendarTz){
+function createEvent(event, calendarTz, sourceCalendarName){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event, {strictExceptions: true});
   if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
@@ -464,7 +470,7 @@ function createEvent(event, calendarTz){
     newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
   }
 
-  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
+  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : sourceCalendarName, id : icalEvent.uid } };
 
   if (event.hasProperty('recurrence-id')){
     var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
@@ -598,13 +604,13 @@ function checkSkipEvent(event, icalEvent){
  *
  * @param {Calendar.Event} recEvent - The event instance to process
  */
-function processEventInstance(recEvent){
+function processEventInstance(recEvent, sourceCalendarName){
   Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
 
   var eventInstanceToPatch = callWithBackoff(function(){
     return Calendar.Events.list(targetCalendarId,
       { singleEvents : true,
-        privateExtendedProperty : "fromGAS=true",
+        privateExtendedProperty : 'fromGAS=' + sourceCalendarName,
         privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
       }).items;
   }, defaultMaxRetries);
@@ -622,7 +628,7 @@ function processEventInstance(recEvent){
           orderBy : "startTime",
           maxResults: 1,
           timeMin : recEvent.recurringEventId,
-          privateExtendedProperty : "fromGAS=true",
+          privateExtendedProperty : 'fromGAS=' + sourceCalendarName,
           privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
         }).items;
     }, defaultMaxRetries);
@@ -646,7 +652,7 @@ function processEventInstance(recEvent){
  * Deletes all events from the target calendar that no longer exist in the source calendars.
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
  */
-function processEventCleanup(){
+function processEventCleanup(sourceURL){
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
