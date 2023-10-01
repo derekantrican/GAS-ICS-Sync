@@ -637,16 +637,20 @@ function processEventInstance(recEvent){
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    Logger.log("Updating existing event instance");
-    callWithBackoff(function(){
-      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-    }, defaultMaxRetries);
+    if (modifyExistingEvents){
+      Logger.log("Updating existing event instance");
+      callWithBackoff(function(){
+        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+      }, defaultMaxRetries);
+    }
   }
   else{
-    Logger.log("No Instance matched, adding as new event!");
-    callWithBackoff(function(){
-      Calendar.Events.insert(recEvent, targetCalendarId);
-    }, defaultMaxRetries);
+    if (addEventsToCalendar){
+      Logger.log("No Instance matched, adding as new event!");
+      callWithBackoff(function(){
+        Calendar.Events.insert(recEvent, targetCalendarId);
+      }, defaultMaxRetries);
+    }
   }
 }
 
