@@ -188,18 +188,20 @@ function parseResponses(responses){
     }
     if(event.hasProperty('recurrence-id')){
       let recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-      let recUTCOffset = 0;
-      let tz = event.getFirstProperty('recurrence-id').getParameter('tzid').toString();
-      if (tz in tzidreplace){
-        tz = tzidreplace[tz];
+      if (event.getFirstProperty('recurrence-id').getParameter('tzid')){
+        let recUTCOffset = 0;
+        let tz = event.getFirstProperty('recurrence-id').getParameter('tzid').toString();
+        if (tz in tzidreplace){
+          tz = tzidreplace[tz];
+        }
+        let jsTime = new Date();
+        let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+        let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
+        recUTCOffset = (tgtTime - utcTime)/-1000;
+        recID = recID.adjust(0,0,0,recUTCOffset).toString() + "Z";
+        event.updatePropertyWithValue('recurrence-id', recID);
       }
-      let jsTime = new Date();
-      let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
-      let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
-      recUTCOffset = (tgtTime - utcTime)/-1000;
-      let recUTC = recID.adjust(0,0,0,recUTCOffset).toString() + "Z";
-      event.updatePropertyWithValue('recurrence-id', recUTC);
-      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recUTC);
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recID);
     }
     else{
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
