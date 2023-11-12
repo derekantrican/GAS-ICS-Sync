@@ -89,7 +89,9 @@ ICAL.helpers = {
       if (
         reqTzid.hasOwnProperty(i) &&
         !vtimezones[i] &&
-        ICAL.TimezoneService.has(i)
+        ICAL.TimezoneService.has(i) &&            
+        ICAL.TimezoneService.get(i).component
+        
       ) {
         vcal.addSubcomponent(ICAL.TimezoneService.get(i).component);
       }
@@ -1320,7 +1322,7 @@ ICAL.design = (function() {
     /**
      * Can be set to false to make the parser more lenient.
      */
-    strict: true,
+    strict: false,
 
     /**
      * The default set for new properties and components if none is specified.
