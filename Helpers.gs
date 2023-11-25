@@ -401,6 +401,10 @@ function createEvent(event, calendarTz){
       newEvent.transparency = transparency;
   }
 
+  if (event.getFirstPropertyValue('x-microsoft-cdo-busystatus')?.toString()?.toLowerCase() === "tentative") {
+    newEvent.transparency = "transparent";
+  }
+
   if (icalEvent.startDate.isDate){
     if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320){
       newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : defaultAllDayReminder}]};//reminder as defined by the user
