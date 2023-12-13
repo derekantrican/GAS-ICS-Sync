@@ -200,10 +200,21 @@ function parseResponses(responses){
       event.updatePropertyWithValue('uid', Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString());
     }
     if(event.hasProperty('recurrence-id')){
-      var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-      var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
-
-      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recUTC);
+      let recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+      if (event.getFirstProperty('recurrence-id').getParameter('tzid')){
+        let recUTCOffset = 0;
+        let tz = event.getFirstProperty('recurrence-id').getParameter('tzid').toString();
+        if (tz in tzidreplace){
+          tz = tzidreplace[tz];
+        }
+        let jsTime = new Date();
+        let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+        let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
+        recUTCOffset = (tgtTime - utcTime)/-1000;
+        recID = recID.adjust(0,0,0,recUTCOffset).toString() + "Z";
+        event.updatePropertyWithValue('recurrence-id', recID);
+      }
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recID);
     }
     else{
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
@@ -480,8 +491,7 @@ function createEvent(event, calendarTz){
   newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
 
   if (event.hasProperty('recurrence-id')){
-    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
+    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
   }
 
@@ -656,16 +666,20 @@ function processEventInstance(recEvent){
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    Logger.log("Updating existing event instance");
-    callWithBackoff(function(){
-      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-    }, defaultMaxRetries);
+    if (modifyExistingEvents){
+      Logger.log("Updating existing event instance");
+      callWithBackoff(function(){
+        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+      }, defaultMaxRetries);
+    }
   }
   else{
-    Logger.log("No Instance matched, adding as new event!");
-    callWithBackoff(function(){
-      Calendar.Events.insert(recEvent, targetCalendarId);
-    }, defaultMaxRetries);
+    if (addEventsToCalendar){
+      Logger.log("No Instance matched, adding as new event!");
+      callWithBackoff(function(){
+        Calendar.Events.insert(recEvent, targetCalendarId);
+      }, defaultMaxRetries);
+    }
   }
 }
 
