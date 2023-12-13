@@ -1100,7 +1100,7 @@ function checkForUpdate(){
 
   var lastAlertedVersion = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   try {
-    var thisVersion = 5.7;
+    var thisVersion = 5.8;
     var latestVersion = getLatestVersion();
 
     if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
