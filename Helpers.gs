@@ -76,26 +76,39 @@ function fetchSourceCalendars(sourceCalendarURLs){
   for (var source of sourceCalendarURLs){
     var url = source[0].replace("webcal://", "https://");
     var colorId = source[1];
-
+    
     callWithBackoff(function() {
       var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
       if (urlResponse.getResponseCode() == 200){
-        var urlContent = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s").exec(urlResponse.getContentText());
-        if(urlContent == null){
-          Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
-          return;
+        var icsContent = urlResponse.getContentText()
+        const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
+        var urlContent = icsRegex.exec(icsContent);
+        if (urlContent == null){
+          // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
+          // Add END:VEVENT for every BEGIN:VEVENT that's missing it
+          const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
+          icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
+
+          // Add END:VCALENDAR if missing
+          if (!icsContent.endsWith("END:VCALENDAR")){
+              icsContent += "\nEND:VCALENDAR";
+          }          
+          urlContent = icsRegex.exec(icsContent)
+          if (urlContent == null){
+            Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
+            return
+          }
+          Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
         }
-        else{
-          result.push([urlContent[0], colorId]);
-          return;
-        }
+        result.push([urlContent[0], colorId]);
+        return; 
       }
       else{ //Throw here to make callWithBackoff run again
-        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
+        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
       }
     }, defaultMaxRetries);
   }
-
+  
   return result;
 }
 
