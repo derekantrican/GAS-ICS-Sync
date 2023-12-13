@@ -1,4 +1,55 @@
 /**
+ * Formats the date and time according to the format specified in the configuration.
+ *
+ * @param {string} date The date to be formatted.
+ * @return {string} The formatted date string.
+ */
+function formatDate(date) {
+  const year = date.slice(0,4);
+  const month = date.slice(5,7);
+  const day = date.slice(8,10);
+  let formattedDate;
+
+  if (dateFormat == "YYYY/MM/DD") {
+    formattedDate = year + "/" + month + "/" + day
+  }
+  else if (dateFormat == "DD/MM/YYYY") {
+    formattedDate = day + "/" + month + "/" + year
+  }
+  else if (dateFormat == "MM/DD/YYYY") {
+    formattedDate = month + "/" + day + "/" + year
+  }
+  else if (dateFormat == "YYYY-MM-DD") {
+    formattedDate = year + "-" + month + "-" + day
+  }
+  else if (dateFormat == "DD-MM-YYYY") {
+    formattedDate = day + "-" + month + "-" + year
+  }
+  else if (dateFormat == "MM-DD-YYYY") {
+    formattedDate = month + "-" + day + "-" + year
+  }
+  else if (dateFormat == "YYYY.MM.DD") {
+    formattedDate = year + "." + month + "." + day
+  }
+  else if (dateFormat == "DD.MM.YYYY") {
+    formattedDate = day + "." + month + "." + year
+  }
+  else if (dateFormat == "MM.DD.YYYY") {
+    formattedDate = month + "." + day + "." + year
+  }
+
+  if (date.length < 11) {
+    return formattedDate
+  }
+
+  const time = date.slice(11,16)
+  const timeZone = date.slice(19)
+  
+  return formattedDate + " at " + time + " (UTC" + (timeZone == "Z" ? "": timeZone) + ")"
+}
+
+
+/**
  * Takes an intended frequency in minutes and adjusts it to be the closest
  * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
  * the following values: 1, 5, 10, 15, 30).
@@ -255,12 +306,13 @@ function processEvent(event, calendarTz){
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
       if (modifyExistingEvents){
+        oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
+          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], targetCalendarName]);
         }
       }
     }
@@ -271,7 +323,7 @@ function processEvent(event, calendarTz){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], targetCalendarName]);
         }
       }
     }
@@ -712,7 +764,7 @@ function processEventCleanup(){
         }, defaultMaxRetries);
 
         if (emailSummary){
-          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime, calendarEvents[i].end.date||calendarEvents[i].end.dateTime, calendarEvents[i].location, calendarEvents[i].description], targetCalendarName]);
         }
       }
     }
@@ -930,7 +982,7 @@ function sendSummary() {
   var subject;
   var body;
 
-  var subject = `GAS-ICS-Sync Execution Summary: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
   addedEvents = condenseCalendarMap(addedEvents);
   modifiedEvents = condenseCalendarMap(modifiedEvents);
   removedEvents = condenseCalendarMap(removedEvents);
@@ -939,7 +991,13 @@ function sendSummary() {
   for (var tgtCal of addedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
-      body += "<li>" + addedEvent[0][0] + " at " + addedEvent[0][1] + "</li>";
+      body += "<li>"
+        + "Name: " + addedEvent[0][0] + "<br/>"
+        + "Start: " + formatDate(addedEvent[0][1]) + "<br/>"
+        + "End: " + formatDate(addedEvent[0][2]) + "<br/>"
+        + (addedEvent[0][3] ? ("Location: " + addedEvent[0][3] + "<br/>") : "")
+        + (addedEvent[0][4] ? ("Description: " + addedEvent[0][4] + "<br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -947,7 +1005,18 @@ function sendSummary() {
   for (var tgtCal of modifiedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
     for (var modifiedEvent of tgtCal[1]){
-      body += "<li>" + modifiedEvent[0][0] + " at " + modifiedEvent[0][1] + "</li>";
+      body += "<li>"
+        + (modifiedEvent[0][0] != modifiedEvent[0][1] ? ("<del>Name: " + modifiedEvent[0][0] + "</del><br/>") : "")
+        + "Name: " + modifiedEvent[0][1] + "<br/>"
+        + (modifiedEvent[0][2] != modifiedEvent[0][3] ? ("<del>Start: " + formatDate(modifiedEvent[0][2]) + "</del><br/>") : "")
+        + " Start: " + formatDate(modifiedEvent[0][3]) + "<br/>"
+        + (modifiedEvent[0][4] != modifiedEvent[0][5] ? ("<del>End: " + formatDate(modifiedEvent[0][4]) + "</del><br/>") : "")
+        + " End: " + formatDate(modifiedEvent[0][5]) + "<br/>"
+        + (modifiedEvent[0][6] != modifiedEvent[0][7] ? ("<del>Location: " + (modifiedEvent[0][6] ? modifiedEvent[0][6] : "") + "</del><br/>") : "")
+        + (modifiedEvent[0][7] ? (" Location: " + modifiedEvent[0][7] + "<br/>") : "")
+        + (modifiedEvent[0][8] != modifiedEvent[0][9] ? ("<del>Description: " + (modifiedEvent[0][8] ? modifiedEvent[0][8] : "") + "</del><br/>") : "")
+        + (modifiedEvent[0][9] ? (" Description: " + modifiedEvent[0][9] + "<br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -955,7 +1024,13 @@ function sendSummary() {
   for (var tgtCal of removedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
     for (var removedEvent of tgtCal[1]){
-      body += "<li>" + removedEvent[0][0] + " at " + removedEvent[0][1] + "</li>";
+      body += "<li>"
+        + "<del>Name: " + removedEvent[0][0] + "</del><br/>"
+        + "<del>Start: " + formatDate(removedEvent[0][1]) + "</del><br/>"
+        + "<del>End: " + formatDate(removedEvent[0][2]) + "</del><br/>"
+        + (removedEvent[0][3] ? ("<del>Location: " + removedEvent[0][3] + "</del><br/>") : "")
+        + (removedEvent[0][4] ? ("<del>Description: " + removedEvent[0][4] + "</del><br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
