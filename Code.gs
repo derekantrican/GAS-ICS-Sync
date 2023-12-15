@@ -21,38 +21,18 @@
 *=========================================
 */
 
-var sourceCalendars = [                // The ics/ical urls that you want to get events from with a friendly name for the source calendar along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
-                                       /* For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics",
-                                                          "Holidays", //Calendar Name *REQUIRED - Must be unique name from other source calendars in this script
-                                                          "US Holidays", //Target Calendar Name *REQUIRED - This is the name of the Google Calendar the script writes to
-                                                          "11", //Color *OPTIONAL - following mapping at https://developers.google.com/apps-script/reference/calendar/event-color
-                                                          "60" //SyncDelay *OPTIONAL - Won't sync within 60 minutes of last run in this example. If SyncDelay is omitted or 0, calendar will sync every time the script runs.
-                                                          ], 
-                                        */
-  ["icsUrl1",// *REQUIRED - URL
-    "Calendar1Name", // *REQUIRED - Calendar Name
-    "targetCalendar1",// *REQUIRED - Target Calendar
-    "", // *OPTIONAL - Color
-    "" // *OPTIONAL - Sync Delay
-    ],
-  ["icsUrl2",// *REQUIRED - URL
-    "Calendar2Name", // *REQUIRED - Calendar Name
-    "targetCalendar1",// *REQUIRED - Target Calendar
-    "", // *OPTIONAL - Color
-    "" // *OPTIONAL - Sync Delay
-    ],
-  ["icsUrl3",// *REQUIRED - URL
-    "Calendar3Name", // *REQUIRED - Calendar Name
-    "targetCalendar2",// *REQUIRED - Target Calendar
-    "", // *OPTIONAL - Color
-    "" // *OPTIONAL - Sync Delay
-    ]
+var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
+                                       // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
+                                       // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
+                                       // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
+  ["icsUrl1", "targetCalendar1"],
+  ["icsUrl2", "targetCalendar2"],
+  ["icsUrl3", "targetCalendar1"]
 
 ];
 
-var howFrequent = 5;                      // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
-var onlyFutureEvents = true;              // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
-var getPastDaysIfOnlyFutureEvents = 30;   // If onlyFutureEvents is set to "true", you can get still some days in the past
+var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
+var onlyFutureEvents = false;             // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
 var addEventsToCalendar = true;           // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
@@ -69,6 +49,8 @@ var addTasks = false;
 
 var emailSummary = false;                 // Will email you when an event is added/modified/removed to your calendar
 var email = "";                           // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
+var customEmailSubject = "";              // OPTIONAL: If you want to change the email subject, provide a custom one here. Default: "GAS-ICS-Sync Execution Summary"
+var dateFormat = "YYYY-MM-DD"             // date format in the email summary (e.g. "YYYY-MM-DD", "DD.MM.YYYY", "MM/DD/YYYY". separators are ".", "-" and "/")
 
 /*
 *=========================================
@@ -116,7 +98,6 @@ var email = "";                           // OPTIONAL: If "emailSummary" is set 
 //=====================================================================================================
 
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
-//var howFrequent = getValidTriggerFrequency(howFrequent);                     // What interval (minutes) to run this script on to check for new events
 
 function install() {
   // Delete any already existing triggers so we don't create excessive triggers
@@ -171,9 +152,7 @@ function startSync(){
   }
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-
   var currentDate = new Date();
-
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date(currentDate.setDate(currentDate.getDate() - getPastDaysIfOnlyFutureEvents)));
 
@@ -193,7 +172,7 @@ function startSync(){
     recurringEvents = [];
     var vevents;
 
-    //------------------------ Determine whether to sync each calendar based on SyncDelay ------------------------
+//------------------------ Determine whether to sync each calendar based on SyncDelay ------------------------
         let sourceSyncDelay = Number(calendar[4])*60*1000;
     let currentTime = Number(new Date().getTime());
     let lastSyncTime = Number(PropertiesService.getUserProperties().getProperty(sourceCalendarName));
@@ -210,7 +189,12 @@ function startSync(){
 
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars([[sourceURL, color]]);
-    Logger.log("Syncing " + sourceCalendarName + " calendar to " + targetCalendarName); //" - " + responses.length + 
+    //Skip the source calendar if a 5xx or 4xx error is returned.  This prevents deleting all of the existing entries if the URL call fails.
+    if (responses.length == 0){
+      Logger.log("Error Syncing " + sourceCalendarName + ". Skipping...");
+      continue;
+      }
+    Logger.log("Syncing " + sourceCalendarName + " calendar to " + targetCalendarName);
 
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
@@ -253,6 +237,7 @@ function startSync(){
         callWithBackoff(function(){
           return Calendar.Settings.get("timezone").value;
         }, defaultMaxRetries);
+
       vevents.forEach(function(e){
         processEvent(e, calendarTz, targetCalendarId, sourceCalendarName);
       });
@@ -277,9 +262,8 @@ function startSync(){
     for (var recEvent of recurringEvents){
       processEventInstance(recEvent);
     }
-
-  //Set last sync time for given sourceCalendar
-  PropertiesService.getUserProperties().setProperty(sourceCalendarName, new Date().getTime());
+    //Set last sync time for given sourceCalendar
+      PropertiesService.getUserProperties().setProperty(sourceCalendarName, new Date().getTime());
   }
 
   if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
