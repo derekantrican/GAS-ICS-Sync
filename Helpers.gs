@@ -1,4 +1,55 @@
 /**
+ * Formats the date and time according to the format specified in the configuration.
+ *
+ * @param {string} date The date to be formatted.
+ * @return {string} The formatted date string.
+ */
+function formatDate(date) {
+  const year = date.slice(0,4);
+  const month = date.slice(5,7);
+  const day = date.slice(8,10);
+  let formattedDate;
+
+  if (dateFormat == "YYYY/MM/DD") {
+    formattedDate = year + "/" + month + "/" + day
+  }
+  else if (dateFormat == "DD/MM/YYYY") {
+    formattedDate = day + "/" + month + "/" + year
+  }
+  else if (dateFormat == "MM/DD/YYYY") {
+    formattedDate = month + "/" + day + "/" + year
+  }
+  else if (dateFormat == "YYYY-MM-DD") {
+    formattedDate = year + "-" + month + "-" + day
+  }
+  else if (dateFormat == "DD-MM-YYYY") {
+    formattedDate = day + "-" + month + "-" + year
+  }
+  else if (dateFormat == "MM-DD-YYYY") {
+    formattedDate = month + "-" + day + "-" + year
+  }
+  else if (dateFormat == "YYYY.MM.DD") {
+    formattedDate = year + "." + month + "." + day
+  }
+  else if (dateFormat == "DD.MM.YYYY") {
+    formattedDate = day + "." + month + "." + year
+  }
+  else if (dateFormat == "MM.DD.YYYY") {
+    formattedDate = month + "." + day + "." + year
+  }
+
+  if (date.length < 11) {
+    return formattedDate
+  }
+
+  const time = date.slice(11,16)
+  const timeZone = date.slice(19)
+  
+  return formattedDate + " at " + time + " (UTC" + (timeZone == "Z" ? "": timeZone) + ")"
+}
+
+
+/**
  * Takes an intended frequency in minutes and adjusts it to be the closest
  * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
  * the following values: 1, 5, 10, 15, 30).
@@ -81,26 +132,39 @@ function fetchSourceCalendars(sourceCalendarURLs){
   for (var source of sourceCalendarURLs){
     var url = source[0].replace("webcal://", "https://");
     var colorId = source[1];
-
+    
     callWithBackoff(function() {
       var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
       if (urlResponse.getResponseCode() == 200){
-        var urlContent = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s").exec(urlResponse.getContentText());
-        if(urlContent == null){
-          Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
-          return;
+        var icsContent = urlResponse.getContentText()
+        const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
+        var urlContent = icsRegex.exec(icsContent);
+        if (urlContent == null){
+          // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
+          // Add END:VEVENT for every BEGIN:VEVENT that's missing it
+          const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
+          icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
+
+          // Add END:VCALENDAR if missing
+          if (!icsContent.endsWith("END:VCALENDAR")){
+              icsContent += "\nEND:VCALENDAR";
+          }          
+          urlContent = icsRegex.exec(icsContent)
+          if (urlContent == null){
+            Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
+            return
+          }
+          Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
         }
-        else{
-          result.push([urlContent[0], colorId]);
-          return;
-        }
+        result.push([urlContent[0], colorId]);
+        return; 
       }
       else{ //Throw here to make callWithBackoff run again
-        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
+        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
       }
     }, defaultMaxRetries);
   }
-
+  
   return result;
 }
 
@@ -178,7 +242,7 @@ function parseResponses(responses){
     });
   }
 
-  //No need to process calcelled events as they will be added to gcal's trash anyway
+  //No need to process cancelled events as they will be added to gcal's trash anyway
   result = result.filter(function(event){
     try{
       return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
@@ -192,10 +256,21 @@ function parseResponses(responses){
       event.updatePropertyWithValue('uid', Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString());
     }
     if(event.hasProperty('recurrence-id')){
-      var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-      var recUTC = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
-
-      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recUTC);
+      let recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
+      if (event.getFirstProperty('recurrence-id').getParameter('tzid')){
+        let recUTCOffset = 0;
+        let tz = event.getFirstProperty('recurrence-id').getParameter('tzid').toString();
+        if (tz in tzidreplace){
+          tz = tzidreplace[tz];
+        }
+        let jsTime = new Date();
+        let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+        let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
+        recUTCOffset = (tgtTime - utcTime)/-1000;
+        recID = recID.adjust(0,0,0,recUTCOffset).toString() + "Z";
+        event.updatePropertyWithValue('recurrence-id', recID);
+      }
+      icsEventsIds.push(event.getFirstPropertyValue('uid').toString() + "_" + recID);
     }
     else{
       icsEventsIds.push(event.getFirstPropertyValue('uid').toString());
@@ -211,7 +286,7 @@ function parseResponses(responses){
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
  */
-function processEvent(event, calendarTz, targetCalendarId, sourceCalendarName){
+ function processEvent(event, calendarTz, targetCalendarId, sourceCalendarName){
   //------------------------ Create the event object ------------------------
   var newEvent = createEvent(event, calendarTz, sourceCalendarName);
   if (newEvent == null)
@@ -231,24 +306,24 @@ function processEvent(event, calendarTz, targetCalendarId, sourceCalendarName){
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
       if (modifyExistingEvents){
+        oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          modifiedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
+          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], targetCalendarName]);
         }
       }
     }
     else{
       if (addEventsToCalendar){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
-        
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime], targetCalendarName]);
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], targetCalendarName]);
         }
       }
     }
@@ -382,10 +457,8 @@ function createEvent(event, calendarTz, sourceCalendarName){
   }
 
   if (addCalToTitle && event.hasProperty('parentCal')){
-    var calName = event.getFirstPropertyValue('parentCal');
-    newEvent.summary = "(" + calName + ") " + newEvent.summary;
+    newEvent.summary = newEvent.summary + " (" + sourceCalendarName + ")";
   }
-
   if (event.hasProperty('description'))
     newEvent.description = icalEvent.description;
 
@@ -473,13 +546,17 @@ function createEvent(event, calendarTz, sourceCalendarName){
   newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : sourceCalendarName, id : icalEvent.uid } };
 
   if (event.hasProperty('recurrence-id')){
-    var recID = new ICAL.Time.fromString(event.getFirstPropertyValue('recurrence-id').toString(), event.getFirstProperty('recurrence-id'));
-    newEvent.recurringEventId = recID.convertToZone(ICAL.TimezoneService.get('UTC')).toString();
+    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
     newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
   }
 
   if (event.hasProperty('color')){
-    newEvent.colorId = event.getFirstPropertyValue('color').toString();
+    let colorID = event.getFirstPropertyValue('color').toString();
+    if (Object.keys(CalendarApp.EventColor).includes(colorID)){
+      newEvent.colorId = CalendarApp.EventColor[colorID];
+    }else if(Object.values(CalendarApp.EventColor).includes(colorID)){
+      newEvent.colorId = colorID;
+    }; //else unsupported value
   }
 
   return newEvent;
@@ -538,9 +615,18 @@ function checkSkipEvent(event, icalEvent){
 
         var exDates = event.getAllProperties('exdate');
         exDates.forEach(function(e){
-          var ex = new ICAL.Time.fromString(e.getFirstValue().toString());
-          if (ex < newStartDate){
+          var values = e.getValues();
+          values = values.filter(function(value){
+            return (new ICAL.Time.fromString(value.toString()) > newStartDate);
+          });
+          if (values.length == 0){
             event.removeProperty(e);
+          }
+          else if(values.length == 1){
+            e.setValue(values[0]);
+          }
+          else if(values.length > 1){
+            e.setValues(values);
           }
         });
 
@@ -604,7 +690,7 @@ function checkSkipEvent(event, icalEvent){
  *
  * @param {Calendar.Event} recEvent - The event instance to process
  */
-function processEventInstance(recEvent, sourceCalendarName){
+function processEventInstance(recEvent){
   Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
 
   var eventInstanceToPatch = callWithBackoff(function(){
@@ -635,16 +721,20 @@ function processEventInstance(recEvent, sourceCalendarName){
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    Logger.log("Updating existing event instance");
-    callWithBackoff(function(){
-      Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-    }, defaultMaxRetries);
+    if (modifyExistingEvents){
+      Logger.log("Updating existing event instance");
+      callWithBackoff(function(){
+        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+      }, defaultMaxRetries);
+    }
   }
   else{
-    Logger.log("No Instance matched, adding as new event!");
-    callWithBackoff(function(){
-      Calendar.Events.insert(recEvent, targetCalendarId);
-    }, defaultMaxRetries);
+    if (addEventsToCalendar){
+      Logger.log("No Instance matched, adding as new event!");
+      callWithBackoff(function(){
+        Calendar.Events.insert(recEvent, targetCalendarId);
+      }, defaultMaxRetries);
+    }
   }
 }
 
@@ -672,7 +762,7 @@ function processEventCleanup(sourceURL){
         }, defaultMaxRetries);
 
         if (emailSummary){
-          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime], targetCalendarName]);
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime, calendarEvents[i].end.date||calendarEvents[i].end.dateTime, calendarEvents[i].location, calendarEvents[i].description], targetCalendarName]);
         }
       }
     }
@@ -890,7 +980,7 @@ function sendSummary() {
   var subject;
   var body;
 
-  var subject = `GAS-ICS-Sync Execution Summary: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
   addedEvents = condenseCalendarMap(addedEvents);
   modifiedEvents = condenseCalendarMap(modifiedEvents);
   removedEvents = condenseCalendarMap(removedEvents);
@@ -899,7 +989,13 @@ function sendSummary() {
   for (var tgtCal of addedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} added events<br/><ul>`;
     for (var addedEvent of tgtCal[1]){
-      body += "<li>" + addedEvent[0][0] + " at " + addedEvent[0][1] + "</li>";
+      body += "<li>"
+        + "Name: " + addedEvent[0][0] + "<br/>"
+        + "Start: " + formatDate(addedEvent[0][1]) + "<br/>"
+        + "End: " + formatDate(addedEvent[0][2]) + "<br/>"
+        + (addedEvent[0][3] ? ("Location: " + addedEvent[0][3] + "<br/>") : "")
+        + (addedEvent[0][4] ? ("Description: " + addedEvent[0][4] + "<br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -907,7 +1003,18 @@ function sendSummary() {
   for (var tgtCal of modifiedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} modified events<br/><ul>`;
     for (var modifiedEvent of tgtCal[1]){
-      body += "<li>" + modifiedEvent[0][0] + " at " + modifiedEvent[0][1] + "</li>";
+      body += "<li>"
+        + (modifiedEvent[0][0] != modifiedEvent[0][1] ? ("<del>Name: " + modifiedEvent[0][0] + "</del><br/>") : "")
+        + "Name: " + modifiedEvent[0][1] + "<br/>"
+        + (modifiedEvent[0][2] != modifiedEvent[0][3] ? ("<del>Start: " + formatDate(modifiedEvent[0][2]) + "</del><br/>") : "")
+        + " Start: " + formatDate(modifiedEvent[0][3]) + "<br/>"
+        + (modifiedEvent[0][4] != modifiedEvent[0][5] ? ("<del>End: " + formatDate(modifiedEvent[0][4]) + "</del><br/>") : "")
+        + " End: " + formatDate(modifiedEvent[0][5]) + "<br/>"
+        + (modifiedEvent[0][6] != modifiedEvent[0][7] ? ("<del>Location: " + (modifiedEvent[0][6] ? modifiedEvent[0][6] : "") + "</del><br/>") : "")
+        + (modifiedEvent[0][7] ? (" Location: " + modifiedEvent[0][7] + "<br/>") : "")
+        + (modifiedEvent[0][8] != modifiedEvent[0][9] ? ("<del>Description: " + (modifiedEvent[0][8] ? modifiedEvent[0][8] : "") + "</del><br/>") : "")
+        + (modifiedEvent[0][9] ? (" Description: " + modifiedEvent[0][9] + "<br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -915,7 +1022,13 @@ function sendSummary() {
   for (var tgtCal of removedEvents){
     body += `<br/>${tgtCal[0]}: ${tgtCal[1].length} removed events<br/><ul>`;
     for (var removedEvent of tgtCal[1]){
-      body += "<li>" + removedEvent[0][0] + " at " + removedEvent[0][1] + "</li>";
+      body += "<li>"
+        + "<del>Name: " + removedEvent[0][0] + "</del><br/>"
+        + "<del>Start: " + formatDate(removedEvent[0][1]) + "</del><br/>"
+        + "<del>End: " + formatDate(removedEvent[0][2]) + "</del><br/>"
+        + (removedEvent[0][3] ? ("<del>Location: " + removedEvent[0][3] + "</del><br/>") : "")
+        + (removedEvent[0][4] ? ("<del>Description: " + removedEvent[0][4] + "</del><br/>") : "")
+        + "</li>";
     }
     body += "</ul>";
   }
@@ -985,7 +1098,7 @@ function checkForUpdate(){
 
   var lastAlertedVersion = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   try {
-    var thisVersion = 5.7;
+    var thisVersion = 5.8;
     var latestVersion = getLatestVersion();
 
     if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
