@@ -206,6 +206,7 @@ function parseResponses(responses){
   for (var itm of responses){
     var resp = itm[0];
     var colorId = itm[1].colorId && itm[1].colorId;
+    var calendarName = itm[1].calendarName && itm[1].calendarName;
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
 
@@ -219,9 +220,15 @@ function parseResponses(responses){
     if (colorId != undefined)
       allEvents.forEach(function(event){event.addPropertyWithValue("color", colorId);});
 
-    var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
-    if (calName != null)
-      allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
+    if (calendarName != undefined) {
+      allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calendarName); });
+    }
+    else {
+      var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
+      if (calName != null) {
+        allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
+      }
+    }
 
     result = [].concat(allEvents, result);
   }

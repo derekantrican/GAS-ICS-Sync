@@ -6,7 +6,7 @@
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Settings: Change lines 24-64 to be the settings that you want to use
+* 2) Settings: Change lines 24-67 to be the settings that you want to use
 * 3) Install:
 *      New Interface: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
 *      Old Interface: Click "Run" > "Run function" > "install"
@@ -28,16 +28,19 @@ var sourceCalendars = [
 
   // Or with additional Options:
   // - colorId: Colors of the Events with the following mapping https://developers.google.com/apps-script/reference/calendar/event-color
+  // - calendarName: Alternative name for the parent calendar
   // for instance:
   // ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", {
   //   colorId: "1",
+  //   calendarName: 'Parent Calendar Name'
   // }]
 
   ["icsUrl1", "targetCalendar1", {
     colorId: "1",
+    calendarName: 'Parent Calendar Name 1'
   }],
   ["icsUrl2", "targetCalendar2", {
-    colorId: "4"
+    calendarName: 'Parent Calendar Name 2'
   }],
   ["icsUrl3", "targetCalendar3"],
 ];
