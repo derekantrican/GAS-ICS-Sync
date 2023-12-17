@@ -205,8 +205,6 @@ function parseResponses(responses){
   var result = [];
   for (var itm of responses){
     var resp = itm[0];
-    var colorId = itm[1].colorId && itm[1].colorId;
-    var calendarName = itm[1].calendarName && itm[1].calendarName;
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
 
@@ -216,18 +214,14 @@ function parseResponses(responses){
       ICAL.TimezoneService.register(tz);
     }
 
+    var colorId = itm[1] && itm[1].colorId
     var allEvents = component.getAllSubcomponents("vevent");
     if (colorId != undefined)
       allEvents.forEach(function(event){event.addPropertyWithValue("color", colorId);});
 
-    if (calendarName != undefined) {
-      allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calendarName); });
-    }
-    else {
-      var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
-      if (calName != null) {
-        allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
-      }
+    var calName = (itm[1] && itm[1].calendarName) || component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
+    if (calName != null) {
+      component.getAllSubcomponents("vevent").forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
     }
 
     result = [].concat(allEvents, result);
