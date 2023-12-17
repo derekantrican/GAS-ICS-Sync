@@ -205,7 +205,7 @@ function parseResponses(responses){
   var result = [];
   for (var itm of responses){
     var resp = itm[0];
-    var colorId = itm[1];
+    var colorId = itm[1].colorId && itm[1].colorId;
     var jcalData = ICAL.parse(resp);
     var component = new ICAL.Component(jcalData);
 
