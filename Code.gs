@@ -154,18 +154,18 @@ var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
 
-//Set default values in case they aren't specified in the json.  Will override later if json value present.
+//Set default values in case they aren't specified in the json (specifically checkboxes=false because json doesn't store false).  Will override later if json value present.
 function getDefaultCalendarConfig() {
     return {
         //ParamUpdate
         color: "",
         sourceSyncDelay: "",
-        addEventsToCalendar: true,
-        modifyExistingEvents: true,
-        removeEventsFromCalendar: true,
+        addEventsToCalendar: false,
+        modifyExistingEvents: false,
+        removeEventsFromCalendar: false,
         onlyFutureEvents: false,
         getPastDaysIfOnlyFutureEvents: "",
-        removePastEventsFromCalendar: true,
+        removePastEventsFromCalendar: false,
         addOrganizerToTitle: false,
         descriptionAsTitles: false,
         addCalToTitle: false,
