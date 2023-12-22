@@ -6,13 +6,13 @@
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Calendars and Settings: Click on "Deploy" (in the upper-right)-->"Test Deployments".  From here you can add/edit/delete calendars and their associated settings.  A file called calendars.json will be saved to your My Drive folder in Google Drive.  You can manually edit the json calendar settings if you don't want to use the html interface.
-* 3) Code Settings: Change lines 25-29 to be the settings that you want to use
-* 4) Install:
+* 2) Code Settings: Change lines 25-29 to be the settings that you want to use
+* 3) Install:
 *      New Interface: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
 *      Old Interface: Click "Run" > "Run function" > "install"
-* 5) Authorize: You will be prompted to authorize the program and will need to click "Advanced" > "Go to GAS-ICS-Sync (unsafe)"
+* 4) Authorize: You will be prompted to authorize the program and will need to click "Advanced" > "Go to GAS-ICS-Sync (unsafe)"
 *    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
+* 5) Calendars and Settings: Click on "Deploy" (in the upper-right)-->"Test Deployments". In the dialog box that pops up, click the URL under web app. This should bring up the Calendar Manager webpage. From here you can add/edit/delete calendars and their associated settings.  A file called calendars.json will be saved to your My Drive folder in Google Drive.  You can manually edit the json calendar settings if you don't want to use the html interface.
 * 6) You can also run "startSync" if you want to sync only once (New Interface: change the dropdown to the right of "Debug" from "install" to "startSync")
 *
 * **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
