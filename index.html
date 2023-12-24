@@ -6,69 +6,104 @@
     <title>GAS-ICS-Sync Calendar Manager</title>
     <?!= HtmlService.createHtmlOutputFromFile('styles').getContent(); ?>
 </head>
-<body onload="loadCalendarList()">
+<body onload="loadCalendarList(); loadAppSettings();">
 <h1>GAS-ICS-Sync Calendar Manager</h1>
-<h2>Add/Edit Calendar:</h2>
+  <button type="button" onclick="install()">Install</button>
+  <button type="button" onclick="uninstall()">Uninstall</button>
+
+<h2>Master App Settings:</h2>
+<form id="appSettingsForm">
+  <table>
+    <tr><td style="border: none;"><b>Required Inputs:</b></td></tr>
+    <tr>
+      <td><label for="howFrequent">Trigger Frequency: </label><span class="info" onclick="showDialog({type: 'alert', message: `What interval (minutes) to run this script to check for new/modified events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><input type="number" style="width: 75px;" id="howFrequent" name="howFrequent" placeholder="# Minutes" required></td>
+      <td style="border: none;">(Required)</td>
+    </tr>
+    <tr><td style="border: none;"><b>Optional Parameters:</b></td></tr>
+    <tr>
+      <td><label for="email">Email Address: </label><span class="info" onclick="showDialog({type: 'alert', message: `If Email Summary is checked or you want to receive update notifications, you will need to provide your email address.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><input type="text" id="email" name="email" placeholder="xyz@gmail.com"></td>
+    </tr>
+    <tr>
+      <td><label for="emailSummary">Email Summary: </label><span class="info" onclick="showDialog({type: 'alert', message: `Will email you when an event is added/modified/removed to/from your calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><input type="checkbox" id="emailSummary" name="emailSummary"></td>
+
+      <td><label for="customEmailSubject">Custom Email Subject: </label><span class="info" onclick="showDialog({type: 'alert', message: `If you want to change the email subject, provide a custom one here. Default: 'GAS-ICS-Sync Execution Summary'.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><input type="text" id="customEmailSubject" name="customEmailSubject"></td>
+
+      <td><label for="dateFormat">Date Format: </label><span class="info" onclick="showDialog({type: 'alert', message: `Custom date format in the email summary (e.g. 'YYYY-MM-DD', 'DD.MM.YYYY', 'MM/DD/YYYY'. Separators are '.', '-' and '/').`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><input type="text" style="width: 100px;" id="dateFormat" name="dateFormat" placeholder="YYYY-MM-DD"></td>
+
+    </tr>
+  </table>
+    <button type="button" onclick="saveAppSettings()">Save</button>
+</form>
+
+
+<br>
+<hr>
+<h2>Add/Edit Individual Calendar:</h2>
 <form id="calendarForm">
   <table>
     <tr><td style="border: none;"><b>Required Inputs:</b></td></tr>
     <tr>
-      <td><label for="sourceURL" class="info">Source Calendar URL: <span onclick="showDialog({type: 'alert', message: `The URL address of the .ics/,ical file you want to sync to Google.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="sourceURL">Source Calendar URL: </label><span class="info" onclick="showDialog({type: 'alert', message: `The URL address of the .ics/,ical file you want to sync to Google.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="text" id="sourceURL" name="sourceURL" placeholder="URL of ics file" required></td>
-      <td>(Required)</td>
+      <td style="border: none;">(Required)</td>
     </tr>
     <tr>
-      <td><label for="sourceCalendarName" class="info">Source Calendar Name: <span onclick="showDialog({type: 'alert', message: `A short, friendly name for the source calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="sourceCalendarName">Source Calendar Name: </label><span class="info" onclick="showDialog({type: 'alert', message: `A short, friendly name for the source calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="text" id="sourceCalendarName" name="sourceCalendarName" placeholder="Friendly Name" required></td>
-      <td>(Required)</td>
+      <td style="border: none;">(Required)</td>
     </tr>
     <tr>
-      <td><label for="targetCalendarName" class="info">Target Calendar Name: <span onclick="showDialog({type: 'alert', message: `The name of the calendar in Google you want to sync to.  If the calendar doesn't yet exist, one will be created with this name.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="targetCalendarName">Target Calendar Name: </label><span class="info" onclick="showDialog({type: 'alert', message: `The name of the calendar in Google you want to sync to.  If the calendar doesn't yet exist, one will be created with this name.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="text" id="targetCalendarName" name="targetCalendarName" placeholder="Calendar name to Sync to" required></td>
-      <td>(Required)</td>
+      <td style="border: none;">(Required)</td>
     </tr>
     <tr><td style="border: none;"><b>Optional Parameters:</b></td></tr>
     <!--//ParamUpdate-->
     <tr>
-      <td><label for="color" class="info">Color: <a href="https://developers.google.com/apps-script/reference/calendar/event-color" target="_blank">(Color Mapping)</a><span onclick="showDialog({type: 'alert', message: `The color you want to show for events in the Target Calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="color">Color: <a href="https://developers.google.com/apps-script/reference/calendar/event-color" target="_blank">(Color Mapping)</a></label><span class="info" onclick="showDialog({type: 'alert', message: `The color you want to show for events in the Target Calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="number" style="width: 50px;" id="color" name="color" placeholder="##"></td>
     </tr>
     <tr>
-      <td><label for="sourceSyncDelay" class="info">Source Sync Delay (minutes): <span onclick="showDialog({type: 'alert', message: `Can be set to skip syncing on a given run if the Sync Delay hasn't &#8221;expired&#8221;. For example: if howFrequent is 15, but Sync Delay on a calendar is 60, then that calendar will only sync once every 4th iteration of the script (aka once per hour). Max is 1440 (one day).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="sourceSyncDelay">Source Sync Delay (minutes): </label><span class="info" onclick="showDialog({type: 'alert', message: `Can be set to skip syncing on a given run if the Sync Delay hasn't &#8221;expired&#8221;. For example: if howFrequent is 15, but Sync Delay on a calendar is 60, then that calendar will only sync once every 4th iteration of the script (aka once per hour). Max is 1440 (one day).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="number" style="width: 50px;" id="sourceSyncDelay" name="sourceSyncDelay" placeholder="##"></td>
     </tr>
     <tr>
-      <td><label for="addEventsToCalendar" class="info">Add Events to Calendar: <span onclick="showDialog({type: 'alert', message: `If unchecked, you can check the log (View > Logs) to make sure your events are being read correctly before turning this on.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="addEventsToCalendar">Add Events to Calendar: </label><span class="info" onclick="showDialog({type: 'alert', message: `If unchecked, you can check the log (View > Logs) to make sure your events are being read correctly before turning this on.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="addEventsToCalendar" name="addEventsToCalendar"></td>
 
-      <td><label for="modifyExistingEvents">Modify Existing Events:</label></td>
+      <td><label for="modifyExistingEvents">Modify Existing Events: </label><span class="info" onclick="showDialog({type: 'alert', message: `If unchecked, any event in the feed that was modified after being added to the calendar will not update`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="modifyExistingEvents" name="modifyExistingEvents"></td>
-
-      <td width="300"><label for="removeEventsFromCalendar">Remove Events from Calendar:</label></td>
+      
+      <td><label for="removeEventsFromCalendar">Remove Events from Calendar: </label><span class="info" onclick="showDialog({type: 'alert', message: `If checked, any event created by the script that is not found in the feed will be removed.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="removeEventsFromCalendar" name="removeEventsFromCalendar"></td>
     </tr>
     <tr>
-      <td width="300"><label for="onlyFutureEvents" class="info">Only Future Events: <span onclick="showDialog({type: 'alert', message: `Past events will not be synced. This will also remove past events from the target calendar if Remove Events From Calendar is checked.  However, past events can be kept by unchecking Remove Past Events From Calendar (below).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td width="300"><label for="onlyFutureEvents">Only Future Events: </label><span class="info" onclick="showDialog({type: 'alert', message: `Past events will not be synced. This will also remove past events from the target calendar if Remove Events From Calendar is checked.  However, past events can be kept by unchecking Remove Past Events From Calendar (below).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="onlyFutureEvents" name="onlyFutureEvents"></td>
 
-      <td width="300"><label for="getPastDaysIfOnlyFutureEvents" class="info">Past Days to Sync: <span onclick="showDialog({type: 'alert', message: `If Only Future Events (above) is checked, n number of days in the past can be retained by specifying # of days here.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td width="300"><label for="getPastDaysIfOnlyFutureEvents">Past Days to Sync: </label><span class="info" onclick="showDialog({type: 'alert', message: `If Only Future Events (above) is checked, n number of days in the past can be retained by specifying # of days here.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="number" style="width: 50px;" id="getPastDaysIfOnlyFutureEvents" name="getPastDaysIfOnlyFutureEvents" placeholder="##"></td>
 
-      <td width="300"><label for="removePastEventsFromCalendar" class="info">Remove Past Events from Calendar: <span onclick="showDialog({type: 'alert', message: `If unchecked, any event that is in the past will not be removed.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td width="300"><label for="removePastEventsFromCalendar">Remove Past Events from Calendar: </label><span class="info" onclick="showDialog({type: 'alert', message: `If unchecked, any event that is in the past will not be removed.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="removePastEventsFromCalendar" name="removePastEventsFromCalendar"></td>
     </tr>
     <tr>
-      <td><label for="addOrganizerToTitle" class="info">Add Organizer to Title: <span onclick="showDialog({type: 'alert', message: `Prefix the event name with the event organiser for further clarity.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="addOrganizerToTitle">Add Organizer to Title: </label><span class="info" onclick="showDialog({type: 'alert', message: `Prefix the event name with the event organiser for further clarity.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="addOrganizerToTitle" name="addOrganizerToTitle"></td>
 
-      <td><label for="descriptionAsTitles" class="info">Description as Titles: <span onclick="showDialog({type: 'alert', message: `Use the ics/ical descriptions as titles (checked) or to use the normal titles as titles (unchecked).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="descriptionAsTitles">Description as Titles: </label><span class="info" onclick="showDialog({type: 'alert', message: `Use the ics/ical descriptions as titles (checked) or to use the normal titles as titles (unchecked).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="descriptionAsTitles" name="descriptionAsTitles"></td>
 
-      <td><label for="addCalToTitle" class="info">Add Calendar Name to Title: <span onclick="showDialog({type: 'alert', message: `Add the Friendly Calendar Name at the end of titles.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="addCalToTitle">Add Calendar Name to Title: </label><span class="info" onclick="showDialog({type: 'alert', message: `Add the Friendly Calendar Name at the end of titles.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="addCalToTitle" name="addEventsToCaaddCalToTitlelendar"></td>
     </tr>
     <tr>
-      <td><label for="addAlerts" class="info">Add Alerts: <span onclick="showDialog({type: 'alert', message: `Whether to add the ics/ical alerts as notifications on the Google Calendar events or revert to the calendar's default reminders (yes, no, default).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="addAlerts">Add Alerts: </label><span class="info" onclick="showDialog({type: 'alert', message: `Whether to add the ics/ical alerts as notifications on the Google Calendar events or revert to the calendar's default reminders (yes, no, default).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><select name="addAlerts" id="addAlerts">
         <option value="yes" selected="selected">yes</option>
         <option value="no">no</option>
@@ -76,15 +111,15 @@
       </select></td>
     </tr>
     <tr>
-      <td><label for="addAttendees" class="info">Add Attendees: <span onclick="showDialog({type: 'alert', message: `Add the attendee list. If checked, duplicate events will be automatically added to the attendees' calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="addAttendees">Add Attendees: </label><span class="info" onclick="showDialog({type: 'alert', message: `Add the attendee list. If checked, duplicate events will be automatically added to the attendees' calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="addAttendees" name="addAttendees"></td>
     </tr>
     <tr>
-      <td><label for="defaultAllDayReminder" class="info">Default All Day Reminder: <span onclick="showDialog({type: 'alert', message: `Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320).  See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="defaultAllDayReminder">Default All Day Reminder: </label><span class="info" onclick="showDialog({type: 'alert', message: `Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320).  See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="number" style="width: 60px;" id="defaultAllDayReminder" name="defaultAllDayReminder" placeholder="##"></td>
     </tr>
     <tr>
-      <td><label for="overrideVisibility" class="info">Override Event Visibility: <span onclick="showDialog({type: 'alert', message: `Changes the visibility of the event (default, public, private, confidential). Anything else will revert to the class value of the ICAL event.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="overrideVisibility">Override Event Visibility: </label><span class="info" onclick="showDialog({type: 'alert', message: `Changes the visibility of the event (default, public, private, confidential). Anything else will revert to the class value of the ICAL event.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><select name="overrideVisibility" id="overrideVisibility">
         <option value="" selected="selected"></option>
         <option value="default">default</option>
@@ -94,17 +129,12 @@
       </select></td>
     </tr>
     <tr>
-      <td><label for="addTasks" class="info">Add Tasks: <span onclick="showDialog({type: 'alert', message: `Choose whether to add Tasks.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></label></td>
+      <td><label for="addTasks">Add Tasks: </label><span class="info" onclick="showDialog({type: 'alert', message: `Choose whether to add Tasks.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="checkbox" id="addTasks" name="addTasks"></td>
     </tr>
   </table>
-   <!-- <tr><br></tr>
-    <tr>
-      <td>-->
-        <button type="button" onclick="addOrUpdateCalendar()">Save</button>
-      <button type="button" id="cancelButton" onclick="cancelEdit()">Clear</button><!--</td>
-    </tr>
-  </table>-->
+      <button type="button" onclick="addOrUpdateCalendar()">Save</button>
+      <button type="button" id="cancelButton" onclick="cancelEdit()">Clear</button>
 </form>
 <hr>
 <h2 id="calendarCountHeader">Current Calendars:</h2>
@@ -127,6 +157,88 @@
 </div>
 
 <script>
+
+//validate App Settings to enable install button
+var appSettingsFlag = false;
+function install() {
+  google.script.run.withSuccessHandler(function(validateInstall) {
+    if (appSettingsFlag) {
+      // Call the actual install function on the server side
+      google.script.run.install();
+            showDialog({
+        type: 'alert',
+        message: 'Install Successful.'
+      });
+    } else {
+      // Show an error message to the user
+      showDialog({
+        type: 'alert',
+        message: 'Please populate the App Settings section first before installing.'
+      });
+    }
+  }).validateInstall();
+}
+
+function uninstall() {
+  google.script.run.uninstall();
+    showDialog({
+      type: 'alert',
+      message: 'Uninstall Successful.'
+    });
+}
+
+let appSettings = {}; // Object to store app settings
+
+function saveAppSettings() {
+    // Create an object to hold the form data
+    const appSettings = {
+        howFrequent: +document.getElementById("howFrequent").value,
+        email: document.getElementById("email").value,
+        emailSummary: document.getElementById("emailSummary").checked,
+        customEmailSubject: document.getElementById("customEmailSubject").value,
+        dateFormat: document.getElementById("dateFormat").value,
+    };
+
+    // Validate input fields
+    if (appSettings.howFrequent < 5 || appSettings.howFrequent > 1440) {
+        showDialog({
+            type: 'alert',
+            message: 'Please input Trigger Frequency minutes between 5 and 1440 (one day).'
+        });
+        return false;
+    }
+    showLoadingSpinner();
+
+    // Load App Settings to the JSON file
+    const jsonString = JSON.stringify(appSettings);
+    google.script.run.withSuccessHandler(refreshPage).updateAppSettings(jsonString);
+    console.log(`App settings saved.`);
+}
+
+function loadAppSettings() {
+    google.script.run.withSuccessHandler(function(receivedSettings) {
+        if (receivedSettings) {
+            // Apply the settings to your form
+            document.getElementById("howFrequent").value = receivedSettings.howFrequent || '';
+            document.getElementById("email").value = receivedSettings.email || '';
+            document.getElementById("emailSummary").checked = receivedSettings.emailSummary || false;
+            document.getElementById("customEmailSubject").value = receivedSettings.customEmailSubject || '';
+            document.getElementById("dateFormat").value = receivedSettings.dateFormat || '';
+
+            appSettingsFlag = !!receivedSettings; // Sets to true if settings are found, false otherwise - used to validate Install button
+        } else {
+            // Handle the case where the calendar entry does not exist
+            console.log('App settings not found.');
+            showDialog({
+                type: 'alert',
+                message: 'App settings not found.'
+            });
+        }
+    }).getAppSettings();
+}
+
+
+
 // JavaScript functions for adding, editing, and deleting calendars
 let calendars = {}; // Object to store calendar entries with sourceURL as keys
 
@@ -302,7 +414,6 @@ function deleteCalendar(sourceURL) {
 function loadCalendarList() {
     showLoadingSpinner();
     google.script.run.withSuccessHandler(function(data) {
-      //console.log(data); // Log to see what data is received
         calendars = data;
         displayCalendars(calendars);
         var calendarCount = Object.keys(calendars).length;
@@ -312,7 +423,7 @@ function loadCalendarList() {
 
 function displayCalendars(calendars) {
   const calendarContainer = document.getElementById("calendarContainer");
-  console.log(calendarContainer);
+  //console.log(calendarContainer);  only for troubleshooting html output
   calendarContainer.innerHTML = ''; // Clear any existing content
 
   let tableContent = '<table>';
@@ -320,7 +431,6 @@ function displayCalendars(calendars) {
 for (const sourceURL in calendars) {
   if (calendars.hasOwnProperty(sourceURL)) {
     const calendar = calendars[sourceURL];
-    console.log(sourceURL);
     tableContent += `
       //<!--//ParamUpdate-->
       <tr><td><b>Source URL:</b></td><td colspan="100%"><b>${calendar.sourceURL}</b></td></tr>
@@ -361,6 +471,7 @@ function refreshPage() {
     document.getElementById("calendarForm").reset();
     // Reload the calendar list
     loadCalendarList();
+    loadAppSettings();
 }
 function resetFormToDefault() {
   // Clear input fields and reset checkboxes to default.  Needed this as separate function so it could be called separately to clear the form only.
