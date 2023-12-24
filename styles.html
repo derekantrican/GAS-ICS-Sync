@@ -7,20 +7,51 @@ td {
 }
 
 .info {
-  display: flex;
-  justify-content:
-  space-between;
+  float: right;
+}
+
+button {
   align-items: center;
-}
-
-.button {
-  background-color: #007bff;
-  color: #fff;
-  padding: 10px 20px;
-  border: none;
+  appearance: none;
+  background-color: #3EB2FD;
+  background-image: linear-gradient(1deg, #4F58FD, #149BF3 99%);
+  background-size: calc(100% + 20px) calc(100% + 20px);
+  border-radius: 100px;
+  border-width: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+  color: #FFFFFF;
   cursor: pointer;
+  display: inline-flex;
+  font-family: CircularStd,sans-serif;
+  font-size: 1rem;
+  height: auto;
+  justify-content: center;
+  line-height: 1.5;
+  padding: 6px 20px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  transition: background-color .2s,background-position .2s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: top;
+  white-space: nowrap;
 }
 
+.button-21:active,
+.button-21:focus {
+  outline: none;
+}
+
+.button-21:hover {
+  background-position: -20px -20px;
+}
+
+.button-21:focus:not(:active) {
+  box-shadow: rgba(40, 170, 255, 0.25) 0 0 0 .125em;
+}
 .spinner {
     position: fixed;
     left: 50%;
@@ -31,6 +62,7 @@ td {
     width: 40px;
     height: 40px;
     animation: spin 1s linear infinite;
+    //display: none; /* Initially hide the spinner */
 }
 
 @keyframes spin {
