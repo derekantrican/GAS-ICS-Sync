@@ -18,18 +18,6 @@
 * **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
 *
 *=========================================
-*               SETTINGS
-*=========================================
-*/
-
-var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
-var emailSummary = true;                  // Will email you when an event is added/modified/removed to your calendar
-var email = "";                           // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
-var customEmailSubject = "";              // OPTIONAL: If you want to change the email subject, provide a custom one here. Default: "GAS-ICS-Sync Execution Summary"
-var dateFormat = "YYYY.MM.DD"             // date format in the email summary (e.g. "YYYY-MM-DD", "DD.MM.YYYY", "MM/DD/YYYY". separators are ".", "-" and "/")
-
-/*
-*=========================================
 *           ABOUT THE AUTHOR
 *=========================================
 *
@@ -73,13 +61,62 @@ var dateFormat = "YYYY.MM.DD"             // date format in the email summary (e
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 
-// Grab calendars.json from Google Drive (My Drive "root" directory)
 function doGet(e) {
   var template = HtmlService.createTemplateFromFile('index');
   var htmlOutput = template.evaluate().setTitle('Calendar Manager');
   return htmlOutput;
 }
 
+//this function is only for html to make sure user can only install after App Settings have been set.
+var appSettingsFlag = false;
+function validateInstall() {
+  if (appSettingsFlag) {
+    // Check for required settings if necessary
+    Logger.log("Install started from html.")
+    return true;
+  }else{
+  Logger.log("Install from html not allowed because no App Settings found.")
+  return false;
+  }
+}
+
+//Save appSettings.json to Google Drive (My Drive "root" directory)
+function updateAppSettings(jsonString) {
+  const folder = DriveApp.getRootFolder();
+  const files = folder.getFilesByName('appSettings.json');
+
+  if (files.hasNext()) {
+    const file = files.next();
+    file.setContent(jsonString);
+  } else {
+    //will create appSettings.json file if one doesn't exist
+    folder.createFile('appSettings.json', jsonString, MimeType.PLAIN_TEXT);
+  }
+}
+
+//retrieve App Settings from appSettings.json for use in index.html
+function getAppSettings() {
+  const folder = DriveApp.getRootFolder();
+  const files = folder.getFilesByName('appSettings.json');
+
+  if (files.hasNext()) {
+    const file = files.next();
+    const jsonContent = file.getBlob().getDataAsString();
+    return JSON.parse(jsonContent); // Parse the JSON content
+  } else {
+    Logger.log("App Settings json file not found.");
+    return false;
+  }
+}
+
+var appSettings = getAppSettings();
+var howFrequent = appSettings.howFrequent;
+var emailSummary = appSettings.emailSummary === true;
+var email = appSettings.email;
+var customEmailSubject = appSettings.customEmailSubject;
+var dateFormat = appSettings.dateFormat;
+
+// Grab calendars.json from Google Drive (My Drive "root" directory)
 function updateCalendars(jsonString) {
   const folder = DriveApp.getRootFolder();
   const files = folder.getFilesByName('calendars.json');
@@ -137,6 +174,7 @@ function install() {
 
 function uninstall(){
   deleteAllTriggers();
+  Logger.log("Uninstall successful.")
 }
 
 var startUpdateTime;
