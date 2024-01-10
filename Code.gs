@@ -145,6 +145,9 @@ var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
 
+// Syncing logic can set this to true to cause the Google Apps Script "Executions" dashboard to report failure
+var reportOverallFailure = false;
+
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
@@ -249,4 +252,10 @@ function startSync(){
   }
   Logger.log("Sync finished!");
   PropertiesService.getUserProperties().setProperty('LastRun', 0);
+
+  if (reportOverallFailure) {
+    // Cause the Google Apps Script "Executions" dashboard to show a failure
+    // (the message text does not seem to be logged anywhere)
+    throw new Error('The sync operation produced errors. See log for details.');
+  }
 }
