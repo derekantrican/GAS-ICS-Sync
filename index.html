@@ -1,4 +1,4 @@
-<!-- For Developers; anything marked //ParamUpdate needs to be updated when parameters are added/removed... Find that string to make updating easier -->
+<!-- For Developers; anything marked //ParamUpdate needs to be updated when calendar parameters are added/removed... Find that string to make updating easier -->
 
 <!DOCTYPE html>
 <html>
@@ -8,8 +8,8 @@
 </head>
 <body onload="loadCalendarList(); loadAppSettings();">
 <h1>GAS-ICS-Sync Calendar Manager</h1>
-  <button type="button" onclick="install()">Install</button>
-  <button type="button" onclick="uninstall()">Uninstall</button>
+  <button onclick="install()">Install</button>
+  <button onclick="uninstall()">Uninstall</button>
 
 <h2>Master App Settings:</h2>
 <form id="appSettingsForm">
@@ -37,9 +37,8 @@
 
     </tr>
   </table>
-    <button type="button" onclick="saveAppSettings()">Save</button>
 </form>
-
+    <button onclick="saveAppSettings()">Save</button>
 
 <br>
 <hr>
@@ -48,17 +47,17 @@
   <table>
     <tr><td style="border: none;"><b>Required Inputs:</b></td></tr>
     <tr>
+      <td><label for="sourceCalendarName">Source Calendar Name: </label><span class="info" onclick="showDialog({type: 'alert', message: `A short, friendly name for the source calendar.  This must also be a unique entry (can't be the same as any other calendars) as this is also used as the key in the json file.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><input type="text" id="sourceCalendarName" name="sourceCalendarName" placeholder="Friendly Name" required></td>
+      <td style="border: none;" colspan="100%">(Required. Must be a unique value not used for other calendars.)</td>
+    </tr>
+    <tr>
       <td><label for="sourceURL">Source Calendar URL: </label><span class="info" onclick="showDialog({type: 'alert', message: `The URL address of the .ics/,ical file you want to sync to Google.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="text" id="sourceURL" name="sourceURL" placeholder="URL of ics file" required></td>
       <td style="border: none;">(Required)</td>
     </tr>
     <tr>
-      <td><label for="sourceCalendarName">Source Calendar Name: </label><span class="info" onclick="showDialog({type: 'alert', message: `A short, friendly name for the source calendar.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
-      <td><input type="text" id="sourceCalendarName" name="sourceCalendarName" placeholder="Friendly Name" required></td>
-      <td style="border: none;">(Required)</td>
-    </tr>
-    <tr>
-      <td><label for="targetCalendarName">Target Calendar Name: </label><span class="info" onclick="showDialog({type: 'alert', message: `The name of the calendar in Google you want to sync to.  If the calendar doesn't yet exist, one will be created with this name.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
+      <td><label for="targetCalendarName">Target Calendar Name: </label><span class="info" onclick="showDialog({type: 'alert', message: `The name of the calendar in Google you want to sync to.  If the calendar doesn't yet exist, one will be created with this name.  If you want to sync to your main gmail calendar, use your xyz@gmail.com address as the Target Calendar Name.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
       <td><input type="text" id="targetCalendarName" name="targetCalendarName" placeholder="Calendar name to Sync to" required></td>
       <td style="border: none;">(Required)</td>
     </tr>
@@ -100,7 +99,7 @@
       <td><input type="checkbox" id="descriptionAsTitles" name="descriptionAsTitles"></td>
 
       <td><label for="addCalToTitle">Add Calendar Name to Title: </label><span class="info" onclick="showDialog({type: 'alert', message: `Add the Friendly Calendar Name at the end of titles.`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
-      <td><input type="checkbox" id="addCalToTitle" name="addEventsToCaaddCalToTitlelendar"></td>
+      <td><input type="checkbox" id="addCalToTitle" name="addCalToTitle"></td>
     </tr>
     <tr>
       <td><label for="addAlerts">Add Alerts: </label><span class="info" onclick="showDialog({type: 'alert', message: `Whether to add the ics/ical alerts as notifications on the Google Calendar events or revert to the calendar's default reminders (yes, no, default).`})" style="color: blue; cursor: pointer;">&#x1F6C8</span></td>
@@ -133,9 +132,9 @@
       <td><input type="checkbox" id="addTasks" name="addTasks"></td>
     </tr>
   </table>
-      <button type="button" onclick="addOrUpdateCalendar()">Save</button>
-      <button type="button" id="cancelButton" onclick="cancelEdit()">Clear</button>
 </form>
+      <button onclick="addOrUpdateCalendar()">Save</button>
+      <button onclick="cancelEdit()">Clear</button>
 <hr>
 <h2 id="calendarCountHeader">Current Calendars:</h2>
 <div id="calendarContainer"></div>
@@ -158,283 +157,289 @@
 
 <script>
 
-//validate App Settings to enable install button
-var appSettingsFlag = false;
+/*************************************************** App Settings functions *****************************************************/
+
 function install() {
-  google.script.run.withSuccessHandler(function(validateInstall) {
-    if (appSettingsFlag) {
-      // Call the actual install function on the server side
-      google.script.run.install();
-            showDialog({
-        type: 'alert',
-        message: 'Install Successful.'
-      });
-    } else {
-      // Show an error message to the user
-      showDialog({
-        type: 'alert',
-        message: 'Please populate the App Settings section first before installing.'
-      });
-    }
-  }).validateInstall();
+  google.script.run
+    .withSuccessHandler(function() {
+      showDialog({type: 'alert', message: 'Install Successful.'});
+    })
+    .withFailureHandler(function(){
+      showDialog({ type: 'alert', message: 'Install server error.'});
+    })
+  .install();
+  refreshPage();
 }
 
 function uninstall() {
-  google.script.run.uninstall();
-    showDialog({
-      type: 'alert',
-      message: 'Uninstall Successful.'
-    });
+  google.script.run
+  .withSuccessHandler(function() {
+    showDialog({type: 'alert',message: 'Uninstall Successful.'});
+  })
+  .withFailureHandler(function(){
+      showDialog({ type: 'alert', message: 'Uninstall server error.'});
+    })
+  .uninstall();
+  refreshPage();
 }
 
 let appSettings = {}; // Object to store app settings
 
-function saveAppSettings() {
-    // Create an object to hold the form data
-    const appSettings = {
-        howFrequent: +document.getElementById("howFrequent").value,
-        email: document.getElementById("email").value,
-        emailSummary: document.getElementById("emailSummary").checked,
-        customEmailSubject: document.getElementById("customEmailSubject").value,
-        dateFormat: document.getElementById("dateFormat").value,
-    };
-
-    // Validate input fields
-    if (appSettings.howFrequent < 5 || appSettings.howFrequent > 1440) {
-        showDialog({
-            type: 'alert',
-            message: 'Please input Trigger Frequency minutes between 5 and 1440 (one day).'
-        });
-        return false;
-    }
-    showLoadingSpinner();
-
-    // Load App Settings to the JSON file
-    const jsonString = JSON.stringify(appSettings);
-    google.script.run.withSuccessHandler(refreshPage).updateAppSettings(jsonString);
-    console.log(`App settings saved.`);
-}
-
 function loadAppSettings() {
-    google.script.run.withSuccessHandler(function(receivedSettings) {
-        if (receivedSettings) {
-            // Apply the settings to your form
-            document.getElementById("howFrequent").value = receivedSettings.howFrequent || '';
-            document.getElementById("email").value = receivedSettings.email || '';
-            document.getElementById("emailSummary").checked = receivedSettings.emailSummary || false;
-            document.getElementById("customEmailSubject").value = receivedSettings.customEmailSubject || '';
-            document.getElementById("dateFormat").value = receivedSettings.dateFormat || '';
-
-            appSettingsFlag = !!receivedSettings; // Sets to true if settings are found, false otherwise - used to validate Install button
-        } else {
-            // Handle the case where the calendar entry does not exist
-            console.log('App settings not found.');
-            showDialog({
-                type: 'alert',
-                message: 'App settings not found.'
-            });
-        }
-    }).getAppSettings();
+  google.script.run
+    .withSuccessHandler(function(receivedSettings) {
+      if (receivedSettings) {
+        // Apply the settings to the form
+        document.getElementById("howFrequent").value = receivedSettings.howFrequent || '';
+        document.getElementById("email").value = receivedSettings.email || '';
+        document.getElementById("emailSummary").checked = receivedSettings.emailSummary || false;
+        document.getElementById("customEmailSubject").value = receivedSettings.customEmailSubject || '';
+        document.getElementById("dateFormat").value = receivedSettings.dateFormat || '';
+      } else {
+      // Handle the case where the App Settings do not exist
+      console.log('appSettings json not found.  Try reloading the page.');
+      return;
+      }
+    })
+    .withFailureHandler(function(error){
+      // Handle errors related to the execution of the server-side function
+      console.error("Server error: " + error);
+      showDialog({ type: 'alert', message: 'Server error: ' + error });
+      refreshPage();
+    })
+    .getAppSettings();
 }
 
+function saveAppSettings() {
+  // Create an object to hold the form data
+  const appSettings = {
+    howFrequent: +document.getElementById("howFrequent").value,
+    email: document.getElementById("email").value,
+    emailSummary: document.getElementById("emailSummary").checked,
+    customEmailSubject: document.getElementById("customEmailSubject").value,
+    dateFormat: document.getElementById("dateFormat").value,
+  };
 
+  // Validate input fields
+  if (appSettings.howFrequent < 5 || appSettings.howFrequent > 1440) {
+    showDialog({type: 'alert', message: 'Please input Trigger Frequency minutes between 5 and 1440 (one day).'});
+    return false;
+  }
+  
+  showLoadingSpinner();
 
-// JavaScript functions for adding, editing, and deleting calendars
-let calendars = {}; // Object to store calendar entries with sourceURL as keys
+  const jsonString = JSON.stringify(appSettings);
+  google.script.run
+    .withSuccessHandler(function(){
+      console.log("Settings updated successfully.");
+      showDialog({type: 'alert', message: 'Settings updated successfully.  If Trigger Frequency was changed, you will need to re-install.'});
+      refreshPage();
+    })
+    .withFailureHandler(function(error){
+      // Handle errors related to the execution of the server-side function
+      console.error("Server error: " + error);
+      showDialog({ type: 'alert', message: 'Server error: ' + error });
+      refreshPage();
+    })
+    .updateAppSettings(jsonString);
+}
 
+/*************************************************** Calendar Management functions *****************************************************/
+
+// functions for adding, editing, and deleting calendars
+let calendarsFromJSON = {}; // Object to store calendar entries with sourceCalendarName as key
+
+//Grabs existing entries from calendars.json
+function loadCalendarList() {
+  showLoadingSpinner();
+  google.script.run
+    .withSuccessHandler(function(data) {
+      calendarsFromJSON = data; // Update the global variable with the fetched data
+      displayCalendars(calendarsFromJSON);
+      var calendarCount = Object.keys(calendarsFromJSON).length;
+      document.getElementById("calendarCountHeader").textContent = `Current Calendars: ${calendarCount}`;
+    })
+    .getCalendars();
+}
+
+//Updates existing entries from calendars.json.  If no file exists, one will be created when first calendar entry is saved.
 function addOrUpdateCalendar() {
-    //grab raw values from numeric fields and accept either null (string) or numeric
-    var rawValue_color = document.getElementById("color").value;
-    var rawValue_sourceSyncDelay = document.getElementById("sourceSyncDelay").value;
-    var rawValue_getPastDaysIfOnlyFutureEvents = document.getElementById("getPastDaysIfOnlyFutureEvents").value;
-    var rawValue_defaultAllDayReminder = document.getElementById("defaultAllDayReminder").value;
+  //grab raw values from numeric fields and accept either null (string) or numeric
+  var rawValue_color = document.getElementById("color").value;
+  var rawValue_sourceSyncDelay = document.getElementById("sourceSyncDelay").value;
+  var rawValue_getPastDaysIfOnlyFutureEvents = document.getElementById("getPastDaysIfOnlyFutureEvents").value;
+  var rawValue_defaultAllDayReminder = document.getElementById("defaultAllDayReminder").value;
 
     
-    // Create an object to hold the form data
-    const calendarEntry = {
-        //ParamUpdate
-        sourceURL: document.getElementById("sourceURL").value,
-        sourceCalendarName: document.getElementById("sourceCalendarName").value,
-        targetCalendarName: document.getElementById("targetCalendarName").value,
-        color: rawValue_color === "" ? null : +rawValue_color,
-        sourceSyncDelay: rawValue_sourceSyncDelay === "" ? null : +rawValue_sourceSyncDelay,
-        addEventsToCalendar: document.getElementById("addEventsToCalendar").checked,
-        modifyExistingEvents: document.getElementById("modifyExistingEvents").checked,
-        removeEventsFromCalendar: document.getElementById("removeEventsFromCalendar").checked,
-        onlyFutureEvents: document.getElementById("onlyFutureEvents").checked,
-        getPastDaysIfOnlyFutureEvents: rawValue_getPastDaysIfOnlyFutureEvents === "" ? null : +rawValue_getPastDaysIfOnlyFutureEvents,
-        removePastEventsFromCalendar: document.getElementById("removePastEventsFromCalendar").checked,
-        addOrganizerToTitle: document.getElementById("addOrganizerToTitle").checked,
-        descriptionAsTitles: document.getElementById("descriptionAsTitles").checked,
-        addCalToTitle: document.getElementById("addCalToTitle").checked,
-        addAlerts: document.getElementById("addAlerts").value,
-        addAttendees: document.getElementById("addAttendees").checked,
-        defaultAllDayReminder: rawValue_defaultAllDayReminder === "" ? null : +rawValue_defaultAllDayReminder,
-        overrideVisibility: document.getElementById("overrideVisibility").value,
-        addTasks: document.getElementById("addTasks").checked
-    };
+  // Create an object to hold the form data
+  const calendarEntry = {
+    //ParamUpdate
+    sourceCalendarName: document.getElementById("sourceCalendarName").value,
+    sourceURL: document.getElementById("sourceURL").value,
+    targetCalendarName: document.getElementById("targetCalendarName").value,
+    color: rawValue_color === "" ? null : +rawValue_color,
+    sourceSyncDelay: rawValue_sourceSyncDelay === "" ? null : +rawValue_sourceSyncDelay,
+    addEventsToCalendar: document.getElementById("addEventsToCalendar").checked,
+    modifyExistingEvents: document.getElementById("modifyExistingEvents").checked,
+    removeEventsFromCalendar: document.getElementById("removeEventsFromCalendar").checked,
+    onlyFutureEvents: document.getElementById("onlyFutureEvents").checked,
+    getPastDaysIfOnlyFutureEvents: rawValue_getPastDaysIfOnlyFutureEvents === "" ? null : +rawValue_getPastDaysIfOnlyFutureEvents,
+    removePastEventsFromCalendar: document.getElementById("removePastEventsFromCalendar").checked,
+    addOrganizerToTitle: document.getElementById("addOrganizerToTitle").checked,
+    descriptionAsTitles: document.getElementById("descriptionAsTitles").checked,
+    addCalToTitle: document.getElementById("addCalToTitle").checked,
+    addAlerts: document.getElementById("addAlerts").value,
+    addAttendees: document.getElementById("addAttendees").checked,
+    defaultAllDayReminder: rawValue_defaultAllDayReminder === "" ? null : +rawValue_defaultAllDayReminder,
+    overrideVisibility: document.getElementById("overrideVisibility").value,
+    addTasks: document.getElementById("addTasks").checked
+  };
 
     // Validate input fields
-    if (!calendarEntry.sourceURL || !calendarEntry.sourceCalendarName || !calendarEntry.targetCalendarName) {
-        showDialog({
-            type: 'alert',
-            message: 'Please fill in all required fields.'
-        });
-        return false;
-    }
-    if (calendarEntry.color !== null && (isNaN(calendarEntry.color) || calendarEntry.color < 1 || calendarEntry.color > 11)) {
-        showDialog({
-            type: 'alert',
-            message: 'Color must be between 1-11.'
-        });
-        return false;
-    }
-    if (calendarEntry.sourceSyncDelay !== null && (isNaN(calendarEntry.sourceSyncDelay) || calendarEntry.sourceSyncDelay < 15 || calendarEntry.sourceSyncDelay > 1440)) {
-        showDialog({
-            type: 'alert',
-            message: 'Sync Delay must be between 15-1440.'
-        });
-        return false;
-    }
-    if (calendarEntry.defaultAllDayReminder !== null && (isNaN(calendarEntry.defaultAllDayReminder) || calendarEntry.defaultAllDayReminder < -1 || calendarEntry.defaultAllDayReminder > 40320)) {
-        showDialog({
-            type: 'alert',
-            message: 'Default All Day Reminder must be between -1-40320.'
-        });
-        return false;
-    }
+  if (!calendarEntry.sourceURL || !calendarEntry.sourceCalendarName || !calendarEntry.targetCalendarName) {
+      showDialog({type: 'alert',message: 'Please fill in all required fields.'});
+      return false;
+  }
+  if (calendarEntry.color !== null && (isNaN(calendarEntry.color) || calendarEntry.color < 1 || calendarEntry.color > 11)) {
+      showDialog({type: 'alert',message: 'Color must be between 1 and 11.'});
+      return false;
+  }
+  if (calendarEntry.sourceSyncDelay !== null && (isNaN(calendarEntry.sourceSyncDelay) || calendarEntry.sourceSyncDelay < 15 || calendarEntry.sourceSyncDelay > 1440)) {
+      showDialog({type: 'alert',message: 'Sync Delay must be between 15 and 1440.'});
+      return false;
+  }
+  if (calendarEntry.defaultAllDayReminder !== null && (isNaN(calendarEntry.defaultAllDayReminder) || calendarEntry.defaultAllDayReminder < -1 || calendarEntry.defaultAllDayReminder > 40320)) {
+      showDialog({type: 'alert',message: 'Default All Day Reminder must be between -1 and 40320.'});
+      return false;
+  }
 
-    showLoadingSpinner();
+  showLoadingSpinner();
 
-    // Load existing calendars from the JSON file
-    google.script.run.withSuccessHandler(function(existingCalendars) {
-        if (existingCalendars.hasOwnProperty(calendarEntry.sourceURL)) {
-            showDialog({
-                type: 'confirm',
-                message: `An entry for '${calendarEntry.sourceCalendarName}' ('${calendarEntry.sourceURL}') already exists. Do you want to update it?`,
-                onConfirm: () => updateCalendar(existingCalendars, calendarEntry.sourceURL, calendarEntry),
-                onCancel: () => {
-                  console.log("Add/Update cancelled.");
-                  hideLoadingSpinner();
-                }
-            });
-        } else {
-            updateCalendar(existingCalendars, calendarEntry.sourceURL, calendarEntry);
-        }
-	}).getCalendars();
+  // Load existing calendars from the JSON file to know if this entry is new or existing
+  if (calendarsFromJSON.hasOwnProperty(calendarEntry.sourceCalendarName)) {
+    calendarsFromJSON[calendarEntry.sourceCalendarName] = calendarEntry;
+    const jsonString = JSON.stringify(calendarsFromJSON);
+    showDialog({
+      type: 'confirm',
+      message: `An entry for '${calendarEntry.sourceCalendarName}' already exists. Do you want to update it?`,
+      onConfirm: function() {
+        google.script.run
+          .withSuccessHandler(function() {
+            showDialog({type: 'alert',message: `Calendar '${calendarEntry.sourceCalendarName}' has been successfully updated.`});
+            refreshPage();
+          })
+          .withFailureHandler(function(error) {
+            // Handle any errors that occur during the execution
+            console.error("Error updating calendar: ", error);
+            showDialog({type: 'alert',message: `Something failed while updating '${calendarEntry.sourceCalendarName}'.`});
+          })
+          .updateCalendars(jsonString);
+      },
+      onCancel: function(){
+      }
+    });
+  } else {
+    calendarsFromJSON[calendarEntry.sourceCalendarName] = calendarEntry;
+    const jsonString = JSON.stringify(calendarsFromJSON);
+    google.script.run
+      .withSuccessHandler(function() {
+        showDialog({type: 'alert',message: `Calendar '${calendarEntry.sourceCalendarName}' has been successfully added.`});
+        refreshPage();
+      })
+      .withFailureHandler(function(error) {
+        console.error("Error updating calendar: ", error);
+        showDialog({type: 'alert',message: `Something failed while adding '${calendarEntry.sourceCalendarName}'.`});
+      })
+      .updateCalendars(jsonString);
+  }
 }
 
-function updateCalendar(existingCalendars, sourceURL, calendarEntry) {
-    existingCalendars[sourceURL] = calendarEntry;
-    const jsonString = JSON.stringify(existingCalendars);
-    google.script.run.withSuccessHandler(refreshPage).updateCalendars(jsonString);
-    console.log(`Calendar ${calendarEntry.sourceCalendarName} added/updated.`);
-}
+//grabs calendar contents to populate html form
+function editCalendar(sourceCalendarName) {
+  if (calendarsFromJSON.hasOwnProperty(sourceCalendarName)) {
+    const calendar = calendarsFromJSON[sourceCalendarName];
+    //ParamUpdate
+    document.getElementById("sourceCalendarName").value = calendar.sourceCalendarName;
+    document.getElementById("sourceURL").value = calendar.sourceURL;
+    document.getElementById("targetCalendarName").value = calendar.targetCalendarName;
+    document.getElementById("color").value = calendar.color;
+    document.getElementById("sourceSyncDelay").value = calendar.sourceSyncDelay;
+    document.getElementById("addEventsToCalendar").checked = calendar.addEventsToCalendar;
+    document.getElementById("modifyExistingEvents").checked = calendar.modifyExistingEvents;
+    document.getElementById("removeEventsFromCalendar").checked = calendar.removeEventsFromCalendar;
+    document.getElementById("onlyFutureEvents").checked = calendar.onlyFutureEvents;
+    document.getElementById("getPastDaysIfOnlyFutureEvents").value = calendar.getPastDaysIfOnlyFutureEvents;
+    document.getElementById("removePastEventsFromCalendar").checked = calendar.removePastEventsFromCalendar;
+    document.getElementById("addOrganizerToTitle").checked = calendar.addOrganizerToTitle;
+    document.getElementById("descriptionAsTitles").checked = calendar.descriptionAsTitles;
+    document.getElementById("addCalToTitle").checked = calendar.addCalToTitle;
+    document.getElementById("addAlerts").value = calendar.addAlerts;
+    document.getElementById("addAttendees").checked = calendar.addAttendees;
+    document.getElementById("defaultAllDayReminder").value = calendar.defaultAllDayReminder;
+    document.getElementById("overrideVisibility").value = calendar.overrideVisibility;
+    document.getElementById("addTasks").checked = calendar.addTasks;
 
-function editCalendar(sourceURL) {
-    if (calendars.hasOwnProperty(sourceURL)) {
-        const calendar = calendars[sourceURL];
-        //ParamUpdate
-        document.getElementById("sourceURL").value = sourceURL;
-        document.getElementById("sourceCalendarName").value = calendar.sourceCalendarName;
-        document.getElementById("targetCalendarName").value = calendar.targetCalendarName;
-        document.getElementById("color").value = calendar.color;
-        document.getElementById("sourceSyncDelay").value = calendar.sourceSyncDelay;
-        document.getElementById("addEventsToCalendar").checked = calendar.addEventsToCalendar;
-        document.getElementById("modifyExistingEvents").checked = calendar.modifyExistingEvents;
-        document.getElementById("removeEventsFromCalendar").checked = calendar.removeEventsFromCalendar;
-        document.getElementById("onlyFutureEvents").checked = calendar.onlyFutureEvents;
-        document.getElementById("getPastDaysIfOnlyFutureEvents").value = calendar.getPastDaysIfOnlyFutureEvents;
-        document.getElementById("removePastEventsFromCalendar").checked = calendar.removePastEventsFromCalendar;
-        document.getElementById("addOrganizerToTitle").checked = calendar.addOrganizerToTitle;
-        document.getElementById("descriptionAsTitles").checked = calendar.descriptionAsTitles;
-        document.getElementById("addCalToTitle").checked = calendar.addCalToTitle;
-        document.getElementById("addAlerts").value = calendar.addAlerts;
-        document.getElementById("addAttendees").checked = calendar.addAttendees;
-        document.getElementById("defaultAllDayReminder").value = calendar.defaultAllDayReminder;
-        document.getElementById("overrideVisibility").value = calendar.overrideVisibility;
-        document.getElementById("addTasks").checked = calendar.addTasks;
-    
-      scrollToTop();
-    } else {
-        // Handle the case where the calendar entry does not exist
-        console.error('Calendar entry not found for URL:', sourceURL);
-        showDialog({
-            type: 'alert',
-            message: 'Calendar entry not found.'
-        });
-    }
+  scrollToTop();
+  } else {
+    // Handle the case where the calendar entry does not exist although this should never happen
+    console.error('Calendar entry not found for URL:', sourceCalendarName);
+    showDialog({type: 'alert',message: 'Calendar entry not found.'});
+  }
 }
 
 function cancelEdit() {
-    document.getElementById("calendarForm").reset();
-    resetFormToDefault();
+  document.getElementById("calendarForm").reset();
+  resetFormToDefault();
 }
 
-function deleteCalendar(sourceURL) {
-  google.script.run.withSuccessHandler(function(data) {
-  calendars = data;
-  const calendar = calendars[sourceURL];
-    showDialog({
-        type: 'confirm',
-        message: `Are you sure you want to delete this calendar - ${calendar.sourceCalendarName} (${sourceURL})?`,
-        onConfirm: function() {
-            showLoadingSpinner();
-            // Load existing calendars from the JSON file
-            google.script.run.withSuccessHandler(function(existingCalendars) {
-                if (existingCalendars.hasOwnProperty(sourceURL)) {
-                    delete existingCalendars[sourceURL];
+//deletes selected calendar from calendars.json
+function deleteCalendar(sourceCalendarName) {
+  const calendar = calendarsFromJSON[sourceCalendarName];
+  if (!calendar) {
+    console.log("Calendar entry not found for URL:", sourceCalendarName);
+    showDialog({type: 'alert',message: 'Calendar entry not found.'});
+    return;
+  }
 
-                    const updatedCalendars = {};
-                    for (const key in existingCalendars) {
-                        if (existingCalendars.hasOwnProperty(key)) {
-                            updatedCalendars[key] = existingCalendars[key];
-                        }
-                    }
-
-                    const jsonString = JSON.stringify(updatedCalendars);
-                    google.script.run.withSuccessHandler(refreshPage).updateCalendars(jsonString);
-                    console.log(`Calendar ${calendar.sourceCalendarName} deleted.`);
-                } else {
-                    showDialog({
-                        type: 'alert',
-                        message: 'Calendar entry not found.'
-                    });
-                    hideLoadingSpinner();
-                }
-            }).getCalendars();
-        },
-        onCancel: function() {
-            console.log("Deletion cancelled.");
-        }
-    });
-  }).getCalendars();
+  showDialog({
+    type: 'confirm',
+    message: `Are you sure you want to delete this calendar - ${calendar.sourceCalendarName}?`,
+    onConfirm: function() {
+      showLoadingSpinner();
+      // Delete the calendar from the local JSON object
+      delete calendarsFromJSON[sourceCalendarName];
+      const jsonString = JSON.stringify(calendarsFromJSON);
+      google.script.run
+        .withSuccessHandler(function(){
+          showDialog({type: 'alert',message: `${sourceCalendarName} deleted successfully.`,});
+          refreshPage ();
+        })
+        .updateCalendars(jsonString);
+      },
+    onCancel: function() {
+      console.log("Deletion cancelled.");
+    }
+  });
 }
 
-function loadCalendarList() {
-    showLoadingSpinner();
-    google.script.run.withSuccessHandler(function(data) {
-        calendars = data;
-        displayCalendars(calendars);
-        var calendarCount = Object.keys(calendars).length;
-        document.getElementById("calendarCountHeader").textContent = `Current Calendars: ${calendarCount}`;
-    }).getCalendars();
-}
 
+
+/*************************************************** General Page functions *****************************************************/
+
+//shows a list of all existing calendars
 function displayCalendars(calendars) {
-  const calendarContainer = document.getElementById("calendarContainer");
-  //console.log(calendarContainer);  only for troubleshooting html output
-  calendarContainer.innerHTML = ''; // Clear any existing content
+    const calendarContainer = document.getElementById("calendarContainer");
+    calendarContainer.innerHTML = ''; // Clear any existing content
 
-  let tableContent = '<table>';
-// Loop over each sourceURL to create tables
-for (const sourceURL in calendars) {
-  if (calendars.hasOwnProperty(sourceURL)) {
-    const calendar = calendars[sourceURL];
-    tableContent += `
+    let tableContent = '<table>';
+    // Loop over each sourceCalendarName to create tables
+    for (const sourceCalendarName in calendars) {
+        if (calendars.hasOwnProperty(sourceCalendarName)) {
+            const calendar = calendars[sourceCalendarName];
+            tableContent += `
       //<!--//ParamUpdate-->
-      <tr><td><b>Source URL:</b></td><td colspan="100%"><b>${calendar.sourceURL}</b></td></tr>
-      <tr><td>Source Calendar Name:</td><td>${calendar.sourceCalendarName}</td></tr>
+      <tr><td><b>Source Calendar Name:</b></td><td><b>${calendar.sourceCalendarName}</b></td></tr>
+      <tr><td width="200">Source URL:</td><td class="wrap" width="800">${calendar.sourceURL}</td></tr>
       <tr><td>Target Calendar Name:</td><td>${calendar.targetCalendarName}</td></tr>
       <tr><td>Color:</td><td>${calendar.color || ''}</td></tr>
       <tr><td>Sync Delay:</td><td>${calendar.sourceSyncDelay || ''}</td></tr>
@@ -453,31 +458,34 @@ for (const sourceURL in calendars) {
       <tr><td>Override Event Visibility:</td><td>${calendar.overrideVisibility || ''}</td></tr>
       <tr><td>Add Tasks:</td><td>${calendar.addTasks || ''}</td></tr>
       <tr>
-        <td>
-          <button type="button" onclick="editCalendar('${sourceURL}')">Edit</button>
-          <button type="button" onclick="deleteCalendar('${sourceURL}')">Delete</button>
+        <td style="border: none;">
+          <button onclick="editCalendar('${sourceCalendarName}')">Edit</button>
+          <button onclick="deleteCalendar('${sourceCalendarName}')">Delete</button>
         </td>
       </tr>
+      <tr><td style="border: none;" colspan="100%""><hr style="height: 3px; width:1000; align:left; background-color: #333;" ></td></tr>
     `;
-  }
-}
-  tableContent += '</table>';
-  calendarContainer.innerHTML = tableContent; // Append the new list to the container
-  resetFormToDefault();
+        }
+    }
+    tableContent += '</table>';
+    calendarContainer.innerHTML = tableContent; // Append the new list to the container
+    resetFormToDefault();
 }
 
 function refreshPage() {
-    // Clear input fields and reset the form
-    document.getElementById("calendarForm").reset();
-    // Reload the calendar list
-    loadCalendarList();
-    loadAppSettings();
+  // Clear input fields and reset the form
+  document.getElementById("calendarForm").reset();
+  // Reload the calendar list
+  loadCalendarList();
+  loadAppSettings();
+  scrollToTop();
 }
+
+// Clear input fields and reset checkboxes to default.  Needed this as separate function so it could be called separately to clear the form only.
 function resetFormToDefault() {
-  // Clear input fields and reset checkboxes to default.  Needed this as separate function so it could be called separately to clear the form only.
   //ParamUpdate
-  document.getElementById("sourceURL").value = "";
   document.getElementById("sourceCalendarName").value = "";
+  document.getElementById("sourceURL").value = "";
   document.getElementById("targetCalendarName").value = "";
   document.getElementById("color").value = "";
   document.getElementById("sourceSyncDelay").value = "";
@@ -508,70 +516,79 @@ function hideLoadingSpinner() {
 
 //including custom dialogs because I don't like the default dialog.
 function showDialog(options) {
-    const { type, message, onConfirm, onCancel, edit } = options;
+  const {
+    type,
+    message,
+    onConfirm,
+    onCancel,
+    edit
+  } = options;
 
-    document.getElementById('dialogMessage').innerText = message;
-    const dialogButtons = document.getElementById('dialogButtons');
-    dialogButtons.innerHTML = ''; // Clear previous buttons
+  document.getElementById('dialogMessage').innerText = message;
+  const dialogButtons = document.getElementById('dialogButtons');
+  dialogButtons.innerHTML = ''; // Clear previous buttons
 
-    // Create Confirm button for 'confirm' type
-    if (type === 'confirm') {
-        const confirmBtn = document.createElement('button');
-        confirmBtn.innerText = 'Confirm';
-        confirmBtn.onclick = function() {
-            closeDialog();
-            if (onConfirm) onConfirm();
-        };
-        dialogButtons.appendChild(confirmBtn);
+  // Create Confirm button for 'confirm' type
+  if (type === 'confirm') {
+    const confirmBtn = document.createElement('button');
+    confirmBtn.innerText = 'Confirm';
+    confirmBtn.onclick = function () {
+      closeDialog();
+      if (onConfirm)
+        onConfirm();
+      };
+    dialogButtons.appendChild(confirmBtn);
 
-    // Create Cancel button for 'confirm' type
-        const cancelBtn = document.createElement('button');
-        cancelBtn.innerText = 'Cancel';
-        cancelBtn.onclick = function() {
-            closeDialog();
-            if (onCancel) onCancel();
-        };
-        dialogButtons.appendChild(cancelBtn);
-    }
+  // Create Cancel button for 'confirm' type
+    const cancelBtn = document.createElement('button');
+    cancelBtn.innerText = 'Cancel';
+    cancelBtn.onclick = function () {
+      closeDialog();
+      if (onCancel)
+        onCancel();
+        hideLoadingSpinner();
+      };
+    dialogButtons.appendChild(cancelBtn);
+  }
 
     // Create OK button for 'alert' type
-    if (type === 'alert') {
-        const okBtn = document.createElement('button');
-        okBtn.innerText = 'OK';
-        okBtn.onclick = closeDialog;
-        dialogButtons.appendChild(okBtn);
-    }
+  if (type === 'alert') {
+    const okBtn = document.createElement('button');
+    okBtn.innerText = 'OK';
+    okBtn.onclick = closeDialog;
+    dialogButtons.appendChild(okBtn);
+  }
 
-    if (type === 'edit') {
-        document.getElementById('dialogMessage').innerHTML = message;  // Use innerHTML for formContent
+  if (type === 'edit') {
+    document.getElementById('dialogMessage').innerHTML = message; // Use innerHTML for formContent
 
-        // Create Save and Cancel buttons
-        const saveBtn = document.createElement('button');
-        saveBtn.innerText = 'Save';
-        saveBtn.onclick = function() {
-            if (onConfirm) onConfirm();
-        };
-        dialogButtons.appendChild(saveBtn);
+    // Create Save and Cancel buttons
+    const saveBtn = document.createElement('button');
+    saveBtn.innerText = 'Save';
+    saveBtn.onclick = function () {
+      if (onConfirm)
+        onConfirm();
+    };
+    dialogButtons.appendChild(saveBtn);
 
-        const cancelBtn = document.createElement('button');
-        cancelBtn.innerText = 'Cancel';
-        cancelBtn.onclick = closeDialog;
-        dialogButtons.appendChild(cancelBtn);
-    }
+    const cancelBtn = document.createElement('button');
+    cancelBtn.innerText = 'Cancel';
+    cancelBtn.onclick = closeDialog;
+    dialogButtons.appendChild(cancelBtn);
+  }
 
-    document.getElementById('customDialog').style.display = 'block';
-    document.getElementById('dialogBackground').style.display = 'block';
+  document.getElementById('customDialog').style.display = 'block';
+  document.getElementById('dialogBackground').style.display = 'block';
 }
 
 function closeDialog() {
-    document.getElementById('customDialog').style.display = 'none';
-    document.getElementById('dialogBackground').style.display = 'none';
+  document.getElementById('customDialog').style.display = 'none';
+  document.getElementById('dialogBackground').style.display = 'none';
 }
 
 function scrollToTop() {
-    document.body.scrollTop = 0; // For Safari
-    document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
-
+  document.body.scrollTop = 0; // For Safari
+  document.documentElement.scrollTop = 0; // For Chrome, Firefox, IE and Opera
 }
 
 </script>
