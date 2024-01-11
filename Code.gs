@@ -6,16 +6,18 @@
 * 1) Make a copy:
 *      New Interface: Go to the project overview icon on the left (looks like this: ⓘ), then click the "copy" icon on the top right (looks like two files on top of each other)
 *      Old Interface: Click in the menu "File" > "Make a copy..." and make a copy to your Google Drive
-* 2) Code Settings: Change lines 25-29 to be the settings that you want to use
-* 3) Install:
+* 2) Authorize: You will be prompted to authorize the program and will need to click "Advanced" > "Go to GAS-ICS-Sync (unsafe)"
+*    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
+* 3) Calendars and Settings: Click on "Deploy" (in the upper-right)-->"Test Deployments". In the dialog box that pops up, click the URL under web app. This will bring up the Calendar
+*    Manager webpage. From here you can manage global app setings, install, uninstall, and add/edit/delete calendars and their associated settings.  Two files called appSettings.json
+*    and calendars.json will be saved to your My Drive folder in Google Drive.  You can manually edit the json files in Google Drive if you don't want to use the html interface.
+*
+* Manual Interface:
+* 1) Install:
 *      New Interface: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
 *      Old Interface: Click "Run" > "Run function" > "install"
-* 4) Authorize: You will be prompted to authorize the program and will need to click "Advanced" > "Go to GAS-ICS-Sync (unsafe)"
-*    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
-* 5) Calendars and Settings: Click on "Deploy" (in the upper-right)-->"Test Deployments". In the dialog box that pops up, click the URL under web app. This should bring up the Calendar Manager webpage. From here you can add/edit/delete calendars and their associated settings.  A file called calendars.json will be saved to your My Drive folder in Google Drive.  You can manually edit the json calendar settings if you don't want to use the html interface.
-* 6) You can also run "startSync" if you want to sync only once (New Interface: change the dropdown to the right of "Debug" from "install" to "startSync")
-*
-* **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
+* 2) You can also run "startSync" if you want to sync only once (New Interface: change the dropdown to the right of "Debug" from "install" to "startSync").
+* 3) To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
 *
 *=========================================
 *           ABOUT THE AUTHOR
@@ -61,95 +63,19 @@
 //!!!!!!!!!!!!!!!! DO NOT EDIT BELOW HERE UNLESS YOU REALLY KNOW WHAT YOU'RE DOING !!!!!!!!!!!!!!!!!!!!
 //=====================================================================================================
 
-function doGet(e) {
-  var template = HtmlService.createTemplateFromFile('index');
-  var htmlOutput = template.evaluate().setTitle('Calendar Manager');
-  return htmlOutput;
-}
-
-//this function is only for html to make sure user can only install after App Settings have been set.
-var appSettingsFlag = false;
-function validateInstall() {
-  if (appSettingsFlag) {
-    // Check for required settings if necessary
-    Logger.log("Install started from html.")
-    return true;
-  }else{
-  Logger.log("Install from html not allowed because no App Settings found.")
-  return false;
-  }
-}
-
-//Save appSettings.json to Google Drive (My Drive "root" directory)
-function updateAppSettings(jsonString) {
-  const folder = DriveApp.getRootFolder();
-  const files = folder.getFilesByName('appSettings.json');
-
-  if (files.hasNext()) {
-    const file = files.next();
-    file.setContent(jsonString);
-  } else {
-    //will create appSettings.json file if one doesn't exist
-    folder.createFile('appSettings.json', jsonString, MimeType.PLAIN_TEXT);
-  }
-}
-
-//retrieve App Settings from appSettings.json for use in index.html
-function getAppSettings() {
-  const folder = DriveApp.getRootFolder();
-  const files = folder.getFilesByName('appSettings.json');
-
-  if (files.hasNext()) {
-    const file = files.next();
-    const jsonContent = file.getBlob().getDataAsString();
-    return JSON.parse(jsonContent); // Parse the JSON content
-  } else {
-    Logger.log("App Settings json file not found.");
-    return false;
-  }
-}
-
-var appSettings = getAppSettings();
+var appSettings = getAppSettings(); //set appSettings object from appSettings.json
 var howFrequent = appSettings.howFrequent;
 var emailSummary = appSettings.emailSummary === true;
 var email = appSettings.email;
 var customEmailSubject = appSettings.customEmailSubject;
 var dateFormat = appSettings.dateFormat;
 
-// Grab calendars.json from Google Drive (My Drive "root" directory)
-function updateCalendars(jsonString) {
-  const folder = DriveApp.getRootFolder();
-  const files = folder.getFilesByName('calendars.json');
-
-  if (files.hasNext()) {
-    const file = files.next();
-    //saves new key/value pair or updates existing pair
-    file.setContent(jsonString);
-  } else {
-    //will create calendars.json file if one doesn't exist
-    folder.createFile('calendars.json', jsonString, MimeType.PLAIN_TEXT);
-  }
-}
-
-function getCalendars() {
-  const folder = DriveApp.getRootFolder();
-  const files = folder.getFilesByName('calendars.json');
-
-  if (files.hasNext()) {
-    const file = files.next();
-    const jsonContent = file.getBlob().getDataAsString();
-    return JSON.parse(jsonContent); // Parse the JSON content
-  } else {
-    return {}; // Return an empty object if the file doesn't exist yet
-  }
-}
-
 var defaultMaxRetries = 10; // Maximum number of retries for api functions (with exponential backoff)
 
 function install() {
   // Delete any already existing triggers so we don't create excessive triggers
   deleteAllTriggers();
-
+  
   // Schedule sync routine to explicitly repeat and schedule the initial sync
   var adjustedMinutes = getValidTriggerFrequency(howFrequent);
   if (adjustedMinutes >= 60) {
@@ -192,29 +118,6 @@ var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
 
-//Set default values in case they aren't specified in the json (specifically checkboxes=false because json doesn't store false).  Will override later if json value present.
-function getDefaultCalendarConfig() {
-    return {
-        //ParamUpdate
-        color: "",
-        sourceSyncDelay: "",
-        addEventsToCalendar: false,
-        modifyExistingEvents: false,
-        removeEventsFromCalendar: false,
-        onlyFutureEvents: false,
-        getPastDaysIfOnlyFutureEvents: "",
-        removePastEventsFromCalendar: false,
-        addOrganizerToTitle: false,
-        descriptionAsTitles: false,
-        addCalToTitle: false,
-        addAlerts: "yes",
-        addAttendees: false,
-        defaultAllDayReminder: -1,
-        overrideVisibility: "",
-        addTasks: false,
-    };
-}
-
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
@@ -241,7 +144,7 @@ function startSync(){
   for (var key in sourceCalendars){
     if (sourceCalendars.hasOwnProperty(key)) {
       var calendar = sourceCalendars[key];
-      var calendarConfig = Object.assign(getDefaultCalendarConfig(), calendar);
+      var calendarConfig = Object.assign(calendar);
     }
 
     //------------------------ Reset globals ------------------------
