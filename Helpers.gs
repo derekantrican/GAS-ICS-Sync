@@ -1,3 +1,71 @@
+//used by index.html to render the html output
+function doGet(e) {
+  var template = HtmlService.createTemplateFromFile('index');
+  var htmlOutput = template.evaluate().setTitle('Calendar Manager');
+  return htmlOutput;
+}
+
+//retrieve App Settings from appSettings.json; create file if it doesn't exist.  This gets use on client and server side.
+function getAppSettings() {
+  const folder = DriveApp.getRootFolder(); //Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('appSettings.json');
+  if (files.hasNext()){
+    const file = files.next();
+    const jsonContent = file.getBlob().getDataAsString();
+    Logger.log("appSettings.json file retrieved.");
+    return JSON.parse(jsonContent); // send the json contents back
+  }else{
+    const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+    const defaultSettings = {howFrequent: 15}; //set default trigger setting
+    folder.createFile('appSettings.json', JSON.stringify(defaultSettings), MimeType.PLAIN_TEXT);
+    Logger.log("Default appSettings.json file created.")
+    return getAppSettings();// Recursively call itself to read the newly created file
+  }
+}
+
+//Save changes to appSettings.json
+function updateAppSettings(jsonString) {
+  const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('appSettings.json');
+  const file = files.next();
+  file.setContent(jsonString);
+  Logger.log("appSettings.json updated successfully with jsonString: " + jsonString);
+}
+
+// Grab calendars.json from Google Drive (My Drive "root" directory) and update with new entries or updates.
+function updateCalendars(jsonString) {
+  const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('calendars.json');
+
+  if (files.hasNext()) {
+    const file = files.next();
+    //saves new key/value pair or updates existing pair
+    file.setContent(jsonString);
+    Logger.log("calendars.json updated.");
+    return true;
+  } else {
+    //will create calendars.json file if one doesn't exist
+    folder.createFile('calendars.json', jsonString, MimeType.PLAIN_TEXT);
+    Logger.log("calendars.json created.");
+    return false;
+  }
+}
+
+// Grab calendars.json from Google Drive (My Drive "root" directory)
+function getCalendars() {
+  const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('calendars.json');
+
+  if (files.hasNext()) {
+    const file = files.next();
+    const jsonContent = file.getBlob().getDataAsString();
+    return JSON.parse(jsonContent); // Parse the JSON content
+  } else {
+    return {}; // Return an empty object if the file doesn't exist yet.  Technically the script will fail after an Install if there are no calendars defined yet, but once someone defines 1+ calendars, they will get picked up.
+  }
+}
+
+
 /**
  * Formats the date and time according to the format specified in the configuration.
  *
