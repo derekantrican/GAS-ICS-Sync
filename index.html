@@ -162,7 +162,7 @@
 function install() {
   google.script.run
     .withSuccessHandler(function() {
-      showDialog({type: 'alert', message: 'Install Successful.'});
+      showDialog({type: 'alert', message: 'Install successful.'});
     })
     .withFailureHandler(function(){
       showDialog({ type: 'alert', message: 'Install server error.'});
@@ -174,7 +174,7 @@ function install() {
 function uninstall() {
   google.script.run
   .withSuccessHandler(function() {
-    showDialog({type: 'alert',message: 'Uninstall Successful.'});
+    showDialog({type: 'alert',message: 'Uninstall successful.'});
   })
   .withFailureHandler(function(){
       showDialog({ type: 'alert', message: 'Uninstall server error.'});
@@ -231,7 +231,6 @@ function saveAppSettings() {
   const jsonString = JSON.stringify(appSettings);
   google.script.run
     .withSuccessHandler(function(){
-      console.log("Settings updated successfully.");
       showDialog({type: 'alert', message: 'Settings updated successfully.  If Trigger Frequency was changed, you will need to re-install.'});
       refreshPage();
     })
@@ -396,7 +395,6 @@ function cancelEdit() {
 function deleteCalendar(sourceCalendarName) {
   const calendar = calendarsFromJSON[sourceCalendarName];
   if (!calendar) {
-    console.log("Calendar entry not found for URL:", sourceCalendarName);
     showDialog({type: 'alert',message: 'Calendar entry not found.'});
     return;
   }
@@ -417,7 +415,6 @@ function deleteCalendar(sourceCalendarName) {
         .updateCalendars(jsonString);
       },
     onCancel: function() {
-      console.log("Deletion cancelled.");
     }
   });
 }
