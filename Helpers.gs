@@ -370,29 +370,14 @@ function createEvent(event, calendarTz){
     };
   }
   else{ //Normal (not all-day) event
-    var tzid = icalEvent.startDate.timezone;
-    if (tzids.indexOf(tzid) == -1){
-
-      var oldTzid = tzid;
-      if (tzid in tzidreplace){
-        tzid = tzidreplace[tzid];
-      }
-      else{
-        //floating time
-        tzid = calendarTz;
-      }
-
-      Logger.log("Converting ICS timezone " + oldTzid + " to Google Calendar (IANA) timezone " + tzid);
-    }
-
     newEvent = {
       start: {
         dateTime : icalEvent.startDate.toString(),
-        timeZone : tzid
+        timeZone : validateTimeZone(icalEvent.startDate.timezone.toString())
       },
       end: {
         dateTime : icalEvent.endDate.toString(),
-        timeZone : tzid
+        timeZone : validateTimeZone(icalEvent.endDate.timezone.toString())
       },
     };
   }
@@ -827,6 +812,26 @@ function processTasks(responses){
     Logger.log("Done removing tasks");
   }
   //----------------------------------------------------------------
+}
+
+/**
+ * Validates provided Timezone descriptor and if needed replaces it with an IANA timezone descriptor.
+ *
+ * @param {string} tzid - Timezone descriptor to validate
+ * @return {string} Valid IANA timezone descriptor
+ */
+function validateTimeZone(tzid){
+  let IanaTZ;
+  if (tzids.indexOf(tzid) == -1){
+    if (tzid in tzidreplace){
+      IanaTZ = tzidreplace[tzid];
+    }
+    else{//floating time
+      IanaTZ = calendarTz;
+    }
+    Logger.log("Converting ICS timezone " + tzid + " to Google Calendar (IANA) timezone " + IanaTZ);
+  }
+  return IanaTZ || tzid;
 }
 
 /**
