@@ -152,46 +152,66 @@ function startSync(){
   }
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-
+  var currentDate = new Date();
   if (onlyFutureEvents)
-    startUpdateTime = new ICAL.Time.fromJSDate(new Date());
+    startUpdateTime = new ICAL.Time.fromJSDate(new Date(currentDate.setDate(currentDate.getDate() - getPastDaysIfOnlyFutureEvents)));
 
   //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
 
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
   for (var calendar of sourceCalendars){
     //------------------------ Reset globals ------------------------
+    var sourceURL = calendar[0];
+    var sourceCalendarName = calendar[1];
+    var targetCalendarName = calendar[2];
+    var color = calendar[3];
     calendarEvents = [];
     calendarEventsIds = [];
     icsEventsIds = [];
     calendarEventsMD5s = [];
     recurringEvents = [];
-
-    targetCalendarName = calendar[0];
-    var sourceCalendarURLs = calendar[1];
     var vevents;
 
+//------------------------ Determine whether to sync each calendar based on SyncDelay ------------------------
+        let sourceSyncDelay = Number(calendar[4])*60*1000;
+    let currentTime = Number(new Date().getTime());
+    let lastSyncTime = Number(PropertiesService.getUserProperties().getProperty(sourceCalendarName));
+    var lastSyncDelta = currentTime - lastSyncTime;
+
+    if (isNaN(sourceSyncDelay)) {
+      Logger.log("Syncing " + sourceCalendarName + " because no SyncDelay defined.");
+    } else if (lastSyncDelta >= sourceSyncDelay) {
+      Logger.log("Syncing " + sourceCalendarName + " because lastSyncDelta ("+ (lastSyncDelta/60/1000).toFixed(1) + ") is greater than sourceSyncDelay (" + (sourceSyncDelay/60/1000).toFixed(0) + ").");
+    } else if (lastSyncDelta < sourceSyncDelay) {
+      Logger.log("Skipping " + sourceCalendarName + " because lastSyncDelta ("+ (lastSyncDelta/60/1000).toFixed(1) + ") is less than sourceSyncDelay (" + (sourceSyncDelay/60/1000).toFixed(0) + ").");
+      continue;
+    }
+
     //------------------------ Fetch URL items ------------------------
-    var responses = fetchSourceCalendars(sourceCalendarURLs);
-    Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
+    var responses = fetchSourceCalendars([[sourceURL, color]]);
+    //Skip the source calendar if a 5xx or 4xx error is returned.  This prevents deleting all of the existing entries if the URL call fails.
+    if (responses.length == 0){
+      Logger.log("Error Syncing " + sourceCalendarName + ". Skipping...");
+      continue;
+      }
+    Logger.log("Syncing " + sourceCalendarName + " calendar to " + targetCalendarName);
 
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
-    Logger.log("Working on calendar: " + targetCalendarId);
+    Logger.log("Working on target calendar: " + targetCalendarId);
 
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
       var eventList =
         callWithBackoff(function(){
-            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: 'fromGAS=' + sourceCalendarName, maxResults: 2500});
         }, defaultMaxRetries);
       calendarEvents = [].concat(calendarEvents, eventList.items);
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
         eventList = callWithBackoff(function(){
-          return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
+          return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: 'fromGAS=' + sourceCalendarName, maxResults: 2500, pageToken: eventList.nextPageToken});
         }, defaultMaxRetries);
 
         if (eventList != null)
@@ -219,7 +239,7 @@ function startSync(){
         }, defaultMaxRetries);
 
       vevents.forEach(function(e){
-        processEvent(e, calendarTz);
+        processEvent(e, calendarTz, targetCalendarId, sourceCalendarName);
       });
 
       Logger.log("Done processing events");
@@ -228,7 +248,7 @@ function startSync(){
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
-      processEventCleanup();
+      processEventCleanup(sourceURL);
       Logger.log("Done checking events for removal");
     }
 
@@ -242,6 +262,8 @@ function startSync(){
     for (var recEvent of recurringEvents){
       processEventInstance(recEvent);
     }
+    //Set last sync time for given sourceCalendar
+      PropertiesService.getUserProperties().setProperty(sourceCalendarName, new Date().getTime());
   }
 
   if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
