@@ -174,6 +174,11 @@ function startSync(){
 
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
+      //Skip the source calendar if a 5xx or 4xx error is returned.  This prevents deleting all of the existing entries if the URL call fails.
+      if (responses.length == 0){
+        Logger.log("Error Syncing " + sourceCalendarName + ". Skipping...");
+        continue;
+        }
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
 
     //------------------------ Get target calendar information------------------------
