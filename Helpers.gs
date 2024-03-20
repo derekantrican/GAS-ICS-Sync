@@ -1,3 +1,71 @@
+//used by index.html to render the html output
+function doGet(e) {
+  var template = HtmlService.createTemplateFromFile('index');
+  var htmlOutput = template.evaluate().setTitle('Calendar Manager');
+  return htmlOutput;
+}
+
+//retrieve App Settings from appSettings.json; create file if it doesn't exist.  This gets use on client and server side.
+function getAppSettings() {
+  const folder = DriveApp.getRootFolder(); //Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('appSettings.json');
+  if (files.hasNext()){
+    const file = files.next();
+    const jsonContent = file.getBlob().getDataAsString();
+    Logger.log("appSettings.json file retrieved.");
+    return JSON.parse(jsonContent); // send the json contents back
+  }else{
+    const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+    const defaultSettings = {howFrequent: 15}; //set default trigger setting
+    folder.createFile('appSettings.json', JSON.stringify(defaultSettings), MimeType.PLAIN_TEXT);
+    Logger.log("Default appSettings.json file created.")
+    return getAppSettings();// Recursively call itself to read the newly created file
+  }
+}
+
+//Save changes to appSettings.json
+function updateAppSettings(jsonString) {
+  const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('appSettings.json');
+  const file = files.next();
+  file.setContent(jsonString);
+  Logger.log("appSettings.json updated successfully with jsonString: " + jsonString);
+}
+
+// Grab calendars.json from Google Drive (My Drive "root" directory) and update with new entries or updates.
+function updateCalendars(jsonString) {
+  const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('calendars.json');
+
+  if (files.hasNext()) {
+    const file = files.next();
+    //saves new key/value pair or updates existing pair
+    file.setContent(jsonString);
+    Logger.log("calendars.json updated.");
+    return true;
+  } else {
+    //will create calendars.json file if one doesn't exist
+    folder.createFile('calendars.json', jsonString, MimeType.PLAIN_TEXT);
+    Logger.log("calendars.json created.");
+    return false;
+  }
+}
+
+// Grab calendars.json from Google Drive (My Drive "root" directory)
+function getCalendars() {
+  const folder = DriveApp.getRootFolder();//Google Drive (My Drive "root" directory)
+  const files = folder.getFilesByName('calendars.json');
+
+  if (files.hasNext()) {
+    const file = files.next();
+    const jsonContent = file.getBlob().getDataAsString();
+    return JSON.parse(jsonContent); // Parse the JSON content
+  } else {
+    return {}; // Return an empty object if the file doesn't exist yet.  Technically the script will fail after an Install if there are no calendars defined yet, but once someone defines 1+ calendars, they will get picked up.
+  }
+}
+
+
 /**
  * Formats the date and time according to the format specified in the configuration.
  *
@@ -89,6 +157,7 @@ String.prototype.includes = function(phrase){
  * @param {Array.string} calendarMap - User-defined calendar map
  * @return {Array.string} Condensed calendar map
  */
+
 function condenseCalendarMap(calendarMap){
   var result = [];
   for (var mapping of calendarMap){
@@ -201,7 +270,7 @@ function setupTargetCalendar(targetCalendarName){
  * @param {Array.string} responses - Array with all ical sources
  * @return {Array.ICALComponent} Array with all events found
  */
-function parseResponses(responses){
+function parseResponses(responses, onlyFutureEvents){
   var result = [];
   for (var itm of responses){
     var resp = itm[0];
@@ -242,7 +311,7 @@ function parseResponses(responses){
     });
   }
 
-  //No need to process calcelled events as they will be added to gcal's trash anyway
+  //No need to process cancelled events as they will be added to gcal's trash anyway
   result = result.filter(function(event){
     try{
       return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
@@ -286,9 +355,9 @@ function parseResponses(responses){
  * @param {ICAL.Component} event - The event to process
  * @param {string} calendarTz - The timezone of the target calendar
  */
-function processEvent(event, calendarTz){
+ function processEvent(event, calendarTz, targetCalendarId, sourceCalendarName, calendarConfig){
   //------------------------ Create the event object ------------------------
-  var newEvent = createEvent(event, calendarTz);
+  var newEvent = createEvent(event, calendarTz, sourceCalendarName, calendarConfig);
   if (newEvent == null)
     return;
 
@@ -305,25 +374,25 @@ function processEvent(event, calendarTz){
   else{
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
-      if (modifyExistingEvents){
+      if (calendarConfig.modifyExistingEvents){
         oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], targetCalendarName]);
+          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], calendarConfig.targetCalendarName]);
         }
       }
     }
     else{
-      if (addEventsToCalendar){
+      if (calendarConfig.addEventsToCalendar){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
         if (newEvent != null && emailSummary){
-          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], targetCalendarName]);
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], calendarConfig.targetCalendarName]);
         }
       }
     }
@@ -341,10 +410,10 @@ function processEvent(event, calendarTz){
  * @param {string} calendarTz - The timezone of the target calendar
  * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
  */
-function createEvent(event, calendarTz){
+function createEvent(event, calendarTz, sourceCalendarName, calendarConfig){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event, {strictExceptions: true});
-  if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
+  if (calendarConfig.onlyFutureEvents && checkSkipEvent(event, icalEvent)){
     return;
   }
 
@@ -382,7 +451,7 @@ function createEvent(event, calendarTz){
     };
   }
 
-  if (addAttendees && event.hasProperty('attendee')){
+  if (calendarConfig.addAttendees && event.hasProperty('attendee')){
     newEvent.attendees = [];
     for (var att of icalEvent.attendees){
       var mail = parseAttendeeMail(att.toICALString());
@@ -420,7 +489,7 @@ function createEvent(event, calendarTz){
     //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
   }
 
-  if (descriptionAsTitles && event.hasProperty('description'))
+  if (calendarConfig.descriptionAsTitles && event.hasProperty('description'))
     newEvent.summary = icalEvent.description;
   else if (event.hasProperty('summary'))
     newEvent.summary = icalEvent.summary;
@@ -441,11 +510,10 @@ function createEvent(event, calendarTz){
     }
   }
 
-  if (addCalToTitle && event.hasProperty('parentCal')){
-    var calName = event.getFirstPropertyValue('parentCal');
-    newEvent.summary = "(" + calName + ") " + newEvent.summary;
+  if (calendarConfig.addCalToTitle && event.hasProperty('parentCal')){
+    //var calName = event.getFirstPropertyValue('parentCal');
+    newEvent.summary = newEvent.summary + " (" + sourceCalendarName + ")";
   }
-
   if (event.hasProperty('description'))
     newEvent.description = icalEvent.description;
 
@@ -453,8 +521,8 @@ function createEvent(event, calendarTz){
     newEvent.location = icalEvent.location;
 
   var validVisibilityValues = ["default", "public", "private", "confidential"];
-  if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
-    newEvent.visibility = overrideVisibility.toLowerCase();
+  if ( validVisibilityValues.includes(calendarConfig.overrideVisibility.toLowerCase()) ) {
+    newEvent.visibility = calendarConfig.overrideVisibility.toLowerCase();
   } else if (event.hasProperty('class')){
     var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
     if (validVisibilityValues.includes(classString))
@@ -468,8 +536,8 @@ function createEvent(event, calendarTz){
   }
 
   if (icalEvent.startDate.isDate){
-    if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320){
-      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : defaultAllDayReminder}]};//reminder as defined by the user
+    if (0 <= calendarConfig.defaultAllDayReminder && calendarConfig.defaultAllDayReminder <= 40320){
+      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : calendarConfig.defaultAllDayReminder}]};//reminder as defined by the user
     }
     else{
       newEvent.reminders = { 'useDefault' : false, 'overrides' : []};//no reminder
@@ -479,7 +547,7 @@ function createEvent(event, calendarTz){
     newEvent.reminders = { 'useDefault' : true, 'overrides' : []};//will set the default reminders as set at calendar.google.com
   }
 
-  switch (addAlerts) {
+  switch (calendarConfig.addAlerts) {
     case "yes":
       var valarms = event.getAllSubcomponents('valarm');
       if (valarms.length > 0){
@@ -530,7 +598,7 @@ function createEvent(event, calendarTz){
     newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
   }
 
-  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
+  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : sourceCalendarName, id : icalEvent.uid } };
 
   if (event.hasProperty('recurrence-id')){
     newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
@@ -677,13 +745,13 @@ function checkSkipEvent(event, icalEvent){
  *
  * @param {Calendar.Event} recEvent - The event instance to process
  */
-function processEventInstance(recEvent){
+function processEventInstance(recEvent, calendarConfig){
   Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
 
   var eventInstanceToPatch = callWithBackoff(function(){
     return Calendar.Events.list(targetCalendarId,
       { singleEvents : true,
-        privateExtendedProperty : "fromGAS=true",
+        privateExtendedProperty : 'fromGAS=' + sourceCalendarName,
         privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
       }).items;
   }, defaultMaxRetries);
@@ -701,14 +769,14 @@ function processEventInstance(recEvent){
           orderBy : "startTime",
           maxResults: 1,
           timeMin : recEvent.recurringEventId,
-          privateExtendedProperty : "fromGAS=true",
+          privateExtendedProperty : 'fromGAS=' + sourceCalendarName,
           privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
         }).items;
     }, defaultMaxRetries);
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    if (modifyExistingEvents){
+    if (calendarConfig.modifyExistingEvents){
       Logger.log("Updating existing event instance");
       callWithBackoff(function(){
         Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
@@ -716,7 +784,7 @@ function processEventInstance(recEvent){
     }
   }
   else{
-    if (addEventsToCalendar){
+    if (calendarConfig.addEventsToCalendar){
       Logger.log("No Instance matched, adding as new event!");
       callWithBackoff(function(){
         Calendar.Events.insert(recEvent, targetCalendarId);
@@ -729,7 +797,7 @@ function processEventInstance(recEvent){
  * Deletes all events from the target calendar that no longer exist in the source calendars.
  * If onlyFutureEvents is set to true, events that have taken place since the last sync are also removed.
  */
-function processEventCleanup(){
+function processEventCleanup(sourceURL, removePastEventsFromCalendar, targetCalendarName){
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
@@ -783,7 +851,7 @@ function processTasks(responses){
 
   vtasks.forEach(function(task){ icsTasksIds.push(task.getFirstPropertyValue('uid').toString()); });
 
-  Logger.log("\tProcessing " + vtasks.length + " tasks");
+  Logger.log("Processing " + vtasks.length + " tasks");
   for (var task of vtasks){
     var newtask = Tasks.newTask();
     newtask.id = task.getFirstPropertyValue("uid").toString();
@@ -793,7 +861,7 @@ function processTasks(responses){
 
     Tasks.Tasks.insert(newtask, taskList.id);
   }
-  Logger.log("\tDone processing tasks");
+  Logger.log("Done processing tasks");
 
   //-------------- Remove old Tasks -----------
   // ID can't be used as identifier as the API reassignes a random id at task creation
@@ -1133,7 +1201,7 @@ function checkForUpdate(){
 
   var lastAlertedVersion = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   try {
-    var thisVersion = 5.8;
+    var thisVersion = 6.0;
     var latestVersion = getLatestVersion();
 
     if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
