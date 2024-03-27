@@ -373,11 +373,11 @@ function createEvent(event, calendarTz){
     newEvent = {
       start: {
         dateTime : icalEvent.startDate.toString(),
-        timeZone : validateTimeZone(icalEvent.startDate.timezone.toString())
+        timeZone : validateTimeZone(icalEvent.startDate.timezone.toString(), calendarTz)
       },
       end: {
         dateTime : icalEvent.endDate.toString(),
-        timeZone : validateTimeZone(icalEvent.endDate.timezone.toString())
+        timeZone : validateTimeZone(icalEvent.endDate.timezone.toString(), calendarTz)
       },
     };
   }
@@ -820,7 +820,7 @@ function processTasks(responses){
  * @param {string} tzid - Timezone descriptor to validate
  * @return {string} Valid IANA timezone descriptor
  */
-function validateTimeZone(tzid){
+function validateTimeZone(tzid, calendarTz){
   let IanaTZ;
   if (tzids.indexOf(tzid) == -1){
     if (tzid in tzidreplace){
