@@ -134,7 +134,20 @@ function fetchSourceCalendars(sourceCalendarURLs){
     var colorId = source[1];
     
     callWithBackoff(function() {
-      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+      var urlReponse;
+      const urlObject = new URI(url);
+      const username = urlObject.username();
+      const password = urlObject.password();
+      if (username != "" || password != "") {
+        // unset username and password from the url, otherwise this raises "Login information disallowed"
+        urlObject.username("");
+        urlObject.password("");
+        urlResponse = UrlFetchApp.fetch(urlObject, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true,
+          "headers": { "Authorization": "Basic " + Utilities.base64Encode(username+":"+password) }
+        });
+      } else {
+        urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+      }
       if (urlResponse.getResponseCode() == 200){
         var icsContent = urlResponse.getContentText()
         const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
