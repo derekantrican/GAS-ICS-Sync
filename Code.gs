@@ -26,7 +26,8 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
                                        // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
                                        // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
                                        // Login and password can be added
-                                       // for instance: ["https://login:password@p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
+                                       // but if they contain one of these characters ":/@", they should be replaced (URI encoded): ":" -> "%3A", "/" -> "%2F", "@" -> "%40"
+                                       // for instance: ["https://login:p%40ssword@p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
   ["icsUrl1", "targetCalendar1"],
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]

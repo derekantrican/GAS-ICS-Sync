@@ -135,17 +135,29 @@ function fetchSourceCalendars(sourceCalendarURLs){
     
     callWithBackoff(function() {
       var urlReponse;
-      const urlObject = new URI(url);
-      const username = urlObject.username();
-      const password = urlObject.password();
-      if (username != "" || password != "") {
-        // unset username and password from the url, otherwise this raises "Login information disallowed"
-        urlObject.username("");
-        urlObject.password("");
-        urlResponse = UrlFetchApp.fetch(urlObject, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true,
+      // Follow https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1 taking into account that:
+      // - UrlFetchApp.fetch only accepts https and http links
+      // it defaults to http if no scheme is given, but just // is not accepted
+      // - Google Apps Scripts does not seem to accept \] in [^] lists
+      // - to have the less possible need of percent-encoding, as much characters as possible are accepted
+      const urlRegex = RegExp("^(https?://)?(?<username>[^:/@]+)(?::(?<password>[^/@]*))?@");
+      const regexResult = urlRegex.exec(url);
+      if (regexResult != null){
+        const username = decodeURIComponent(regexResult.groups['username']);
+        let password = regexResult.groups['password'];
+        if (password != null){
+          password = decodeURIComponent(password);
+        }
+        else{
+          password = ""; // empty password provided
+        }
+        // unset username and password from the url, otherwise UrlFetchApp raises "Login information disallowed"
+        url = url.replace(urlRegex, '$1');
+        urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true,
           "headers": { "Authorization": "Basic " + Utilities.base64Encode(username+":"+password) }
         });
-      } else {
+      }
+      else{
         urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
       }
       if (urlResponse.getResponseCode() == 200){
