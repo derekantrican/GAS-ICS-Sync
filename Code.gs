@@ -154,7 +154,7 @@ function startSync(){
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
 
   if (onlyFutureEvents)
-    startUpdateTime = new ICAL.Time.fromJSDate(new Date());
+    startUpdateTime = new ICAL.Time.fromJSDate(new Date(), true);
 
   //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
