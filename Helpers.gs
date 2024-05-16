@@ -44,7 +44,7 @@ function formatDate(date) {
 
   const time = date.slice(11,16)
   const timeZone = date.slice(19)
-  
+
   return formattedDate + " at " + time + " (UTC" + (timeZone == "Z" ? "": timeZone) + ")"
 }
 
@@ -122,6 +122,41 @@ function deleteAllTriggers(){
 }
 
 /**
+ * Gets the response from a single configured url
+ *
+ * @param
+ */
+function getResponse(url) {
+  var urlResponse;
+  // Follow https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1 taking into account that:
+  // - UrlFetchApp.fetch only accepts https and http links
+  // it defaults to http if no scheme is given, but just // is not accepted
+  // - Google Apps Scripts does not seem to accept \] in [^] lists
+  // - to have the less possible need of percent-encoding, as much characters as possible are accepted
+  const urlRegex = RegExp("^(https?://)?(?<username>[^:/@]+)(?::(?<password>[^/@]*))?@");
+  const regexResult = urlRegex.exec(url);
+  if (regexResult != null){
+    const username = decodeURIComponent(regexResult.groups['username']);
+    let password = regexResult.groups['password'];
+    if (password != null){
+      password = decodeURIComponent(password);
+    }
+    else{
+      password = ""; // empty password provided
+    }
+    // unset username and password from the url, otherwise UrlFetchApp raises "Login information disallowed"
+    url = url.replace(urlRegex, '$1');
+    urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true,
+      "headers": { "Authorization": "Basic " + Utilities.base64Encode(username+":"+password) }
+    });
+  }
+  else{
+    urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+  }
+  return urlResponse;
+}
+
+/**
  * Gets the ressource from the specified URLs.
  *
  * @param {Array.string} sourceCalendarURLs - Array with URLs to fetch
@@ -132,64 +167,45 @@ function fetchSourceCalendars(sourceCalendarURLs){
   for (var source of sourceCalendarURLs){
     var url = source[0].replace("webcal://", "https://");
     var colorId = source[1];
-    
-    callWithBackoff(function() {
-      var urlReponse;
-      // Follow https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1 taking into account that:
-      // - UrlFetchApp.fetch only accepts https and http links
-      // it defaults to http if no scheme is given, but just // is not accepted
-      // - Google Apps Scripts does not seem to accept \] in [^] lists
-      // - to have the less possible need of percent-encoding, as much characters as possible are accepted
-      const urlRegex = RegExp("^(https?://)?(?<username>[^:/@]+)(?::(?<password>[^/@]*))?@");
-      const regexResult = urlRegex.exec(url);
-      if (regexResult != null){
-        const username = decodeURIComponent(regexResult.groups['username']);
-        let password = regexResult.groups['password'];
-        if (password != null){
-          password = decodeURIComponent(password);
-        }
-        else{
-          password = ""; // empty password provided
-        }
-        // unset username and password from the url, otherwise UrlFetchApp raises "Login information disallowed"
-        url = url.replace(urlRegex, '$1');
-        urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true,
-          "headers": { "Authorization": "Basic " + Utilities.base64Encode(username+":"+password) }
-        });
-      }
-      else{
-        urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
-      }
-      if (urlResponse.getResponseCode() == 200){
-        var icsContent = urlResponse.getContentText()
-        const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
-        var urlContent = icsRegex.exec(icsContent);
-        if (urlContent == null){
-          // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
-          // Add END:VEVENT for every BEGIN:VEVENT that's missing it
-          const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
-          icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
 
-          // Add END:VCALENDAR if missing
-          if (!icsContent.endsWith("END:VCALENDAR")){
-              icsContent += "\nEND:VCALENDAR";
-          }          
-          urlContent = icsRegex.exec(icsContent)
+    try {
+      callWithBackoff(function() {
+        var urlResponse = getResponse(url);
+        if (urlResponse.getResponseCode() == 200){
+          var icsContent = urlResponse.getContentText()
+          const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
+          var urlContent = icsRegex.exec(icsContent);
           if (urlContent == null){
-            Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
-            return
+            // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
+            // Add END:VEVENT for every BEGIN:VEVENT that's missing it
+            const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
+            icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
+
+            // Add END:VCALENDAR if missing
+            if (!icsContent.endsWith("END:VCALENDAR")){
+                icsContent += "\nEND:VCALENDAR";
+            }
+            urlContent = icsRegex.exec(icsContent)
+            if (urlContent == null){
+              Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
+              reportOverallFailure = true;
+              return
+            }
+            Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
           }
-          Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
+          result.push([urlContent[0], colorId]);
+          return;
         }
-        result.push([urlContent[0], colorId]);
-        return; 
-      }
-      else{ //Throw here to make callWithBackoff run again
-        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
-      }
-    }, defaultMaxRetries);
+        else{ //Throw here to make callWithBackoff run again
+          throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
+        }
+      }, defaultMaxRetries);
+    }
+    catch (e) {
+      reportOverallFailure = true;
+    }
   }
-  
+
   return result;
 }
 
@@ -267,7 +283,7 @@ function parseResponses(responses){
     });
   }
 
-  //No need to process calcelled events as they will be added to gcal's trash anyway
+  //No need to process cancelled events as they will be added to gcal's trash anyway
   result = result.filter(function(event){
     try{
       return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
@@ -461,7 +477,7 @@ function createEvent(event, calendarTz){
     if (organizerMail)
       newEvent.organizer.email = organizerMail.toString();
 
-    if (addOrganizerToTitle && organizerName){  
+    if (addOrganizerToTitle && organizerName){
         newEvent.summary = organizerName + ": " + newEvent.summary;
     }
   }
@@ -1115,7 +1131,14 @@ function sendSummary() {
 var backoffRecoverableErrors = [
   "service invoked too many times in a short time",
   "rate limit exceeded",
-  "internal error"];
+  "internal error",
+  "http error 403", // forbidden
+  "http error 408", // request timeout
+  "http error 423", // locked
+  "http error 500", // internal server error
+  "http error 503", // service unavailable
+  "http error 504"  // gateway timeout
+];
 function callWithBackoff(func, maxRetries) {
   var tries = 0;
   var result;
@@ -1127,10 +1150,7 @@ function callWithBackoff(func, maxRetries) {
     }
     catch(err){
       err = err.message  || err;
-      if ( err.includes("HTTP error") ) {
-        Logger.log(err);
-        return null;
-      } else if ( err.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
+      if ( err.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
               return err.toLowerCase().includes(e);
             }) ) {
         throw err;
