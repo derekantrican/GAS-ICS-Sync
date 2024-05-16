@@ -124,7 +124,7 @@ function deleteAllTriggers(){
 /**
  * Gets the response from a single configured url
  *
- * @param
+ * @param {string} url The url to be fetched, including eventual username and password
  */
 function getResponse(url) {
   var urlResponse;
