@@ -1,0 +1,31 @@
+name: ✨ Request a feature
+description: Request a new feature to implement in GAS-ICS-Sync
+title: "[Request]"
+body:
+  - type: markdown
+    attributes:
+      value: >
+        **Thank you for wanting to request a feature in GAS-ICS-Sync!**
+
+
+        Before you go ahead with your request, please note that any feature that is only
+        of interest to a small sub group will not be implemented. Only such features
+        that are of interest to a majority of users will be implemented as part of the script.
+        
+        If you have a very specific request for your use case and would like help implementing
+        it, feel free to create a [discussion](https://github.com/derekantrican/GAS-ICS-Sync/discussions) instead and we can help you there.
+
+  - type: textarea
+    attributes:
+      label: Is your feature request related to a problem? Please describe.
+      description: Please describe the feature you would like to see (it would be helpful if you could add any necessary screenshots, [ics strings](https://github.com/derekantrican/GAS-ICS-Sync/wiki/Debugging-tips#using-an-explicit-ics-string-instead-of-an-url), etc)
+  - type: textarea
+    attributes:
+      label: Describe the solution you'd like
+      description: A clear and concise description of what you want to happen. Explain why it should be included in GAS-ICS-Sync.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: Add any other context or screenshots about the feature request here.
