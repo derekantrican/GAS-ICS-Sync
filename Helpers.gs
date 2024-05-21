@@ -163,15 +163,13 @@ function deleteAllTriggers(){
  */
 function fetchSourceCalendars(sourceCalendarURLs){
   var result = [];
-  var errors = []
   for (var source of sourceCalendarURLs){
     var url = source.url.replace("webcal://", "https://");
     var colorId = source.color;
-    
+    var urlResponse;
+
     try {
       callWithBackoff(function() {
-        var urlResponse;
-
         var params = {
           method: "GET",
           validateHttpsCertificates: false,
@@ -190,12 +188,12 @@ function fetchSourceCalendars(sourceCalendarURLs){
           }
         }
 
-        var urlResponse = UrlFetchApp.fetch(url, params);
+        urlResponse = UrlFetchApp.fetch(url, params);
         if (urlResponse.getResponseCode() == 200){
           var icsContent = urlResponse.getContentText()
           const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
           var urlContent = icsRegex.exec(icsContent);
-          if(urlContent == null) {
+          if (urlContent == null) {
             // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
             // Add END:VEVENT for every BEGIN:VEVENT that's missing it
             const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
@@ -207,9 +205,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
             }
             urlContent = icsRegex.exec(icsContent);
             if (urlContent == null){
-              errors.push("Url: " + source.url + "\nError: Incorrect ics/ical URL");
-              Logger.log("[ERROR] Incorrect ics/ical URL: " + url);
-              return;
+              throw "[ERROR] Incorrect ics/ical format.";
             }
             Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
           }
@@ -217,16 +213,15 @@ function fetchSourceCalendars(sourceCalendarURLs){
           return;
         }
         else{ //Throw here to make callWithBackoff run again
-          errors.push("Url: " + source.url + "\nError:\n" + urlResponse.getContentText());
-          throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url; 
+          throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
         }
-      }, defaultMaxRetries);
+      }, defaultMaxRetries, { throwLastError: true });
     } catch (e) {
-      errors.push("Url: " + source.url + "\nError:\n" + e);
+      errors.push("Url: " + source.url + "\nError: " + e + "\nResponse:\n" + urlResponse.getContentText());
     }
   }
   
-  return [result, errors];
+  return result;
 }
 
 /**
@@ -415,10 +410,6 @@ function createEvent(event, calendarTz){
     return;
   }
 
-  var newEvent =
-    callWithBackoff(function() {
-        return Calendar.newEvent();
-      }, defaultMaxRetries);
   if(icalEvent.startDate.isDate){ //All-day event
     if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
       //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
@@ -473,8 +464,10 @@ function createEvent(event, calendarTz){
     newEvent.source = callWithBackoff(function() {
           return Calendar.newEventSource();
         }, defaultMaxRetries);
-    newEvent.source.url = event.getFirstPropertyValue('url').toString();
-    newEvent.source.title = 'link';
+    if (newEvent.source != null) {
+      newEvent.source.url = event.getFirstPropertyValue('url').toString();
+      newEvent.source.title = 'link';
+    }
   }
 
   if (event.hasProperty('sequence')){
@@ -492,10 +485,12 @@ function createEvent(event, calendarTz){
     newEvent.organizer = callWithBackoff(function() {
           return Calendar.newEventOrganizer();
         }, defaultMaxRetries);
-    if (organizerName)
-      newEvent.organizer.displayName = organizerName.toString();
-    if (organizerMail)
-      newEvent.organizer.email = organizerMail.toString();
+    if (newEvent.organizer != null) {
+      if (organizerName)
+        newEvent.organizer.displayName = organizerName.toString();
+      if (organizerMail)
+        newEvent.organizer.email = organizerMail.toString();
+    }
 
     if (addOrganizerToTitle && organizerName){
         newEvent.summary = organizerName + ": " + newEvent.summary;
@@ -768,21 +763,25 @@ function processEventInstance(recEvent){
     }, defaultMaxRetries);
   }
 
-  if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    if (modifyExistingEvents){
-      Logger.log("Updating existing event instance");
-      callWithBackoff(function(){
-        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-      }, defaultMaxRetries);
+  try {
+    if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
+      if (modifyExistingEvents){
+        Logger.log("Updating existing event instance");
+        callWithBackoff(function(){
+          Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+        }, defaultMaxRetries, { throwLastError: true });
+      }
     }
-  }
-  else{
-    if (addEventsToCalendar){
-      Logger.log("No Instance matched, adding as new event!");
-      callWithBackoff(function(){
-        Calendar.Events.insert(recEvent, targetCalendarId);
-      }, defaultMaxRetries);
+    else{
+      if (addEventsToCalendar){
+        Logger.log("No Instance matched, adding as new event!");
+        callWithBackoff(function(){
+          Calendar.Events.insert(recEvent, targetCalendarId);
+        }, defaultMaxRetries, { throwLastError: true });
+      }
     }
+  } catch (e) {
+    errors.push("Error processing event instance: " + recEvent.extendedProperties.private["id"] + " | Date: " + recEvent.recurringEventId + "\nError: " + e);
   }
 }
 
@@ -1183,31 +1182,38 @@ var backoffRecoverableErrors = [
   "http error 503", // service unavailable
   "http error 504"  // gateway timeout
 ];
-function callWithBackoff(func, maxRetries) {
-  var tries = 0;
+function callWithBackoff(func, maxRetries, options) {
   var result;
-  while ( tries <= maxRetries ) {
-    tries++;
+  var lastError;
+  options = options || {
+    throwLastError: false,
+  };
+
+  for (var tries = 0; tries < maxRetries; tries += 1) {
     try{
       result = func();
       return result;
     }
     catch(err){
+      lastError = err;
       err = err.message  || err;
       if ( err.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
               return err.toLowerCase().includes(e);
             }) ) {
         throw err;
-      } else if ( tries > maxRetries) {
-        Logger.log(`Error, giving up after trying ${maxRetries} times [${err}]`);
-        return null;
-      } else {
-        Logger.log( "Error, Retrying... [" + err  +"]");
-        Utilities.sleep (Math.pow(2,tries)*100) +
-                            (Math.round(Math.random() * 100));
       }
+
+      Logger.log( "Error, Retrying... [" + err  +"]");
+      Utilities.sleep (Math.pow(2,tries)*100) +
+                          (Math.round(Math.random() * 100));
     }
   }
+
+  Logger.log(`Error, giving up after trying ${maxRetries} times [${lastError}]`);
+  if (options.throwLastError) {
+    throw lastError;
+  }
+
   return null;
 }
 
