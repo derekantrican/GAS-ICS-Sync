@@ -349,7 +349,7 @@ function processEvent(event, calendarTz){
  */
 function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
-  var icalEvent = new ICAL.Event(event, {strictExceptions: true});
+  var icalEvent = new ICAL.Event(event);
   if (onlyFutureEvents && checkSkipEvent(event, icalEvent)){
     return;
   }
@@ -379,11 +379,11 @@ function createEvent(event, calendarTz){
     newEvent = {
       start: {
         dateTime : icalEvent.startDate.toString(),
-        timeZone : validateTimeZone(icalEvent.startDate.timezone.toString(), calendarTz)
+        timeZone : validateTimeZone(icalEvent.startDate.timezone || icalEvent.startDate.zone, calendarTz)
       },
       end: {
         dateTime : icalEvent.endDate.toString(),
-        timeZone : validateTimeZone(icalEvent.endDate.timezone.toString(), calendarTz)
+        timeZone : validateTimeZone(icalEvent.endDate.timezone || icalEvent.endDate.zone, calendarTz)
       },
     };
   }
@@ -592,7 +592,6 @@ function checkSkipEvent(event, icalEvent){
       }
 
       if (newStartDate != null){//At least one instance is in the future
-        newStartDate.timezone = icalEvent.startDate.timezone;
         var diff = newStartDate.subtractDate(icalEvent.startDate);
         icalEvent.endDate.addDuration(diff);
         var newEndDate = icalEvent.endDate;
@@ -648,15 +647,15 @@ function checkSkipEvent(event, icalEvent){
     }
 
     //Check and filter recurrence-exceptions
-    for (i=0; i<icalEvent.except.length; i++){
+    for (let key in icalEvent.exceptions) {
       //Exclude the instance if it was moved from future to past
-      if((icalEvent.except[i].startDate.compare(startUpdateTime) < 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) >= 0)){
-        Logger.log("Creating EXDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
-        icalEvent.component.addPropertyWithValue('exdate', icalEvent.except[i].recurrenceId.toString());
+      if((icalEvent.exceptions[key].startDate.compare(startUpdateTime) < 0) && (icalEvent.exceptions[key].recurrenceId.compare(startUpdateTime) >= 0)){
+        Logger.log("Creating EXDATE for exception at " + icalEvent.exceptions[key].recurrenceId.toString());
+        icalEvent.component.addPropertyWithValue('exdate', icalEvent.exceptions[key].recurrenceId.toString());
       }//Re-add the instance if it is moved from past to future
-      else if((icalEvent.except[i].startDate.compare(startUpdateTime) >= 0) && (icalEvent.except[i].recurrenceId.compare(startUpdateTime) < 0)){
-        Logger.log("Creating RDATE for exception at " + icalEvent.except[i].recurrenceId.toString());
-        icalEvent.component.addPropertyWithValue('rdate', icalEvent.except[i].recurrenceId.toString());
+      else if((icalEvent.exceptions[key].startDate.compare(startUpdateTime) >= 0) && (icalEvent.exceptions[key].recurrenceId.compare(startUpdateTime) < 0)){
+        Logger.log("Creating RDATE for exception at " + icalEvent.exceptions[key].recurrenceId.toString());
+        icalEvent.component.addPropertyWithValue('rdate', icalEvent.exceptions[key].recurrenceId.toString());
         skip = false;
       }
     }
@@ -827,6 +826,7 @@ function processTasks(responses){
  * @return {string} Valid IANA timezone descriptor
  */
 function validateTimeZone(tzid, calendarTz){
+  tzid = tzid.toString();
   let IanaTZ;
   if (tzids.indexOf(tzid) == -1){
     if (tzid in tzidreplace){
