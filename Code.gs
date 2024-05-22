@@ -21,6 +21,7 @@
 *=========================================
 */
 
+// Below is the old format. You may still use this format, but it is recommended to use the new format below.
 var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
                                        // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
                                        // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
@@ -29,6 +30,35 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
   ["icsUrl2", "targetCalendar2"],
   ["icsUrl3", "targetCalendar1"]
 
+];
+
+var sourceCalendarMap = [
+  {
+    name: "targetCalendar1",           // The name of the target calendar
+    sources: [                         // A list of the ics/ical urls that you want to get events from
+      {
+        url: "icsUrl1",                // Required: the ics/ical url
+        authorization: {               // Optional: authorization information
+          basic: "username:password",  // Basic authorization uses a username-password pair separated by a colon
+        },
+        color: 4                       // Optional: color for events in this calendar
+      },
+      {
+        url: "icsUrl2",
+        authorization: {
+          bearer: "token",
+        },
+      },
+    ],
+  },
+
+  {                                    // A second calendar
+    name: "targetCalendar2",
+    sources: [
+      { url: "icsUrl3", color: 11 },
+      { url: "icsUrl4" },
+    ],
+  },
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
@@ -48,6 +78,7 @@ var overrideVisibility = "";              // Changes the visibility of the event
 var addTasks = false;
 
 var emailSummary = false;                 // Will email you when an event is added/modified/removed to your calendar
+var emailOnError = true;                  // Will email when an error occurs
 var email = "";                           // OPTIONAL: If "emailSummary" is set to true or you want to receive update notifications, you will need to provide your email address
 var customEmailSubject = "";              // OPTIONAL: If you want to change the email subject, provide a custom one here. Default: "GAS-ICS-Sync Execution Summary"
 var dateFormat = "YYYY-MM-DD"             // date format in the email summary (e.g. "YYYY-MM-DD", "DD.MM.YYYY", "MM/DD/YYYY". separators are ".", "-" and "/")
@@ -144,9 +175,11 @@ var targetCalendarName;
 var addedEvents = [];
 var modifiedEvents = [];
 var removedEvents = [];
+var errors = [];
 
-// Syncing logic can set this to true to cause the Google Apps Script "Executions" dashboard to report failure
-var reportOverallFailure = false;
+function clearRunning(){
+  PropertiesService.getUserProperties().setProperty('LastRun', 0);
+}
 
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
@@ -156,14 +189,41 @@ function startSync(){
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
 
+  let error = undefined;
+
+  try {
+    _startSync();
+  } catch (e) {
+    error = e;
+  }
+
+  PropertiesService.getUserProperties().setProperty('LastRun', 0);
+
+  if (error === undefined) {
+    Logger.log("Sync finished!");
+  } else {
+    Logger.log("Sync failed with error:");
+    Logger.log(error);
+
+    if (emailOnError) {
+      sendError(error);
+    }
+
+    throw error;
+  }
+}
+
+function _startSync(){
+  if (typeof sourceCalendarMap == "undefined" && typeof sourceCalendars != "undefined")
+    sourceCalendarMap = convertCalendarSourceArray(sourceCalendars);
+
   if (onlyFutureEvents)
     startUpdateTime = new ICAL.Time.fromJSDate(new Date(), true);
 
   //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
-
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
-  for (var calendar of sourceCalendars){
+  
+  for (var calendar of sourceCalendarMap){
     //------------------------ Reset globals ------------------------
     calendarEvents = [];
     calendarEventsIds = [];
@@ -171,14 +231,14 @@ function startSync(){
     calendarEventsMD5s = [];
     recurringEvents = [];
 
-    targetCalendarName = calendar[0];
-    var sourceCalendarURLs = calendar[1];
+    targetCalendarName = calendar.name;
+    var sourceCalendarURLs = calendar.sources;
     var vevents;
 
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
-
+    
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
@@ -229,7 +289,7 @@ function startSync(){
     }
 
     //------------------------ Remove old events from calendar ------------------------
-    if(removeEventsFromCalendar){
+    if(removeEventsFromCalendar && errors.length == 0){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
       processEventCleanup();
       Logger.log("Done checking events for removal");
@@ -250,12 +310,8 @@ function startSync(){
   if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
     sendSummary();
   }
-  Logger.log("Sync finished!");
-  PropertiesService.getUserProperties().setProperty('LastRun', 0);
 
-  if (reportOverallFailure) {
-    // Cause the Google Apps Script "Executions" dashboard to show a failure
-    // (the message text does not seem to be logged anywhere)
-    throw new Error('The sync operation produced errors. See log for details.');
+  if (errors.length > 0) {
+    throw errors.join("\n\n");
   }
 }

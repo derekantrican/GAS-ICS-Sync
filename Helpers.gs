@@ -84,6 +84,40 @@ String.prototype.includes = function(phrase){
 }
 
 /**
+ * Takes an array of ICS calendars and target Google calendars and converts them
+ * into the new object format
+ *
+ * @param {Array.string} sourceCalendars - User-defined calendar map
+ * @return {Object} Converted calendar map
+ */
+function convertCalendarSourceArray(sourceCalendars){
+  var convertedObj = {};
+
+  for (var mapping of sourceCalendars){
+    var [url, targetName, color] = mapping;
+    if (convertedObj[targetName] === undefined){
+      convertedObj[targetName] = [];
+    }
+
+    convertedObj[targetName].push({
+      url,
+      color,
+    });
+  }
+
+  // Convert into an array with key -> name, value -> sources
+  var convertedArray = Object.entries(convertedObj).map(([targetName, sources]) => ({
+    name: targetName,
+    sources,
+  }));
+
+  Logger.log("sourceCalendars is using the old format. Please replace with the new format:");
+  Logger.log("var sourceCalendarMap = " + JSON.stringify(convertedArray, null, 2) + ";");
+
+  return convertedArray;
+}
+
+/**
  * Takes an array of ICS calendars and target Google calendars and combines them
  *
  * @param {Array.string} calendarMap - User-defined calendar map
@@ -128,19 +162,38 @@ function deleteAllTriggers(){
  * @return {Array.string} The ressources fetched from the specified URLs
  */
 function fetchSourceCalendars(sourceCalendarURLs){
-  var result = []
+  var result = [];
   for (var source of sourceCalendarURLs){
-    var url = source[0].replace("webcal://", "https://");
-    var colorId = source[1];
+    var url = source.url.replace("webcal://", "https://");
+    var colorId = source.color;
+    var urlResponse;
 
     try {
       callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+        var params = {
+          method: "GET",
+          validateHttpsCertificates: false,
+          muteHttpExceptions: true,
+        };
+
+        if (source.authorization != undefined) {
+          if (source.authorization.basic != undefined) {
+            params.headers = {
+              "Authorization": "Basic " + Utilities.base64Encode(source.authorization.basic),
+            };
+          } else if (source.authorization.bearer != undefined) {
+            params.headers = {
+              "Authorization": "Bearer " + source.authorization.bearer,
+            };
+          }
+        }
+
+        urlResponse = UrlFetchApp.fetch(url, params);
         if (urlResponse.getResponseCode() == 200){
           var icsContent = urlResponse.getContentText()
           const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
           var urlContent = icsRegex.exec(icsContent);
-          if (urlContent == null){
+          if (urlContent == null) {
             // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
             // Add END:VEVENT for every BEGIN:VEVENT that's missing it
             const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
@@ -150,11 +203,9 @@ function fetchSourceCalendars(sourceCalendarURLs){
             if (!icsContent.endsWith("END:VCALENDAR")){
                 icsContent += "\nEND:VCALENDAR";
             }
-            urlContent = icsRegex.exec(icsContent)
+            urlContent = icsRegex.exec(icsContent);
             if (urlContent == null){
-              Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
-              reportOverallFailure = true;
-              return
+              throw "[ERROR] Incorrect ics/ical format.";
             }
             Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
           }
@@ -164,13 +215,12 @@ function fetchSourceCalendars(sourceCalendarURLs){
         else{ //Throw here to make callWithBackoff run again
           throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
         }
-      }, defaultMaxRetries);
-    }
-    catch (e) {
-      reportOverallFailure = true;
+      }, defaultMaxRetries, { throwLastError: true });
+    } catch (e) {
+      errors.push("Url: " + source.url + "\nError: " + e + "\nResponse:\n" + urlResponse.getContentText());
     }
   }
-
+  
   return result;
 }
 
@@ -360,10 +410,6 @@ function createEvent(event, calendarTz){
     return;
   }
 
-  var newEvent =
-    callWithBackoff(function() {
-        return Calendar.newEvent();
-      }, defaultMaxRetries);
   if(icalEvent.startDate.isDate){ //All-day event
     if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
       //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
@@ -418,8 +464,10 @@ function createEvent(event, calendarTz){
     newEvent.source = callWithBackoff(function() {
           return Calendar.newEventSource();
         }, defaultMaxRetries);
-    newEvent.source.url = event.getFirstPropertyValue('url').toString();
-    newEvent.source.title = 'link';
+    if (newEvent.source != null) {
+      newEvent.source.url = event.getFirstPropertyValue('url').toString();
+      newEvent.source.title = 'link';
+    }
   }
 
   if (event.hasProperty('sequence')){
@@ -437,10 +485,12 @@ function createEvent(event, calendarTz){
     newEvent.organizer = callWithBackoff(function() {
           return Calendar.newEventOrganizer();
         }, defaultMaxRetries);
-    if (organizerName)
-      newEvent.organizer.displayName = organizerName.toString();
-    if (organizerMail)
-      newEvent.organizer.email = organizerMail.toString();
+    if (newEvent.organizer != null) {
+      if (organizerName)
+        newEvent.organizer.displayName = organizerName.toString();
+      if (organizerMail)
+        newEvent.organizer.email = organizerMail.toString();
+    }
 
     if (addOrganizerToTitle && organizerName){
         newEvent.summary = organizerName + ": " + newEvent.summary;
@@ -712,21 +762,25 @@ function processEventInstance(recEvent){
     }, defaultMaxRetries);
   }
 
-  if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    if (modifyExistingEvents){
-      Logger.log("Updating existing event instance");
-      callWithBackoff(function(){
-        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-      }, defaultMaxRetries);
+  try {
+    if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
+      if (modifyExistingEvents){
+        Logger.log("Updating existing event instance");
+        callWithBackoff(function(){
+          Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+        }, defaultMaxRetries, { throwLastError: true });
+      }
     }
-  }
-  else{
-    if (addEventsToCalendar){
-      Logger.log("No Instance matched, adding as new event!");
-      callWithBackoff(function(){
-        Calendar.Events.insert(recEvent, targetCalendarId);
-      }, defaultMaxRetries);
+    else{
+      if (addEventsToCalendar){
+        Logger.log("No Instance matched, adding as new event!");
+        callWithBackoff(function(){
+          Calendar.Events.insert(recEvent, targetCalendarId);
+        }, defaultMaxRetries, { throwLastError: true });
+      }
     }
+  } catch (e) {
+    errors.push("Error processing event instance: " + recEvent.extendedProperties.private["id"] + " | Date: " + recEvent.recurringEventId + "\nError: " + e);
   }
 }
 
@@ -1086,6 +1140,30 @@ function sendSummary() {
 }
 
 /**
+ * Sends an email when an error occurs.
+ *
+ * @param {string} error - The error message to send
+ */
+function sendError(error) {
+  var subject;
+  var body;
+
+  var subject = `GAS-ICS-Sync Execution Failed with Error`;
+
+  body = "GAS-ICS-Sync failed with the following error:<br/><br/>";
+  body += escapeHtml(error).replaceAll("\n", "<br/>");
+  body += "<br/><br/><a href='https://script.google.com/home/projects/" + ScriptApp.getScriptId() + "/edit'>Edit the script</a>."
+  var message = {
+    to: email,
+    subject: subject,
+    htmlBody: body,
+    name: "GAS-ICS-Sync"
+  };
+
+  MailApp.sendEmail(message);
+}
+
+/**
  * Runs the specified function with exponential backoff and returns the result.
  * Will return null if the function did not succeed afterall.
  *
@@ -1104,31 +1182,38 @@ var backoffRecoverableErrors = [
   "http error 503", // service unavailable
   "http error 504"  // gateway timeout
 ];
-function callWithBackoff(func, maxRetries) {
-  var tries = 0;
+function callWithBackoff(func, maxRetries, options) {
   var result;
-  while ( tries <= maxRetries ) {
-    tries++;
+  var lastError;
+  options = options || {
+    throwLastError: false,
+  };
+
+  for (var tries = 0; tries < maxRetries; tries += 1) {
     try{
       result = func();
       return result;
     }
     catch(err){
+      lastError = err;
       err = err.message  || err;
       if ( err.includes("is not a function")  || !backoffRecoverableErrors.some(function(e){
               return err.toLowerCase().includes(e);
             }) ) {
         throw err;
-      } else if ( tries > maxRetries) {
-        Logger.log(`Error, giving up after trying ${maxRetries} times [${err}]`);
-        return null;
-      } else {
-        Logger.log( "Error, Retrying... [" + err  +"]");
-        Utilities.sleep (Math.pow(2,tries)*100) +
-                            (Math.round(Math.random() * 100));
       }
+
+      Logger.log( "Error, Retrying... [" + err  +"]");
+      Utilities.sleep (Math.pow(2,tries)*100) +
+                          (Math.round(Math.random() * 100));
     }
   }
+
+  Logger.log(`Error, giving up after trying ${maxRetries} times [${lastError}]`);
+  if (options.throwLastError) {
+    throw lastError;
+  }
+
   return null;
 }
 
@@ -1162,4 +1247,21 @@ function checkForUpdate(){
     var version = json_decoded[0]["tag_name"];
     return Number(version);
   }
+}
+
+var entityMap = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+  '/': '&#x2F;',
+  '`': '&#x60;',
+  '=': '&#x3D;'
+};
+
+function escapeHtml (string) {
+  return String(string).replace(/[&<>"'`=\/]/g, function (s) {
+    return entityMap[s];
+  });
 }
