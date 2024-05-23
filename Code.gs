@@ -32,7 +32,6 @@ var sourceCalendars = [                // The ics/ical urls that you want to get
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
-var onlyFutureEvents = false;             // If you turn this to "true", past events will not be synced (this will also removed past events from the target calendar if removeEventsFromCalendar is true)
 var addEventsToCalendar = true;           // If you turn this to "false", you can check the log (View > Logs) to make sure your events are being read correctly before turning this on
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
@@ -129,8 +128,6 @@ function uninstall(){
   deleteAllTriggers();
 }
 
-var startUpdateTime;
-
 // Per-calendar global variables (must be reset before processing each new calendar!)
 var calendarEvents = [];
 var calendarEventsIds = [];
@@ -155,9 +152,6 @@ function startSync(){
   }
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
-
-  if (onlyFutureEvents)
-    startUpdateTime = new ICAL.Time.fromJSDate(new Date(), true);
 
   //Disable email notification if no mail adress is provided
   emailSummary = emailSummary && email != "";
