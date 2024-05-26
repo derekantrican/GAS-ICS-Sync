@@ -11,7 +11,8 @@
 *      New Interface: Make sure your toolbar says "install" to the right of "Debug", then click "Run"
 *      Old Interface: Click "Run" > "Run function" > "install"
 * 4) Authorize: You will be prompted to authorize the program and will need to click "Advanced" > "Go to GAS-ICS-Sync (unsafe)"
-*    (For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s )
+*      - For steps to follow in authorization, see this video: https://youtu.be/_5k10maGtek?t=1m22s
+*      - To learn more about the permissions requested by the script visit https://github.com/derekantrican/GAS-ICS-Sync/wiki/Understanding-Permissions-in-GAS%E2%80%90ICS%E2%80%90Sync
 * 5) You can also run "startSync" if you want to sync only once (New Interface: change the dropdown to the right of "Debug" from "install" to "startSync")
 *
 * **To stop the Script from running click in the menu "Run" > "Run function" > "uninstall" (New Interface: change the dropdown to the right of "Debug" from "install" to "uninstall")
