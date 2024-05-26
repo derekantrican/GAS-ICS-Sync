@@ -287,7 +287,7 @@ function filterResults(events){
       try{
         if (["dtstart", "dtend"].includes(filter.parameter)){
           let referenceDate = new ICAL.Time.fromJSDate(new Date(), true).adjust(filter.offset,0,0,0);
-          if (event.hasProperty('rrule')) {
+          if (event.hasProperty('rrule') || event.hasProperty('rdate')) {
             if ((filter.comparison === ">" && filter.type === "exclude")||(filter.comparison === "<" && filter.type === "include")) {
               event = modifyRecurrenceEnd(event, referenceDate, filter.parameter);
             } else if ((filter.comparison === "<" && filter.type === "exclude")||(filter.comparison === ">" && filter.type === "include")) {
@@ -345,16 +345,20 @@ function filterResults(events){
  */
 function modifyRecurrenceEnd(event, referenceDate, filterParameter) {
   let eventRefDate = new ICAL.Time.fromString(event.getFirstPropertyValue('dtstart').toString(), event.getFirstProperty('dtstart'));
-  let rrule = event.getFirstProperty('rrule');
-  let recur = rrule.getFirstValue();
   if (filterParameter.toLowerCase() === "dtend"){
     let eventEnd = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString(), event.getFirstProperty('dtend'));
     var eventDurartion = eventEnd.subtractDate(eventRefDate);
     eventRefDate = eventEnd;
   }
   let icalEvent = new ICAL.Event(event);
-  
-  if (eventRefDate.compare(referenceDate) < 0){
+
+  if (eventRefDate.compare(referenceDate) >= 0){
+    return null;
+  }
+
+  if (event.hasProperty('rrule')){
+    let rrule = event.getFirstProperty('rrule');
+    let recur = rrule.getFirstValue();
     var dtstart = event.getFirstPropertyValue('dtstart');
     var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
     var next;
@@ -380,11 +384,6 @@ function modifyRecurrenceEnd(event, referenceDate, filterParameter) {
       }
     }
 
-    // If no valid instances are found within the range, return null
-    if (lastStartDate === null) {
-      return null;
-    }
-
     // Remove EXDATEs that are after the endDate
     var exDates = event.getAllProperties('exdate');
     exDates.forEach(function(e) {
@@ -397,32 +396,40 @@ function modifyRecurrenceEnd(event, referenceDate, filterParameter) {
       }
     });
 
-    if (recur.isByCount()) {
-      recur.count = newCount;
-      rrule.setValue(recur);
+    if (newCount == 0){
+      event.removeProperty('rrule');
     }
     else{
-      recur.until = referenceDate.clone();
-      rrule.setValue(recur);
-    }
-
-    // Adjust RDATEs to exclude any dates beyond the endDate
-    var rdates = event.getAllProperties('rdate');
-    rdates.forEach(function(r) {
-      var vals = r.getValues();
-      vals = vals.filter(function(v) {
-        var valTime = new ICAL.Time.fromString(v.toString(), r);
-        return valTime.compare(referenceDate) <= 0;
-      });
-      if (vals.length === 0) {
-        event.removeProperty(r);
-      } else if (vals.length === 1) {
-        r.setValue(vals[0]);
-      } else if (vals.length > 1) {
-        r.setValues(vals);
+      if (recur.isByCount()) {
+        recur.count = newCount;
+        rrule.setValue(recur);
       }
-    });
+      else{
+        recur.until = referenceDate.clone();
+        rrule.setValue(recur);
+      }
+    }
   }
+
+  // Adjust RDATEs to exclude any dates beyond the endDate
+  var rdates = event.getAllProperties('rdate');
+  rdates.forEach(function(r) {
+    var vals = r.getValues();
+    vals = vals.filter(function(v) {
+      var valTime = new ICAL.Time.fromString(v.toString(), r);
+      if (filterParameter.toLowerCase() === "dtend") {
+        valTime.addDuration(eventDurartion);
+      }
+      return valTime.compare(referenceDate) <= 0;
+    });
+    if (vals.length === 0) {
+      event.removeProperty(r);
+    } else if (vals.length === 1) {
+      r.setValue(vals[0]);
+    } else if (vals.length > 1) {
+      r.setValues(vals);
+    }
+  });
 
   //Check and filter recurrence-exceptions
   if (filterParameter.toLowerCase() === "dtend"){
@@ -461,14 +468,13 @@ function modifyRecurrenceEnd(event, referenceDate, filterParameter) {
  */
 function modifyRecurrenceStart(event, referenceDate, filterParameter) {
   let eventRefDate = new ICAL.Time.fromString(event.getFirstPropertyValue('dtstart').toString(), event.getFirstProperty('dtstart'));
-  let rrule = event.getFirstProperty('rrule');
-  let recur = rrule.getFirstValue();
   if (filterParameter.toLowerCase() === "dtend"){
     let eventEnd = new ICAL.Time.fromString(event.getFirstPropertyValue('dtend').toString(), event.getFirstProperty('dtend'));
     var eventDurartion = eventEnd.subtractDate(eventRefDate);
     eventRefDate = eventEnd;
   }
   let icalEvent = new ICAL.Event(event);
+
   if (eventRefDate.compare(referenceDate) < 0){
     var dtstart = event.getFirstPropertyValue('dtstart');
     var expand = new ICAL.RecurExpansion({component: event, dtstart: dtstart});
@@ -498,47 +504,54 @@ function modifyRecurrenceStart(event, referenceDate, filterParameter) {
     if (newStartDate === null) {
       return null;
     }
-
+    
     var diff = newStartDate.subtractDate(icalEvent.startDate);
     icalEvent.endDate.addDuration(diff);
     var newEndDate = icalEvent.endDate;
     icalEvent.endDate = newEndDate;
     icalEvent.startDate = newStartDate;
 
-    var exDates = event.getAllProperties('exdate');
-    exDates.forEach(function(e){
-      var ex = new ICAL.Time.fromString(e.getFirstValue().toString(), e);
-      if (ex < newStartDate){
-        event.removeProperty(e);
-        if (recur.isByCount()) {
-          countskipped++;
+    if (event.hasProperty('rrule') ){
+      let rrule = event.getFirstProperty('rrule');
+      let recur = rrule.getFirstValue();
+      var exDates = event.getAllProperties('exdate');
+      exDates.forEach(function(e){
+        var ex = new ICAL.Time.fromString(e.getFirstValue().toString(), e);
+        if (ex < newStartDate){
+          event.removeProperty(e);
+          if (recur.isByCount()) {
+            countskipped++;
+          }
         }
-      }
-    });
-
-    if (recur.isByCount()) {
-      recur.count -= countskipped;
-      rrule.setValue(recur);
-    }
-
-    var rdates = event.getAllProperties('rdate');
-    rdates.forEach(function(r){
-      var vals = r.getValues();
-      vals = vals.filter(function(v){
-        var valTime = new ICAL.Time.fromString(v.toString(), r);
-        return (valTime.compare(referenceDate) >= 0 && valTime.compare(icalEvent.startDate) > 0)
       });
-      if (vals.length == 0){
-        event.removeProperty(r);
+
+      if (recur.isByCount()) {
+        recur.count -= countskipped;
+        rrule.setValue(recur);
       }
-      else if(vals.length == 1){
-        r.setValue(vals[0]);
-      }
-      else if(vals.length > 1){
-        r.setValues(vals);
-      }
-    });
+    }
   }
+
+  var rdates = event.getAllProperties('rdate');
+  rdates.forEach(function(r){
+    var vals = r.getValues();
+    vals = vals.filter(function(v){
+      var valTime = new ICAL.Time.fromString(v.toString(), r);
+      if (filterParameter.toLowerCase() === "dtend") {
+        valTime.addDuration(eventDurartion);
+      }
+      return (valTime.compare(referenceDate) >= 0 && valTime.compare(icalEvent.startDate) > 0)
+    });
+    if (vals.length == 0){
+      event.removeProperty(r);
+    }
+    else if(vals.length == 1){
+      r.setValue(vals[0]);
+    }
+    else if(vals.length > 1){
+      r.setValues(vals);
+    }
+  });
 
   //Check and filter recurrence-exceptions
   if (filterParameter.toLowerCase() === "dtend"){
