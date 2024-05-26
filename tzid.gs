@@ -590,6 +590,7 @@ var tzids = [
 "Zulu"
 ];
 //Windows Timezone names to IANA, according https://github.com/unicode-org/cldr/blob/master/common/supplemental/windowsZones.xml
+//Webex does not follow standard Windows Timezone names in Outlook (does not use "Standard" in name, i.e. "Pacific Standard Time" is only "Pacific Time")
 tzidreplace = {
 "Dateline Standard Time": "Etc/GMT+12",
 "UTC-11": "Etc/GMT+11",
@@ -601,17 +602,21 @@ tzidreplace = {
 "Pacific Standard Time (Mexico)": "America/Tijuana",
 "UTC-08": "Pacific/Pitcairn",
 "Pacific Standard Time": "America/Los_Angeles",
+"Pacific Time": "America/Los_Angeles",
 "US Mountain Standard Time": "America/Phoenix",
 "Mountain Standard Time (Mexico)": "America/Chihuahua",
 "Mountain Standard Time": "America/Denver",
+"Mountain Time": "America/Denver",
 "Central America Standard Time": "America/Guatemala",
 "Central Standard Time": "America/Chicago",
+"Central Time": "America/Chicago",
 "Easter Island Standard Time": "Pacific/Easter",
 "Central Standard Time (Mexico)": "America/Mexico_City",
 "Canada Central Standard Time": "America/Regina",
 "SA Pacific Standard Time": "America/Bogota",
 "Eastern Standard Time (Mexico)": "America/Cancun",
 "Eastern Standard Time": "America/New_York",
+"Eastern Time": "America/New_York",
 "Haiti Standard Time": "America/Port-au-Prince",
 "Cuba Standard Time": "America/Havana",
 "US Eastern Standard Time": "America/Indianapolis",
