@@ -10,31 +10,31 @@ function formatDate(date) {
   const day = date.slice(8,10);
   let formattedDate;
 
-  if (dateFormat == "YYYY/MM/DD") {
+  if (appSettings.dateFormat == "YYYY/MM/DD") {
     formattedDate = year + "/" + month + "/" + day
   }
-  else if (dateFormat == "DD/MM/YYYY") {
+  else if (appSettings.dateFormat == "DD/MM/YYYY") {
     formattedDate = day + "/" + month + "/" + year
   }
-  else if (dateFormat == "MM/DD/YYYY") {
+  else if (appSettings.dateFormat == "MM/DD/YYYY") {
     formattedDate = month + "/" + day + "/" + year
   }
-  else if (dateFormat == "YYYY-MM-DD") {
+  else if (appSettings.dateFormat == "YYYY-MM-DD") {
     formattedDate = year + "-" + month + "-" + day
   }
-  else if (dateFormat == "DD-MM-YYYY") {
+  else if (appSettings.dateFormat == "DD-MM-YYYY") {
     formattedDate = day + "-" + month + "-" + year
   }
-  else if (dateFormat == "MM-DD-YYYY") {
+  else if (appSettings.dateFormat == "MM-DD-YYYY") {
     formattedDate = month + "-" + day + "-" + year
   }
-  else if (dateFormat == "YYYY.MM.DD") {
+  else if (appSettings.dateFormat == "YYYY.MM.DD") {
     formattedDate = year + "." + month + "." + day
   }
-  else if (dateFormat == "DD.MM.YYYY") {
+  else if (appSettings.dateFormat == "DD.MM.YYYY") {
     formattedDate = day + "." + month + "." + year
   }
-  else if (dateFormat == "MM.DD.YYYY") {
+  else if (appSettings.dateFormat == "MM.DD.YYYY") {
     formattedDate = month + "." + day + "." + year
   }
 
@@ -52,7 +52,7 @@ function formatDate(date) {
 /**
  * Takes an intended frequency in minutes and adjusts it to be the closest
  * acceptable value to use Google "everyMinutes" trigger setting (i.e. one of
- * the following values: 1, 5, 10, 15, 30).
+ * the following values: 5, 10, 15, 30).
  *
  * @param {?integer} The manually set frequency that the user intends to set.
  * @return {integer} The closest valid value to the intended frequency setting. Defaulting to 15 if no valid input is provided.
@@ -124,54 +124,75 @@ function deleteAllTriggers(){
 /**
  * Gets the ressource from the specified URLs.
  *
- * @param {Array.string} sourceCalendarURLs - Array with URLs to fetch
  * @return {Array.string} The ressources fetched from the specified URLs
  */
-function fetchSourceCalendars(sourceCalendarURLs){
-  var result = []
-  for (var source of sourceCalendarURLs){
-    var url = source[0].replace("webcal://", "https://");
-    var colorId = source[1];
+function getSourceCalendarEvents(){
+  let url = calendarConfig.sourceURL.replace("webcal://", "https://");
+  let result;
+  try {
+    result = callWithBackoff(function() {
+      var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+      if (urlResponse.getResponseCode() == 200){
+        var icsContent = urlResponse.getContentText()
+        const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
+        var urlContent = icsRegex.exec(icsContent);
+        if (urlContent == null){
+          // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
+          // Add END:VEVENT for every BEGIN:VEVENT that's missing it
+          const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
+          icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
 
-    try {
-      callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
-        if (urlResponse.getResponseCode() == 200){
-          var icsContent = urlResponse.getContentText()
-          const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
-          var urlContent = icsRegex.exec(icsContent);
-          if (urlContent == null){
-            // Microsoft Outlook has a bug that sometimes results in incorrectly formatted ics files. This tries to fix that problem.
-            // Add END:VEVENT for every BEGIN:VEVENT that's missing it
-            const veventRegex = /BEGIN:VEVENT(?:(?!END:VEVENT).)*?(?=.BEGIN|.END:VCALENDAR|$)/sg;
-            icsContent = icsContent.replace(veventRegex, (match) => match + "\nEND:VEVENT");
-
-            // Add END:VCALENDAR if missing
-            if (!icsContent.endsWith("END:VCALENDAR")){
-                icsContent += "\nEND:VCALENDAR";
-            }
-            urlContent = icsRegex.exec(icsContent)
-            if (urlContent == null){
-              Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
-              reportOverallFailure = true;
-              return
-            }
-            Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
+          // Add END:VCALENDAR if missing
+          if (!icsContent.endsWith("END:VCALENDAR")){
+              icsContent += "\nEND:VCALENDAR";
           }
-          result.push([urlContent[0], colorId]);
-          return;
+          urlContent = icsRegex.exec(icsContent)
+          if (urlContent == null){
+            Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
+            reportOverallFailure = true;
+            return
+          }
+          Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
         }
-        else{ //Throw here to make callWithBackoff run again
-          throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
-        }
-      }, defaultMaxRetries);
-    }
-    catch (e) {
-      reportOverallFailure = true;
+        return urlContent[0];
+      }
+      else{ //Throw here to make callWithBackoff run again
+        throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
+      }
+    }, defaultMaxRetries);
+  }
+  catch (e) {
+    reportOverallFailure = true;
+  }
+  return result;
+}
+
+/**
+ * Gets all events from a specified google calendar id.
+ *
+ * @return {Array.string} The events fetched from the specified URLs
+ */
+function getTargetCalendarEvents() {
+  let eventList = callWithBackoff(function () {
+    return Calendar.Events.list(targetCalendarId, { showDeleted: false, privateExtendedProperty: `fromGAS=${calendarConfig.sourceURL}`, maxResults: 2500 });
+  }, defaultMaxRetries);
+  calendarEvents = [].concat(calendarEvents, eventList.items);
+  //loop until we received all events
+  while (typeof eventList.nextPageToken !== 'undefined') {
+    eventList = callWithBackoff(function () {
+      return Calendar.Events.list(targetCalendarId, { showDeleted: false, privateExtendedProperty: `fromGAS=${calendarConfig.sourceURL}`, maxResults: 2500, pageToken: eventList.nextPageToken });
+    }, defaultMaxRetries);
+
+    if (eventList != null)
+      calendarEvents = [].concat(calendarEvents, eventList.items);
+  }
+  Logger.log(`Fetched ${calendarEvents.length} events from ${calendarConfig.targetCalendarName}`);
+  for (var i = 0; i < calendarEvents.length; i++) {
+    if (calendarEvents[i].extendedProperties != null) {
+      calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
+      calendarEventsMD5s[i] = calendarEvents[i].extendedProperties.private["MD5"];
     }
   }
-
-  return result;
 }
 
 /**
@@ -181,16 +202,16 @@ function fetchSourceCalendars(sourceCalendarURLs){
  * @param {string} targetCalendarName - The name of the calendar to return
  * @return {Calendar} The calendar retrieved or created
  */
-function setupTargetCalendar(targetCalendarName){
+function setupTargetCalendar(){
   var targetCalendar = Calendar.CalendarList.list({showHidden: true, maxResults: 250}).items.filter(function(cal) {
-    return ((cal.summaryOverride || cal.summary) == targetCalendarName) &&
+    return ((cal.summaryOverride || cal.summary) == calendarConfig.targetCalendarName) &&
                 (cal.accessRole == "owner" || cal.accessRole == "writer");
   })[0];
 
   if(targetCalendar == null){
-    Logger.log("Creating Calendar: " + targetCalendarName);
+    Logger.log("Creating Calendar: " + calendarConfig.targetCalendarName);
     targetCalendar = Calendar.newCalendar();
-    targetCalendar.summary = targetCalendarName;
+    targetCalendar.summary = calendarConfig.targetCalendarName;
     targetCalendar.description = "Created by GAS";
     targetCalendar.timeZone = Calendar.Settings.get("timezone").value;
     targetCalendar = Calendar.Calendars.insert(targetCalendar);
@@ -204,46 +225,31 @@ function setupTargetCalendar(targetCalendarName){
  * Registers all found timezones with TimezoneService.
  * Creates an Array with all events and adds the event-ids to the provided Array.
  *
- * @param {Array.string} responses - Array with all ical sources
+ * @param {string} response - Array with all ical sources
  * @return {Array.ICALComponent} Array with all events found
  */
-function parseResponses(responses){
-  var result = [];
-  for (var itm of responses){
-    var resp = itm[0];
-    var colorId = itm[1];
-    var jcalData = ICAL.parse(resp);
-    var component = new ICAL.Component(jcalData);
+function parseSourceCalendarEvents(response){
+  var jcalData = ICAL.parse(response);
+  var component = new ICAL.Component(jcalData);
 
-    ICAL.helpers.updateTimezones(component);
-    var vtimezones = component.getAllSubcomponents("vtimezone");
-    for (var tz of vtimezones){
-      ICAL.TimezoneService.register(tz);
-    }
-
-    var allEvents = component.getAllSubcomponents("vevent");
-    if (colorId != undefined)
-      allEvents.forEach(function(event){event.addPropertyWithValue("color", colorId);});
-
-    var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
-    if (calName != null)
-      allEvents.forEach(function(event){event.addPropertyWithValue("parentCal", calName); });
-
-    result = [].concat(allEvents, result);
+  ICAL.helpers.updateTimezones(component);
+  var vtimezones = component.getAllSubcomponents("vtimezone");
+  for (var tz of vtimezones){
+    ICAL.TimezoneService.register(tz);
   }
 
-  //No need to process cancelled events as they will be added to gcal's trash anyway
-  result = result.filter(function(event){
-    try{
-      return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
-    }catch(e){
-      return true;
-    }
-  });
+  let allEvents = component.getAllSubcomponents("vevent");
+  
+  allEvents = filterResults(allEvents);
 
-  result = filterResults(result);
+  if (calendarConfig.color != undefined)
+    allEvents.forEach(function(event){event.updatePropertyWithValue("color", calendarConfig.color);});
 
-  result.forEach(function(event){
+  var calName = component.getFirstPropertyValue("x-wr-calname") || component.getFirstPropertyValue("name");
+  if (calName != null)
+    allEvents.forEach(function(event){event.updatePropertyWithValue("parentCal", calName); });
+
+  allEvents.forEach(function(event){
     if (!event.hasProperty('uid')){
       event.updatePropertyWithValue('uid', Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, event.toString()).toString(), Utilities.Charset.UTF_8);
     }
@@ -269,7 +275,7 @@ function parseResponses(responses){
     }
   });
 
-  return result;
+  return allEvents;
 }
 
 /**
@@ -279,6 +285,15 @@ function parseResponses(responses){
  * @return {Array.ICALComponent} Array with filtered events
  */
 function filterResults(events){
+  //No need to process cancelled events as they will be added to gcal's trash anyway
+  events = events.filter(function(event){
+    try{
+      return (event.getFirstPropertyValue('status').toString().toLowerCase() != "cancelled");
+    }catch(e){
+      return true;
+    }
+  });
+
   Logger.log(`Applying ${filters.length} filters on ${events.length} events.`);
 
   for (var filter of filters){
@@ -607,25 +622,25 @@ function processEvent(event, calendarTz){
   else{
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
-      if (modifyExistingEvents){
+      if (calendarConfig.modifyExistingEvents){
         oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
         }, defaultMaxRetries);
-        if (newEvent != null && emailSummary){
-          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], targetCalendarName]);
+        if (newEvent != null && appSettings.emailSummary){
+          modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], calendarConfig.targetCalendarName]);
         }
       }
     }
     else{
-      if (addEventsToCalendar){
+      if (calendarConfig.addEventsToCalendar){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
         newEvent = callWithBackoff(function(){
           return Calendar.Events.insert(newEvent, targetCalendarId);
         }, defaultMaxRetries);
-        if (newEvent != null && emailSummary){
-          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], targetCalendarName]);
+        if (newEvent != null && appSettings.emailSummary){
+          addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], calendarConfig.targetCalendarName]);
         }
       }
     }
@@ -678,7 +693,7 @@ function createEvent(event, calendarTz){
     };
   }
 
-  if (addAttendees && event.hasProperty('attendee')){
+  if (calendarConfig.addAttendees && event.hasProperty('attendee')){
     newEvent.attendees = [];
     for (var att of icalEvent.attendees){
       var mail = parseAttendeeMail(att.toICALString());
@@ -716,7 +731,7 @@ function createEvent(event, calendarTz){
     //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
   }
 
-  if (descriptionAsTitles && event.hasProperty('description'))
+  if (calendarConfig.descriptionAsTitles && event.hasProperty('description'))
     newEvent.summary = icalEvent.description;
   else if (event.hasProperty('summary'))
     newEvent.summary = icalEvent.summary;
@@ -732,12 +747,12 @@ function createEvent(event, calendarTz){
     if (organizerMail)
       newEvent.organizer.email = organizerMail.toString();
 
-    if (addOrganizerToTitle && organizerName){
+    if (calendarConfig.addOrganizerToTitle && organizerName){
         newEvent.summary = organizerName + ": " + newEvent.summary;
     }
   }
 
-  if (addCalToTitle && event.hasProperty('parentCal')){
+  if (calendarConfig.addCalToTitle && event.hasProperty('parentCal')){
     var calName = event.getFirstPropertyValue('parentCal');
     newEvent.summary = "(" + calName + ") " + newEvent.summary;
   }
@@ -749,8 +764,8 @@ function createEvent(event, calendarTz){
     newEvent.location = icalEvent.location;
 
   var validVisibilityValues = ["default", "public", "private", "confidential"];
-  if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
-    newEvent.visibility = overrideVisibility.toLowerCase();
+  if ( validVisibilityValues.includes(calendarConfig.overrideVisibility.toLowerCase()) ) {
+    newEvent.visibility = calendarConfig.overrideVisibility.toLowerCase();
   } else if (event.hasProperty('class')){
     var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
     if (validVisibilityValues.includes(classString))
@@ -764,8 +779,8 @@ function createEvent(event, calendarTz){
   }
 
   if (icalEvent.startDate.isDate){
-    if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320){
-      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : defaultAllDayReminder}]};//reminder as defined by the user
+    if (0 <= calendarConfig.defaultAllDayReminder && calendarConfig.defaultAllDayReminder <= 40320){
+      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : calendarConfig.defaultAllDayReminder}]};//reminder as defined by the user
     }
     else{
       newEvent.reminders = { 'useDefault' : false, 'overrides' : []};//no reminder
@@ -775,7 +790,7 @@ function createEvent(event, calendarTz){
     newEvent.reminders = { 'useDefault' : true, 'overrides' : []};//will set the default reminders as set at calendar.google.com
   }
 
-  switch (addAlerts) {
+  switch (calendarConfig.addAlerts) {
     case "yes":
       var valarms = event.getAllSubcomponents('valarm');
       if (valarms.length > 0){
@@ -826,7 +841,7 @@ function createEvent(event, calendarTz){
     newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
   }
 
-  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
+  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : calendarConfig.sourceURL, id : icalEvent.uid } };
 
   if (event.hasProperty('recurrence-id')){
     newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
@@ -857,7 +872,7 @@ function processEventInstance(recEvent){
   var eventInstanceToPatch = callWithBackoff(function(){
     return Calendar.Events.list(targetCalendarId,
       { singleEvents : true,
-        privateExtendedProperty : "fromGAS=true",
+        privateExtendedProperty : `fromGAS=${calendarConfig.sourceURL}`,
         privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
       }).items;
   }, defaultMaxRetries);
@@ -875,14 +890,14 @@ function processEventInstance(recEvent){
           orderBy : "startTime",
           maxResults: 1,
           timeMin : recEvent.recurringEventId,
-          privateExtendedProperty : "fromGAS=true",
+          privateExtendedProperty : `fromGAS=${calendarConfig.sourceURL}`,
           privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
         }).items;
     }, defaultMaxRetries);
   }
 
   if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    if (modifyExistingEvents){
+    if (calendarConfig.modifyExistingEvents){
       Logger.log("Updating existing event instance");
       callWithBackoff(function(){
         Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
@@ -890,7 +905,7 @@ function processEventInstance(recEvent){
     }
   }
   else{
-    if (addEventsToCalendar){
+    if (calendarConfig.addEventsToCalendar){
       Logger.log("No Instance matched, adding as new event!");
       callWithBackoff(function(){
         Calendar.Events.insert(recEvent, targetCalendarId);
@@ -911,7 +926,7 @@ function processEventCleanup(){
       if(feedIndex  == -1                                             // Event is no longer in source
         && calendarEvents[i].recurringEventId == null                 // And it's not a recurring event
         && (                                                          // And one of:
-          removePastEventsFromCalendar                                // We want to remove past events
+          calendarConfig.removePastEventsFromCalendar                                // We want to remove past events
           || new Date(calendarEvents[i].start.dateTime) > new Date()  // Or the event is in the future
           || new Date(calendarEvents[i].start.date) > new Date()      // (2 different ways event start can be stored)
         )
@@ -922,8 +937,8 @@ function processEventCleanup(){
           Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
         }, defaultMaxRetries);
 
-        if (emailSummary){
-          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime, calendarEvents[i].end.date||calendarEvents[i].end.dateTime, calendarEvents[i].location, calendarEvents[i].description], targetCalendarName]);
+        if (appSettings.emailSummary){
+          removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime, calendarEvents[i].end.date||calendarEvents[i].end.dateTime, calendarEvents[i].location, calendarEvents[i].description], calendarConfig.targetCalendarName]);
         }
       }
     }
@@ -971,7 +986,7 @@ function processTasks(responses){
 
   //-------------- Remove old Tasks -----------
   // ID can't be used as identifier as the API reassignes a random id at task creation
-  if(removeEventsFromCalendar){
+  if(calendarConfig.removeEventsFromCalendar){
     Logger.log("Checking " + existingTasksIds.length + " tasks for removal");
     for (var i = 0; i < existingTasksIds.length; i++){
       var currentID = existingTasks[i].id;
@@ -1190,7 +1205,7 @@ function sendSummary() {
   var subject;
   var body;
 
-  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  var subject = `${appSettings.customEmailSubject ? appSettings.customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
   addedEvents = condenseCalendarMap(addedEvents);
   modifiedEvents = condenseCalendarMap(modifiedEvents);
   removedEvents = condenseCalendarMap(removedEvents);
@@ -1245,7 +1260,7 @@ function sendSummary() {
 
   body += "<br/><br/>Do you have any problems or suggestions? Contact us at <a href='https://github.com/derekantrican/GAS-ICS-Sync/'>github</a>.";
   var message = {
-    to: email,
+    to: appSettings.email,
     subject: subject,
     htmlBody: body,
     name: "GAS-ICS-Sync"
@@ -1307,16 +1322,16 @@ function callWithBackoff(func, maxRetries) {
  */
 function checkForUpdate(){
   // No need to check if we can't alert anyway
-  if (email == "")
+  if (appSettings.email == "")
     return;
 
   var lastAlertedVersion = PropertiesService.getScriptProperties().getProperty("alertedForNewVersion");
   try {
-    var thisVersion = 5.8;
+    var thisVersion = 6.0;
     var latestVersion = getLatestVersion();
 
     if (latestVersion > thisVersion && latestVersion != lastAlertedVersion){
-      MailApp.sendEmail(email,
+      MailApp.sendEmail(appSettings.email,
         `Version ${latestVersion} of GAS-ICS-Sync is available! (You have ${thisVersion})`,
         "You can see the latest release here: https://github.com/derekantrican/GAS-ICS-Sync/releases");
 
