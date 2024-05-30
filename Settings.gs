@@ -31,7 +31,8 @@ const defaultSettings = {
   addAttendees: false,
   defaultAllDayReminder: null,
   overrideVisibility: "",
-  addTasks: false
+  addTasks: false,
+  filters: []
 };
 
 
@@ -39,82 +40,76 @@ const defaultSettings = {
 *=========================================
 *          Calendar Settings
 *=========================================
-*/
-/*  EXAMPLE: 
-*calendars: [
-*  {
-*  //The three fields listed below are required fields for every calendar.  sourceCalendarName must only be used once in the script.
-*  sourceCalendarName: "Work Calendar",  This is a friendly name for the source calendar you want the script to sync
-*  sourceURL: "http://someURLforWork.com/someCalendar.ics",   This is the URL of the source calendar
-*  targetCalendarName: "My Work Calendar", This is the name of the target calendar in Google you want to sync to.  For your personal calendar, use your email address (xyz@gmail.com)
-*
-*  //Additional properties below can be set from the default list above but customized to be calendar-specific.  These are optional.
-*  color: 5,
-*  onlyFutureEvents: true  //No comma on last entry
-*  }  // use a comma after } if there are other calendars.  No comma on last entry.
+EXAMPLE:
+sourceCalendars = [
+  {
+    //The three fields listed below are required fields for every calendar.  sourceCalendarName must only be used once in the script.
+    sourceCalendarName: "Work Calendar",  This is a friendly name for the source calendar you want the script to sync
+    sourceURL: "http://someURLforWork.com/someCalendar.ics",   This is the URL of the source calendar
+    targetCalendarName: "My Work Calendar", This is the name of the target calendar in Google you want to sync to.  For your personal calendar, use your email address (xyz@gmail.com)
+
+    //Additional properties below can be set from the default list above but customized to be calendar-specific.  These are optional.
+    color: 5,
+    filers: ['onlyFutureEvents'] //add a comma-separated list of all filter-ids you want to apply
+  }  // use a comma after } if there are other calendars.  No comma on last entry.
+];
 */
 
 
 const sourceCalendars = [
-    {
-    sourceCalendarName: "Calendar x",                    //Required
-    sourceURL: "http://CalXURL.ics",                     //Required
-    targetCalendarName: "Target Calendar",               //Required
-    color: 5
-    },
-    {
-    sourceCalendarName: "Calendar y",                    //Required
-    sourceURL: "http://CalYURL.ics",                     //Required
-    targetCalendarName: "Target Calendar",               //Required
-    color: 5,
-    addCalToTitle: false
-    }
-  ];
+  {
+  sourceCalendarName: "Calendar x",                    //Required
+  sourceURL: "http://CalXURL.ics",                     //Required
+  targetCalendarName: "Target Calendar",               //Required
+  color: 5
+  },
+  {
+  sourceCalendarName: "Calendar y",                    //Required
+  sourceURL: "http://CalYURL.ics",                     //Required
+  targetCalendarName: "Target Calendar",               //Required
+  color: 5,
+  addCalToTitle: false
+  }
+];
 
 /*
 *=========================================
 *             Event Filters
 *=========================================
-*/
-/*
 Filters for calendar events based on ical properties (RFC 5545).
-Define each filter with the following structure and add them to the var filters array:
-{
-  parameter: "property",      // Event property to filter by (e.g., "summary", "categories", "dtend", "dtstart").
-  type: "include/exclude",    // Whether to include or exclude events matching the criteria.
-  comparison: "method",       // Comparison method: "equals", "begins with", "contains", "regex", "<", ">".
-                              // Note: "<", ">" only apply for date/time properties.
-  criterias: ["values"],      // Array of values or patterns for comparison.
-  offset: number              // (Optional) For date/time properties, specify an offset in days.
-}
+Define each filter with the following structure and add them to the filters object below:
+'uniqueID': {
+              parameter: "property",      // Event property to filter by (e.g., "summary", "categories", "dtend", "dtstart").
+              type: "include/exclude",    // Whether to include or exclude events matching the criteria.
+              comparison: "method",       // Comparison method: "equals", "begins with", "contains", "regex", "<", ">".
+                                          // Note: "<", ">" only apply for date/time properties.
+              criterias: ["values"],      // Array of values or patterns for comparison.
+              offset: number              // (Optional) For date/time properties, specify an offset in days.
+            }
 */
-const filters = [];
-
-/* Examples:
-const filters = [
-  {
-    parameter: "summary",       // Exclude events whose summary starts with "Pending:" or contains "cancelled".
-    type: "exclude",
-    comparison: "regex",
-    criterias: ["^Pending:", "cancelled"]
-  },
-  {
-    parameter: "categories",    // Include only events categorized as "Meetings".
-    type: "include",
-    comparison: "equals",
-    criterias: ["Meetings"]
-  },
-  {
-    parameter: "dtend",       // Reproduce the old onlyFutureEvents behaviour.
-    type: "include",
-    comparison: ">",
-    offset: 0
-  },
-  {
-    parameter: "dtstart",       // Exclude events starting more than 14 days from now.
-    type: "exclude",
-    comparison: ">",
-    offset: 14
-  }
-];
-*/
+const filters = {
+  'onlyConfirmed': {
+                      parameter: "summary",       // Exclude events whose summary starts with "Pending:" or contains "cancelled".
+                      type: "exclude",
+                      comparison: "regex",
+                      criterias: ["^Pending:", "cancelled"]
+                    },
+  'onlyMeetings': {
+                    parameter: "categories",    // Include only events categorized as "Meetings".
+                    type: "include",
+                    comparison: "equals",
+                    criterias: ["Meetings"]
+                  },
+  'onlyFutureEvents': {
+                        parameter: "dtend",       // Reproduce the deprecated onlyFutureEvents behaviour.
+                        type: "include",
+                        comparison: ">",
+                        offset: 0
+                      },
+  'x+14': {
+            parameter: "dtstart",       // Exclude events starting more than 14 days from now.
+            type: "exclude",
+            comparison: ">",
+            offset: 14
+          }
+};

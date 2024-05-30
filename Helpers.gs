@@ -294,9 +294,14 @@ function filterResults(events){
     }
   });
 
-  Logger.log(`Applying ${filters.length} filters on ${events.length} events.`);
+  Logger.log(`Applying ${calendarConfig.filters.length} filter(s) on ${events.length} events.`);
 
-  for (var filter of filters){
+  for (var filterID of calendarConfig.filters){
+    let filter = filters[filterID];
+    if (!filter){
+      Logger.log(`Invalid filter id: ${filterID}`);
+      continue;
+    }
     filter.parameter = filter.parameter.toLowerCase();
     events = events.filter(function(event){
       try{
