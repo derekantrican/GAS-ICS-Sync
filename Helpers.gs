@@ -633,6 +633,22 @@ function processEvent(event, calendarTz){
 }
 
 /**
+ * Parses the provided event description to find the URL of a Microsoft Teams meeting.
+ * Will return 'Microsoft Teams Meeting' if the description is't in the expected format.
+ * We expect the description to have 3 URLs. Being the second one, the meeting URL.
+ *
+ * @param {string} eventDescription - The string to parse
+ * @return {string} The Microsoft Teams meeting URL found in the string. The string 'Microsoft Teams Meeting' if nothing was found
+ */
+function parseTeamsMeetingUrl(eventDescription){
+  var urlMatch = RegExp("\<.*\>", "Usg").exec(eventDescription);
+  if (urlMatch != null && urlMatch.length == 3)
+    return urlMatch[1];
+  else
+    return 'Microsoft Teams Meeting';
+}
+
+/**
  * Creates a Google Calendar Event based on the specified ICALEvent.
  * Will return null if the event has not changed since the last sync.
  *
@@ -747,6 +763,9 @@ function createEvent(event, calendarTz){
 
   if (event.hasProperty('location'))
     newEvent.location = icalEvent.location;
+  
+  if (teamsMeetingUrlAsLocation && newEvent.location == 'Microsoft Teams Meeting')
+    newEvent.location = parseTeamsMeetingUrl(newEvent.description)
 
   var validVisibilityValues = ["default", "public", "private", "confidential"];
   if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
