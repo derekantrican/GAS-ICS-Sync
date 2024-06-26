@@ -641,7 +641,7 @@ function processEvent(event, calendarTz){
  * @return {string} The Microsoft Teams meeting URL found in the string. The string 'Microsoft Teams Meeting' if nothing was found
  */
 function parseTeamsMeetingUrl(eventDescription){
-  var urlMatch = RegExp("\<.*\>", "Usg").exec(eventDescription);
+  var urlMatch = RegExp("\<.*?\>", "gs").exec(eventDescription);
   if (urlMatch != null && urlMatch.length == 3)
     return urlMatch[1];
   else
