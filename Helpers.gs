@@ -1190,7 +1190,16 @@ function sendSummary() {
   var subject;
   var body;
 
-  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  var changeSummary = [
+    { events: addedEvents, label: 'new' },
+    { events: modifiedEvents, label: 'modified' },
+    { events: removedEvents, label: 'deleted' }
+  ]
+  .filter(x => x.events.length)
+  .map(x => `${x.events.length} ${x.label}`)
+  .join(", ");
+  
+  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${changeSummary}`;
   addedEvents = condenseCalendarMap(addedEvents);
   modifiedEvents = condenseCalendarMap(modifiedEvents);
   removedEvents = condenseCalendarMap(removedEvents);
