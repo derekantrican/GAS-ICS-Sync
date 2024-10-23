@@ -50,7 +50,7 @@ sourceCalendars = [
 
     //Additional properties below can be set from the default list above but customized to be calendar-specific.  These are optional.
     color: 5,
-    filers: ['onlyFutureEvents'] //add a comma-separated list of all filter-ids you want to apply
+    filters: ['onlyFutureEvents'] //add a comma-separated list of all filter-ids you want to apply
   }  // use a comma after } if there are other calendars.  No comma on last entry.
 ];
 */
