@@ -32,7 +32,8 @@ const defaultSettings = {
   defaultAllDayReminder: null,
   overrideVisibility: "",
   addTasks: false,
-  filters: []
+  filters: [],
+  syncDelayDays: null
 };
 
 
