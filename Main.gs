@@ -51,7 +51,7 @@ var reportOverallFailure = false;
 function startSync(){
   if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
     Logger.log("Another iteration is currently running! Exiting...");
-    //return;
+    return;
   }
 
   PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
