@@ -33,7 +33,7 @@ const defaultSettings = {
   overrideVisibility: "",
   addTasks: false,
   filters: [],
-  syncDelayDays: null
+  syncDelayDays: null 
 };
 
 
