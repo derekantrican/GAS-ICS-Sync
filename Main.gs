@@ -72,7 +72,25 @@ function startSync(){
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar();
     targetCalendarId = targetCalendar.id;
+    
+    //if sync is different from the App
+    if (calendarConfig.syncDelayDays != null){
+      var dt1 = new Date(); // today's date
+      // get milliseconds
+      var t1 = dt1.getTime(),
+          t2 = PropertiesService.getUserProperties().getProperty(calendarConfig.sourceCalendarName);
+
+      var diffInDays = Math.floor((t1-t2)/(24*3600*1000));
+      if (diffInDays <= calendarConfig.syncDelayDays){
+        continue;
+      }
+      else{
+        PropertiesService.getUserProperties().setProperty(calendarConfig.sourceCalendarName, new Date().getTime());
+      }
+    }
+
     Logger.log(`Syncing '${calendarConfig.sourceCalendarName}' (URL: ${calendarConfig.sourceURL}) to ${calendarConfig.targetCalendarName} (ID: ${targetCalendarId})`);
+    
     //------------------------ Parse existing events --------------------------
     if (calendarConfig.addEventsToCalendar || calendarConfig.modifyExistingEvents || calendarConfig.removeEventsFromCalendar){
       var response = getSourceCalendarEvents();
