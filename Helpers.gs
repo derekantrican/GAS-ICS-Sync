@@ -255,7 +255,7 @@ function parseResponses(responses){
         if (tz in tzidreplace){
           tz = tzidreplace[tz];
         }
-        let jsTime = new Date();
+        let jsTime = new Date(event.getFirstPropertyValue('recurrence-id').toString());
         let utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
         let tgtTime = new Date(Utilities.formatDate(jsTime, tz, "HH:mm:ss MM/dd/yyyy"));
         recUTCOffset = (tgtTime - utcTime)/-1000;
