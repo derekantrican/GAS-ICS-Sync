@@ -610,9 +610,15 @@ function processEvent(event, calendarTz){
       if (modifyExistingEvents){
         oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
-        newEvent = callWithBackoff(function(){
-          return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
-        }, defaultMaxRetries);
+        try{
+          newEvent = callWithBackoff(function(){
+            return Calendar.Events.update(newEvent, targetCalendarId, calendarEvents[index].id);
+          }, defaultMaxRetries);
+        }
+        catch (e){
+          Logger.log(`Operation failed with error "${e}"`);
+          reportOverallFailure = true;
+        }
         if (newEvent != null && emailSummary){
           modifiedEvents.push([[oldEvent.summary, newEvent.summary, oldEvent.start.date||oldEvent.start.dateTime, newEvent.start.date||newEvent.start.dateTime, oldEvent.end.date||oldEvent.end.dateTime, newEvent.end.date||newEvent.end.dateTime, oldEvent.location, newEvent.location, oldEvent.description, newEvent.description], targetCalendarName]);
         }
@@ -621,9 +627,15 @@ function processEvent(event, calendarTz){
     else{
       if (addEventsToCalendar){
         Logger.log("Adding new event " + newEvent.extendedProperties.private["id"]);
-        newEvent = callWithBackoff(function(){
-          return Calendar.Events.insert(newEvent, targetCalendarId);
-        }, defaultMaxRetries);
+        try{
+          newEvent = callWithBackoff(function(){
+            return Calendar.Events.insert(newEvent, targetCalendarId);
+          }, defaultMaxRetries);
+        }
+        catch (e){
+          Logger.log(`Operation failed with error "${e}"`);
+          reportOverallFailure = true;
+        }
         if (newEvent != null && emailSummary){
           addedEvents.push([[newEvent.summary, newEvent.start.date||newEvent.start.dateTime, newEvent.end.date||newEvent.end.dateTime, newEvent.location, newEvent.description], targetCalendarName]);
         }
@@ -918,9 +930,15 @@ function processEventCleanup(){
       )
       {
         Logger.log("Deleting old event " + currentID);
-        callWithBackoff(function(){
-          Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
-        }, defaultMaxRetries);
+        try{
+          callWithBackoff(function(){
+            Calendar.Events.remove(targetCalendarId, calendarEvents[i].id);
+          }, defaultMaxRetries);
+        }
+        catch (e){
+          Logger.log(`Operation failed with error "${e}"`);
+          reportOverallFailure = true;
+        }
 
         if (emailSummary){
           removedEvents.push([[calendarEvents[i].summary, calendarEvents[i].start.date||calendarEvents[i].start.dateTime, calendarEvents[i].end.date||calendarEvents[i].end.dateTime, calendarEvents[i].location, calendarEvents[i].description], targetCalendarName]);
