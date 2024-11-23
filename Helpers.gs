@@ -1203,12 +1203,14 @@ function parseNotificationTime(notificationString){
 
 /**
 * Sends an email summary with added/modified/deleted events.
+* 
+* @param {number} numErrors - number of errors to report in email
 */
-function sendSummary() {
+function sendSummary(numErrors) {
   var subject;
   var body;
 
-  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted`;
+  var subject = `${customEmailSubject ? customEmailSubject : "GAS-ICS-Sync Execution Summary"}: ${addedEvents.length} new, ${modifiedEvents.length} modified, ${removedEvents.length} deleted, ${numErrors} errors`;
   addedEvents = condenseCalendarMap(addedEvents);
   modifiedEvents = condenseCalendarMap(modifiedEvents);
   removedEvents = condenseCalendarMap(removedEvents);
@@ -1261,6 +1263,9 @@ function sendSummary() {
     body += "</ul>";
   }
 
+  if (numErrors) {
+    body += "<br/><br/>There were errors, see execution logs.";
+  }
   body += "<br/><br/>Do you have any problems or suggestions? Contact us at <a href='https://github.com/derekantrican/GAS-ICS-Sync/'>github</a>.";
   var message = {
     to: email,

@@ -37,6 +37,7 @@ var addEventsToCalendar = true;           // If you turn this to "false", you ca
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
 var removePastEventsFromCalendar = true;  // If you turn this to "false", any event that is in the past will not be removed.
+var skipIfEmptyFeed = false;              // If you turn this to "true", it will skip sync when feed is empty instead of removing all events from target calendar.
 var addAlerts = "yes";                    // Whether to add the ics/ical alerts as notifications on the Google Calendar events or revert to the calendar's default reminders ("yes", "no", "default").
 var addOrganizerToTitle = false;          // Whether to prefix the event name with the event organiser for further clarity
 var descriptionAsTitles = false;          // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
@@ -172,6 +173,10 @@ function startSync(){
 
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
+    if (responses.length == 0 && skipIfEmptyFeed){
+      Logger.log("Skipping this sync iteration due to empty feed (assuming temp problem), not modifying " + targetCalendarName);
+      continue;
+    }
     Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
 
     //------------------------ Get target calendar information------------------------
@@ -242,8 +247,13 @@ function startSync(){
     }
   }
 
-  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
-    sendSummary();
+  if (emailSummary){
+    if (reportOverallFailure || addedEvents.length || modifiedEvents.length || removedEvents.length){
+      sendSummary(reportOverallFailure ? 1 : 0);
+      Logger.log("Email Sent.");
+    } else {
+      Logger.log("No Email Sent because there were no errors nor updates to events.");
+    }
   }
   Logger.log("Sync finished!");
   PropertiesService.getUserProperties().setProperty('LastRun', 0);
