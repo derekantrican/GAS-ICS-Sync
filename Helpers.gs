@@ -122,6 +122,41 @@ function deleteAllTriggers(){
 }
 
 /**
+ * Gets the response from a single configured url
+ *
+ * @param {string} url The url to be fetched, including eventual username and password
+ */
+function getResponse(url) {
+  var urlResponse;
+  // Follow https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1 taking into account that:
+  // - UrlFetchApp.fetch only accepts https and http links
+  // it defaults to http if no scheme is given, but just // is not accepted
+  // - Google Apps Scripts does not seem to accept \] in [^] lists
+  // - to have the less possible need of percent-encoding, as much characters as possible are accepted
+  const urlRegex = RegExp("^(https?://)?(?<username>[^:/@]+)(?::(?<password>[^/@]*))?@");
+  const regexResult = urlRegex.exec(url);
+  if (regexResult != null){
+    const username = decodeURIComponent(regexResult.groups['username']);
+    let password = regexResult.groups['password'];
+    if (password != null){
+      password = decodeURIComponent(password);
+    }
+    else{
+      password = ""; // empty password provided
+    }
+    // unset username and password from the url, otherwise UrlFetchApp raises "Login information disallowed"
+    url = url.replace(urlRegex, '$1');
+    urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true,
+      "headers": { "Authorization": "Basic " + Utilities.base64Encode(username+":"+password) }
+    });
+  }
+  else{
+    urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+  }
+  return urlResponse;
+}
+
+/**
  * Gets the ressource from the specified URLs.
  *
  * @param {Array.string} sourceCalendarURLs - Array with URLs to fetch
@@ -135,7 +170,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
 
     try {
       callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+        var urlResponse = getResponse(url);
         if (urlResponse.getResponseCode() == 200){
           var icsContent = urlResponse.getContentText()
           const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
