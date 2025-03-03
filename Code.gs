@@ -217,7 +217,7 @@ function startSync(){
         }, defaultMaxRetries);
 
       vevents.forEach(function(e){
-        processEvent(e, calendarTz);
+        processEventWithState(e, calendarTz);
       });
 
       Logger.log("Done processing events");
@@ -238,7 +238,8 @@ function startSync(){
     //------------------------ Add Recurring Event Instances ------------------------
     Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
     for (var recEvent of recurringEvents){
-      processEventInstance(recEvent);
+      processEventWithState(recEvent, calendarTz, true); // Use the state machine for recurring instances
+
     }
   }
 

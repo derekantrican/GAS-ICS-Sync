@@ -863,53 +863,92 @@ function createEvent(event, calendarTz){
  *
  * @param {Calendar.Event} recEvent - The event instance to process
  */
-function processEventInstance(recEvent){
-  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: "+ recEvent.recurringEventId);
 
+function processEventInstance(recEvent) {
+  const eventId = recEvent.extendedProperties?.private["id"];
+  const recurrenceId = recEvent.recurringEventId;
+  const fullEventId = recurrenceId ? `${eventId}_${recurrenceId}` : eventId;
+  const currentState = getEventState(fullEventId);
+
+  Logger.log("ID: " + recEvent.extendedProperties.private["id"] + " | Date: " + recEvent.recurringEventId);
+
+  // Attempt to find the existing event instance using a unique identifier
+  var eventInstanceToPatch = findEventInstanceToPatch(eventId, recurrenceId);
+
+  // Check the current state of the event instance
+  switch (currentState) {
+    case EVENT_STATE.UNTRACKED:
+      if (eventInstanceToPatch.length === 0) {
+        if (addEventsToCalendar) {
+          Logger.log("No Instance matched, adding as new event!");
+          callWithBackoff(function() {
+            Calendar.Events.insert(recEvent, targetCalendarId);
+          }, defaultMaxRetries);
+        }
+      } else {
+        Logger.log("Event instance already exists, marking as tracked.");
+      }
+      setEventState(fullEventId, EVENT_STATE.TRACKED);
+      break;
+
+    case EVENT_STATE.TRACKED:
+      if (eventInstanceToPatch.length === 0) {
+        Logger.log("Tracked event instance not found, marking as potentially deleted.");
+        setEventState(fullEventId, EVENT_STATE.POTENTIALLY_DELETED);
+      } else if (modifyExistingEvents) {
+        Logger.log("Updating existing event instance");
+        callWithBackoff(function() {
+          Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
+        }, defaultMaxRetries);
+      }
+      break;
+
+    case EVENT_STATE.POTENTIALLY_DELETED:
+      if (eventInstanceToPatch.length === 0) {
+        Logger.log("Event instance still not found, marking as manually deleted.");
+        setEventState(fullEventId, EVENT_STATE.MANUALLY_DELETED);
+      } else {
+        Logger.log("Event instance found, marking as tracked.");
+        setEventState(fullEventId, EVENT_STATE.TRACKED);
+      }
+      break;
+
+    case EVENT_STATE.MANUALLY_DELETED:
+      Logger.log("Skipping manually deleted event instance " + fullEventId);
+      break;
+
+    case EVENT_STATE.REMOVED:
+      if (icsEventsIds.includes(fullEventId)) {
+        Logger.log("Re-adding removed event instance " + fullEventId);
+        callWithBackoff(function() {
+          Calendar.Events.insert(recEvent, targetCalendarId);
+        }, defaultMaxRetries);
+        setEventState(fullEventId, EVENT_STATE.TRACKED);
+      }
+      break;
+  }
+}
+
+
+/**
+ * Finds an existing event instance in the target calendar that matches the given fullEventId.
+ *
+ * @param {string} fullEventId - The full event ID to search for, in the format "eventId_recurrenceId"
+ * @return {Array.<Calendar.Event>} An array with a single element if a matching event instance is found, or an empty array if no match is found.
+ */
+function findEventInstanceToPatch(recEvent) {
   var eventInstanceToPatch = callWithBackoff(function(){
     return Calendar.Events.list(targetCalendarId,
       { singleEvents : true,
         privateExtendedProperty : "fromGAS=true",
-        privateExtendedProperty : "rec-id=" + recEvent.extendedProperties.private["id"] + "_" + recEvent.recurringEventId
+        privateExtendedProperty : "rec-id=" + recEvent?.extendedProperties?.private["id"] + "_" + recEvent?.recurringEventId
       }).items;
   }, defaultMaxRetries);
 
-  if (eventInstanceToPatch == null || eventInstanceToPatch.length == 0){
-    if (recEvent.recurringEventId.length == 10){
-      recEvent.recurringEventId += "T00:00:00Z";
-    }
-    else if (recEvent.recurringEventId.substr(-1) !== "Z"){
-      recEvent.recurringEventId += "Z";
-    }
-    eventInstanceToPatch = callWithBackoff(function(){
-       return Calendar.Events.list(targetCalendarId,
-        { singleEvents : true,
-          orderBy : "startTime",
-          maxResults: 1,
-          timeMin : recEvent.recurringEventId,
-          privateExtendedProperty : "fromGAS=true",
-          privateExtendedProperty : "id=" + recEvent.extendedProperties.private["id"]
-        }).items;
-    }, defaultMaxRetries);
-  }
-
-  if (eventInstanceToPatch !== null && eventInstanceToPatch.length == 1){
-    if (modifyExistingEvents){
-      Logger.log("Updating existing event instance");
-      callWithBackoff(function(){
-        Calendar.Events.update(recEvent, targetCalendarId, eventInstanceToPatch[0].id);
-      }, defaultMaxRetries);
-    }
-  }
-  else{
-    if (addEventsToCalendar){
-      Logger.log("No Instance matched, adding as new event!");
-      callWithBackoff(function(){
-        Calendar.Events.insert(recEvent, targetCalendarId);
-      }, defaultMaxRetries);
-    }
-  }
+  // If the event instance is not found, it may be deleted.
+  return eventInstanceToPatch;
 }
+
 
 /**
  * Deletes all events from the target calendar that no longer exist in the source calendars.
@@ -1349,4 +1388,142 @@ function checkForUpdate(){
     var version = json_decoded[0]["tag_name"];
     return Number(version);
   }
+}
+
+
+
+
+// Processing event State transitions
+
+const EVENT_STATE = {
+  UNTRACKED: 'untracked',
+  TRACKED: 'tracked',
+  POTENTIALLY_DELETED: 'potentially_deleted',
+  MANUALLY_DELETED: 'manually_deleted',
+  REMOVED: 'removed'
+};
+
+
+
+function processEventWithState(event, calendarTz, isRecurringInstance) {
+  let eventId, recurrenceId, fullEventId;
+
+  // Check if the event has the necessary methods and properties
+  if (typeof event.getFirstPropertyValue === 'function') {
+    eventId = event.getFirstPropertyValue('uid');
+    recurrenceId = event.getFirstPropertyValue('recurrence-id');
+  } else {
+    // Handle cases where event is missing getFirstPropertyValue
+    eventId = event.id || event.extendedProperties?.private["id"];
+    recurrenceId = event.recurringEventId || null;
+  }
+
+  fullEventId = recurrenceId ? `${eventId}_${recurrenceId}` : eventId; // Ensure unique ID for recurring instances
+  const currentState = getEventState(fullEventId);
+
+  // const eventId = event.getFirstPropertyValue('uid');
+  // const recurrenceId = event.getFirstPropertyValue('recurrence-id');
+  // const fullEventId = recurrenceId ? `${eventId}_${recurrenceId}` : eventId; // Ensure unique ID for recurring instances
+  // const currentState = getEventState(fullEventId);
+
+  // State machine logic for all events, including recurring instances
+  switch (currentState) {
+    case EVENT_STATE.UNTRACKED:
+      // First-time addition
+      if (isRecurringInstance) {
+        processEventInstance(event);
+      } else {
+        processEvent(event, calendarTz);
+      }
+      setEventState(fullEventId, EVENT_STATE.TRACKED);
+      break;
+
+    case EVENT_STATE.TRACKED:
+      // Check if the event is still in the source
+      if (!icsEventsIds.includes(fullEventId)) {
+        setEventState(fullEventId, EVENT_STATE.REMOVED);
+      } else {
+        if (isRecurringInstance) {
+          processEventInstance(event);
+        } else {
+          processEvent(event, calendarTz);
+        }
+      }
+      break;
+
+    case EVENT_STATE.POTENTIALLY_DELETED:
+      // Check if the event is still missing from the calendar
+      if (!calendarEventsIds.includes(fullEventId)) {
+        setEventState(fullEventId, EVENT_STATE.MANUALLY_DELETED);
+      } else {
+        setEventState(fullEventId, EVENT_STATE.TRACKED);
+        if (isRecurringInstance) {
+          processEventInstance(event);
+        } else {
+          processEvent(event, calendarTz);
+        }
+      }
+      break;
+
+    case EVENT_STATE.MANUALLY_DELETED:
+      // Do nothing, as the event should not be re-added
+      Logger.log("Skipping manually deleted event " + fullEventId);
+      break;
+
+    case EVENT_STATE.REMOVED:
+      // If the event reappears in the source, re-add it
+      if (icsEventsIds.includes(fullEventId)) {
+        if (isRecurringInstance) {
+          processEventInstance(event);
+        } else {
+          processEvent(event, calendarTz);
+        }
+        setEventState(fullEventId, EVENT_STATE.TRACKED);
+      }
+      break;
+  }
+}
+
+
+
+function getEventState(eventId) {
+  const stateJson = PropertiesService.getScriptProperties().getProperty('eventStates');
+  const eventStates = stateJson ? JSON.parse(stateJson) : {};
+  return eventStates[eventId] || EVENT_STATE.UNTRACKED;
+}
+
+function setEventState(eventId, state) {
+  const stateJson = PropertiesService.getScriptProperties().getProperty('eventStates');
+  const eventStates = stateJson ? JSON.parse(stateJson) : {};
+  eventStates[eventId] = state;
+  PropertiesService.getScriptProperties().setProperty('eventStates', JSON.stringify(eventStates));
+}
+
+
+function resetAllProperties() {
+  // Reset Script Properties
+  const scriptProperties = PropertiesService.getScriptProperties();
+  if (scriptProperties) {
+    scriptProperties.deleteAllProperties();
+  } else {
+    Logger.log("Script properties are not available.");
+  }
+
+  // Reset User Properties
+  const userProperties = PropertiesService.getUserProperties();
+  if (userProperties) {
+    userProperties.deleteAllProperties();
+  } else {
+    Logger.log("User properties are not available.");
+  }
+
+  // Reset Document Properties
+  const documentProperties = PropertiesService.getDocumentProperties();
+  if (documentProperties) {
+    documentProperties.deleteAllProperties();
+  } else {
+    Logger.log("Document properties are not available.");
+  }
+
+  Logger.log("All properties have been reset where applicable.");
 }
