@@ -12,6 +12,16 @@ This is a standalone script (that consists of multiple files). The purpose is to
 
 **NOTE:** If too many people are accessing the file at the same time, Google may lock you out. You can follow these instructions to set up the script: https://github.com/derekantrican/GAS-ICS-Sync/wiki/Setting-up-the-script-manually
 
+### Install using clasp
+
+1. Install dependencies: `npm i`.
+2. Login: `npm run login`.
+3. Create project: `npm run create`.
+4. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
+5. Push local code: `npm run push`.
+
+Visit AppScript project on UI, refresh the page and run `Code.install` function.
+
 ---------------
 
 ### Questions? Comments? Anything else?
