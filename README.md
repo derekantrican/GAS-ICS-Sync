@@ -12,7 +12,9 @@ This is a standalone script (that consists of multiple files). The purpose is to
 
 **NOTE:** If too many people are accessing the file at the same time, Google may lock you out. You can follow these instructions to set up the script: https://github.com/derekantrican/GAS-ICS-Sync/wiki/Setting-up-the-script-manually
 
-### Install using clasp
+### Install Using Clasp
+
+For the ones who prefer CLI installation, please try the steps below, utilizing [Clasp](https://github.com/google/clasp).
 
 1. Install dependencies: `npm i`.
 2. Login: `npm run login`.
