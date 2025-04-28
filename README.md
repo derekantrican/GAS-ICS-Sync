@@ -21,6 +21,7 @@ This is a standalone script (that consists of multiple files). The purpose is to
 5. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
 6. Push local code: `npm run push`.
 7. Visit AppScript project on UI, refresh the page and run `Code.install` function.
+    * If you wish to run this step through CLI command `npx clasp run install`, you need to deploy this script as API executable. Visit https://github.com/dandv/clasp/blob/master/docs/run.md for more details.
 
 ---------------
 
