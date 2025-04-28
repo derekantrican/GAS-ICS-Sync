@@ -16,10 +16,11 @@ This is a standalone script (that consists of multiple files). The purpose is to
 
 1. Install dependencies: `npm i`.
 2. Login: `npm run login`.
-3. Create project: `npm run create`.
-4. Revert changes to `appsscript.json`: `git checkout appsscript.json`.
-5. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
-6. Push local code: `npm run push`.
+3. Enable the Apps Script on the page https://script.google.com/home/usersettings.
+4. Create project: `npm run create`.
+5. Revert changes to `appsscript.json`: `git checkout appsscript.json`.
+6. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
+7. Push local code: `npm run push`.
 
 Visit AppScript project on UI, refresh the page and run `Code.install` function.
 
