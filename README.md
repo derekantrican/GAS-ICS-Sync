@@ -21,8 +21,7 @@ This is a standalone script (that consists of multiple files). The purpose is to
 5. Revert changes to `appsscript.json`: `git checkout appsscript.json`.
 6. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
 7. Push local code: `npm run push`.
-
-Visit AppScript project on UI, refresh the page and run `Code.install` function.
+8. Visit AppScript project on UI, refresh the page and run `Code.install` function.
 
 ---------------
 
