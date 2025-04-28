@@ -4,6 +4,7 @@
   "scripts": {
     "login": "clasp login",
     "create": "clasp create && git checkout appsscript.json",
+    "open": "clasp open-script",
     "push": "clasp push"
   },
   "license": "GPL-3.0-only",
