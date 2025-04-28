@@ -22,16 +22,14 @@
 *=========================================
 */
 
-var sourceCalendars = [
-  // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
-  // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
-  // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
-  // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
-  [
-    // TODO: update
-    "",
-    "",
-  ],
+var sourceCalendars = [                // The ics/ical urls that you want to get events from along with their target calendars (list a new row for each mapping of ICS url to Google Calendar)
+                                       // For instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays"]
+                                       // Or with colors following mapping https://developers.google.com/apps-script/reference/calendar/event-color,
+                                       // for instance: ["https://p24-calendars.icloud.com/holidays/us_en.ics", "US Holidays", "11"]
+  ["icsUrl1", "targetCalendar1"],
+  ["icsUrl2", "targetCalendar2"],
+  ["icsUrl3", "targetCalendar1"]
+
 ];
 
 var howFrequent = 15;                     // What interval (minutes) to run this script on to check for new events.  Any integer can be used, but will be rounded up to 5, 10, 15, 30 or to the nearest hour after that.. 60, 120, etc. 1440 (24 hours) is the maximum value.  Anything above that will be replaced with 1440.
