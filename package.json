@@ -1,0 +1,14 @@
+{
+  "name": "gas-ics-sync",
+  "description": "A Google Apps Script for syncing ICS/ICAL files faster than the current Google Calendar speed.",
+  "scripts": {
+    "login": "clasp login",
+    "create": "clasp create && git checkout appsscript.json",
+    "open": "clasp open-script",
+    "push": "clasp push"
+  },
+  "license": "GPL-3.0-only",
+  "dependencies": {
+    "clasp": "^1.0.0"
+  }
+}
