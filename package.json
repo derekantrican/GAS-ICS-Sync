@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "login": "clasp login",
-    "create": "clasp create",
+    "create": "clasp create && git checkout appsscript.json",
     "push": "clasp push"
   },
   "author": "",

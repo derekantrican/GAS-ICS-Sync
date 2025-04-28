@@ -18,10 +18,9 @@ This is a standalone script (that consists of multiple files). The purpose is to
 2. Login: `npm run login`.
 3. Enable Apps Script API on the page https://script.google.com/home/usersettings.
 4. Create project: `npm run create`.
-5. Revert changes to `appsscript.json`: `git checkout appsscript.json`.
-6. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
-7. Push local code: `npm run push`.
-8. Visit AppScript project on UI, refresh the page and run `Code.install` function.
+5. Update `Code.sourceCalendars` and `filters.gs` with custom configuration.
+6. Push local code: `npm run push`.
+7. Visit AppScript project on UI, refresh the page and run `Code.install` function.
 
 ---------------
 
