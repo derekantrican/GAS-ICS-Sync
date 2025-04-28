@@ -22,7 +22,7 @@ For the ones who prefer CLI installation, please try the steps below, utilizing 
 4. Create project: `npm run create`.
 5. Update `Code.gs` and `filters.gs` with custom configuration.
 6. Push local code: `npm run push`.
-7. Run `npm run open` to visit your AppScript project on UI and run `Code.install` function.
+7. Execute `npm run open` to visit your AppScript project on UI and run `Code.install` function.
     * If you wish to run this step through CLI command `npx clasp run install`, you need to deploy this script as API executable. Visit https://github.com/google/clasp/blob/master/docs/run.md for more details.
 
 ---------------
