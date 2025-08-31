@@ -286,6 +286,12 @@ function filterResults(events){
     events = events.filter(function(event){
       try{
         if (["dtstart", "dtend"].includes(filter.parameter)){
+          // Check if the event is missing the property we're filtering on
+          if (filter.parameter === "dtend" && !event.hasProperty('dtend')) {
+            filter.parameter = "dtstart";
+            Logger.log("Event missing DTEND property, using DTSTART as fallback for filtering");
+          }
+
           let referenceDate = new ICAL.Time.fromJSDate(new Date(), true).adjust(filter.offset,0,0,0);
           if (event.hasProperty('rrule') || event.hasProperty('rdate')) {
             if ((filter.comparison === ">" && filter.type === "exclude")||(filter.comparison === "<" && filter.type === "include")) {
@@ -308,6 +314,13 @@ function filterResults(events){
           }
         }
         else{
+          if (!event.hasProperty(filter.parameter)) {
+            // If we're filtering by a property that doesn't exist on this event
+            // For exclude filters: keep the event (true)
+            // For include filters: skip the event (false)
+            return (filter.type == "exclude");
+          }
+          
           let regexString = `${(["equals", "begins with"].includes(filter.comparison)) ? "^" : ""}(${filter.criterias.join("|")})${(filter.comparison == "equals") ? "$" : ""}`;
           let regex = new RegExp(regexString);
           let result = regex.test(event.getFirstPropertyValue(filter.parameter).toString()) ^ (filter.type == "exclude");
@@ -315,11 +328,13 @@ function filterResults(events){
             let id = event.getFirstPropertyValue('uid');
             Logger.log(`Filtering recurrence instance of ${id} at ${event.getFirstPropertyValue('dtstart').toICALString()}`);
             let indx = events.findIndex((e) => e.getFirstPropertyValue('uid') == id && !e.hasProperty('recurrence-id'));
-            if (!events[indx].hasProperty('exdate')){
-              events[indx].addProperty(new ICAL.Property('exdate'));
+            if (indx !== -1) {
+              if (!events[indx].hasProperty('exdate')){
+                events[indx].addProperty(new ICAL.Property('exdate'));
+              }
+              let exdates = events[indx].getFirstProperty('exdate').getValues().concat(event.getFirstPropertyValue('recurrence-id'));
+              events[indx].getFirstProperty('exdate').setValues(exdates);
             }
-            let exdates = events[indx].getFirstProperty('exdate').getValues().concat(event.getFirstPropertyValue('recurrence-id'));
-            events[indx].getFirstProperty('exdate').setValues(exdates);
           }
           return result;
         } 

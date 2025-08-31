@@ -10,7 +10,16 @@ Define each filter with the following structure and add them to the var filters 
   offset: number              // (Optional) For date/time properties, specify an offset in days.
 }
 */
-var filters = [];
+// Reproduce the old onlyFutureEvents behaviour
+var filters = [
+    {
+    parameter: "dtend",
+    type: "include",
+    comparison: ">",
+    criterias: [],
+    offset: 0
+  }
+];
 
 /* Examples:
 var filters = [
