@@ -147,110 +147,114 @@ var removedEvents = [];
 var reportOverallFailure = false;
 
 function startSync(){
-  if (PropertiesService.getUserProperties().getProperty('LastRun') > 0 && (new Date().getTime() - PropertiesService.getUserProperties().getProperty('LastRun')) < 360000) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(10000);
+  } catch (e) {
     Logger.log("Another iteration is currently running! Exiting...");
     return;
   }
 
-  PropertiesService.getUserProperties().setProperty('LastRun', new Date().getTime());
+  try {
+    //Disable email notification if no mail adress is provided
+    emailSummary = emailSummary && email != "";
 
-  //Disable email notification if no mail adress is provided
-  emailSummary = emailSummary && email != "";
+    sourceCalendars = condenseCalendarMap(sourceCalendars);
+    for (var calendar of sourceCalendars){
+      //------------------------ Reset globals ------------------------
+      calendarEvents = [];
+      calendarEventsIds = [];
+      icsEventsIds = [];
+      calendarEventsMD5s = [];
+      recurringEvents = [];
 
-  sourceCalendars = condenseCalendarMap(sourceCalendars);
-  for (var calendar of sourceCalendars){
-    //------------------------ Reset globals ------------------------
-    calendarEvents = [];
-    calendarEventsIds = [];
-    icsEventsIds = [];
-    calendarEventsMD5s = [];
-    recurringEvents = [];
+      targetCalendarName = calendar[0];
+      var sourceCalendarURLs = calendar[1];
+      var vevents;
 
-    targetCalendarName = calendar[0];
-    var sourceCalendarURLs = calendar[1];
-    var vevents;
+      //------------------------ Fetch URL items ------------------------
+      var responses = fetchSourceCalendars(sourceCalendarURLs);
+      Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
 
-    //------------------------ Fetch URL items ------------------------
-    var responses = fetchSourceCalendars(sourceCalendarURLs);
-    Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
+      //------------------------ Get target calendar information------------------------
+      var targetCalendar = setupTargetCalendar(targetCalendarName);
+      targetCalendarId = targetCalendar.id;
+      Logger.log("Working on calendar: " + targetCalendarId);
 
-    //------------------------ Get target calendar information------------------------
-    var targetCalendar = setupTargetCalendar(targetCalendarName);
-    targetCalendarId = targetCalendar.id;
-    Logger.log("Working on calendar: " + targetCalendarId);
+      //------------------------ Parse existing events --------------------------
+      if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
+        var eventList =
+          callWithBackoff(function(){
+              return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
+          }, defaultMaxRetries);
+        calendarEvents = [].concat(calendarEvents, eventList.items);
+        //loop until we received all events
+        while(typeof eventList.nextPageToken !== 'undefined'){
+          eventList = callWithBackoff(function(){
+            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
+          }, defaultMaxRetries);
 
-    //------------------------ Parse existing events --------------------------
-    if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
-      var eventList =
-        callWithBackoff(function(){
-            return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
-        }, defaultMaxRetries);
-      calendarEvents = [].concat(calendarEvents, eventList.items);
-      //loop until we received all events
-      while(typeof eventList.nextPageToken !== 'undefined'){
-        eventList = callWithBackoff(function(){
-          return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
-        }, defaultMaxRetries);
-
-        if (eventList != null)
-          calendarEvents = [].concat(calendarEvents, eventList.items);
-      }
-      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
-      for (var i = 0; i < calendarEvents.length; i++){
-        if (calendarEvents[i].extendedProperties != null){
-          calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
-          calendarEventsMD5s[i] = calendarEvents[i].extendedProperties.private["MD5"];
+          if (eventList != null)
+            calendarEvents = [].concat(calendarEvents, eventList.items);
         }
+        Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+        for (var i = 0; i < calendarEvents.length; i++){
+          if (calendarEvents[i].extendedProperties != null){
+            calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
+            calendarEventsMD5s[i] = calendarEvents[i].extendedProperties.private["MD5"];
+          }
+        }
+
+        //------------------------ Parse ical events --------------------------
+        vevents = parseResponses(responses, icsEventsIds);
+        Logger.log("Parsed " + vevents.length + " events from ical sources");
       }
 
-      //------------------------ Parse ical events --------------------------
-      vevents = parseResponses(responses, icsEventsIds);
-      Logger.log("Parsed " + vevents.length + " events from ical sources");
+      //------------------------ Process ical events ------------------------
+      if (addEventsToCalendar || modifyExistingEvents){
+        Logger.log("Processing " + vevents.length + " events");
+        var calendarTz =
+          callWithBackoff(function(){
+            return Calendar.Settings.get("timezone").value;
+          }, defaultMaxRetries);
+
+        vevents.forEach(function(e){
+          processEvent(e, calendarTz);
+        });
+
+        Logger.log("Done processing events");
+      }
+
+      //------------------------ Remove old events from calendar ------------------------
+      if(removeEventsFromCalendar){
+        Logger.log("Checking " + calendarEvents.length + " events for removal");
+        processEventCleanup();
+        Logger.log("Done checking events for removal");
+      }
+
+      //------------------------ Process Tasks ------------------------
+      if (addTasks){
+        processTasks(responses);
+      }
+
+      //------------------------ Add Recurring Event Instances ------------------------
+      Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
+      for (var recEvent of recurringEvents){
+        processEventInstance(recEvent);
+      }
     }
 
-    //------------------------ Process ical events ------------------------
-    if (addEventsToCalendar || modifyExistingEvents){
-      Logger.log("Processing " + vevents.length + " events");
-      var calendarTz =
-        callWithBackoff(function(){
-          return Calendar.Settings.get("timezone").value;
-        }, defaultMaxRetries);
-
-      vevents.forEach(function(e){
-        processEvent(e, calendarTz);
-      });
-
-      Logger.log("Done processing events");
+    if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
+      sendSummary();
     }
+    Logger.log("Sync finished!");
 
-    //------------------------ Remove old events from calendar ------------------------
-    if(removeEventsFromCalendar){
-      Logger.log("Checking " + calendarEvents.length + " events for removal");
-      processEventCleanup();
-      Logger.log("Done checking events for removal");
+    if (reportOverallFailure) {
+        // Cause the Google Apps Script "Executions" dashboard to show a failure
+        // (the message text does not seem to be logged anywhere)
+        throw new Error('The sync operation produced errors. See log for details.');
     }
-
-    //------------------------ Process Tasks ------------------------
-    if (addTasks){
-      processTasks(responses);
-    }
-
-    //------------------------ Add Recurring Event Instances ------------------------
-    Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
-    for (var recEvent of recurringEvents){
-      processEventInstance(recEvent);
-    }
-  }
-
-  if ((addedEvents.length + modifiedEvents.length + removedEvents.length) > 0 && emailSummary){
-    sendSummary();
-  }
-  Logger.log("Sync finished!");
-  PropertiesService.getUserProperties().setProperty('LastRun', 0);
-
-  if (reportOverallFailure) {
-    // Cause the Google Apps Script "Executions" dashboard to show a failure
-    // (the message text does not seem to be logged anywhere)
-    throw new Error('The sync operation produced errors. See log for details.');
+  } finally {
+    lock.releaseLock();
   }
 }
