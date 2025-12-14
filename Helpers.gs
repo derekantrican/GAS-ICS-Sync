@@ -645,6 +645,233 @@ function processEvent(event, calendarTz){
 }
 
 /**
+ * Creates a Google Calendar Event based on the specified ICALEvent.
+ * Will return null if the event has not changed since the last sync.
+ *
+ * @param {ICAL.Component} event - The event to process
+ * @param {string} calendarTz - The timezone of the target calendar
+ * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
+ */
+function createEvent(event, calendarTz){
+  event.removeProperty('dtstamp');
+  var icalEvent = new ICAL.Event(event);
+
+  // --- Added so toggling the overrideEventDetails feature triggers an update ---
+  var signature = icalEvent.toString() + "|" + overrideEventDetails + "|" + overrideEventTitle;
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature, Utilities.Charset.UTF_8).toString();
+
+  if(calendarEventsMD5s.indexOf(digest) >= 0){
+    Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
+    return;
+  }
+
+  var newEvent =
+    callWithBackoff(function() {
+        return Calendar.newEvent();
+      }, defaultMaxRetries);
+  if(icalEvent.startDate.isDate){ //All-day event
+    if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
+      //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
+      icalEvent.endDate = icalEvent.endDate.adjust(1,0,0,0);
+    }
+
+    newEvent = {
+      start: { date : icalEvent.startDate.toString() },
+      end: { date : icalEvent.endDate.toString() }
+    };
+  }
+  else{ //Normal (not all-day) event
+    newEvent = {
+      start: {
+        dateTime : icalEvent.startDate.toString(),
+        timeZone : validateTimeZone(icalEvent.startDate.timezone || icalEvent.startDate.zone, calendarTz)
+      },
+      end: {
+        dateTime : icalEvent.endDate.toString(),
+        timeZone : validateTimeZone(icalEvent.endDate.timezone || icalEvent.endDate.zone, calendarTz)
+      },
+    };
+  }
+
+  if (addAttendees && event.hasProperty('attendee')){
+    newEvent.attendees = [];
+    for (var att of icalEvent.attendees){
+      var mail = parseAttendeeMail(att.toICALString());
+      if (mail != null){
+        var newAttendee = {'email' : mail };
+
+        var name = parseAttendeeName(att.toICALString());
+        if (name != null)
+          newAttendee['displayName'] = name;
+
+        var resp = parseAttendeeResp(att.toICALString());
+        if (resp != null)
+          newAttendee['responseStatus'] = resp;
+
+        newEvent.attendees.push(newAttendee);
+      }
+    }
+  }
+
+  if (event.hasProperty('status')){
+    var status = event.getFirstPropertyValue('status').toString().toLowerCase();
+    if (["confirmed", "tentative", "cancelled"].indexOf(status) > -1)
+      newEvent.status = status;
+  }
+
+  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0,4) == 'http'){
+    newEvent.source = callWithBackoff(function() {
+          return Calendar.newEventSource();
+        }, defaultMaxRetries);
+    newEvent.source.url = event.getFirstPropertyValue('url').toString();
+    newEvent.source.title = 'link';
+  }
+
+  if (event.hasProperty('sequence')){
+    //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
+  }
+
+  if (descriptionAsTitles && event.hasProperty('description'))
+    newEvent.summary = icalEvent.description;
+  else if (event.hasProperty('summary'))
+    newEvent.summary = icalEvent.summary;
+
+  if (event.hasProperty('organizer')){
+    var organizerName = event.getFirstProperty('organizer').getParameter('cn');
+    var organizerMail = event.getFirstProperty('organizer').getParameter('mailto');
+    newEvent.organizer = callWithBackoff(function() {
+          return Calendar.newEventOrganizer();
+        }, defaultMaxRetries);
+    if (organizerName)
+      newEvent.organizer.displayName = organizerName.toString();
+    if (organizerMail)
+      newEvent.organizer.email = organizerMail.toString();
+
+    if (addOrganizerToTitle && organizerName){
+        newEvent.summary = organizerName + ": " + newEvent.summary;
+    }
+  }
+
+  if (addCalToTitle && event.hasProperty('parentCal')){
+    var calName = event.getFirstPropertyValue('parentCal');
+    newEvent.summary = "(" + calName + ") " + newEvent.summary;
+  }
+
+  if (event.hasProperty('description'))
+    newEvent.description = icalEvent.description;
+
+  if (event.hasProperty('location'))
+    newEvent.location = icalEvent.location;
+
+  var validVisibilityValues = ["default", "public", "private", "confidential"];
+  if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
+    newEvent.visibility = overrideVisibility.toLowerCase();
+  } else if (event.hasProperty('class')){
+    var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
+    if (validVisibilityValues.includes(classString))
+      newEvent.visibility = classString;
+  }
+
+  if (event.hasProperty('transp')){
+    var transparency = event.getFirstPropertyValue('transp').toString().toLowerCase();
+    if(["opaque", "transparent"].indexOf(transparency) > -1)
+      newEvent.transparency = transparency;
+  }
+
+  if (icalEvent.startDate.isDate){
+    if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320){
+      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : defaultAllDayReminder}]};//reminder as defined by the user
+    }
+    else{
+      newEvent.reminders = { 'useDefault' : false, 'overrides' : []};//no reminder
+    }
+  }
+  else{
+    newEvent.reminders = { 'useDefault' : true, 'overrides' : []};//will set the default reminders as set at calendar.google.com
+  }
+
+  switch (addAlerts) {
+    case "yes":
+      var valarms = event.getAllSubcomponents('valarm');
+      if (valarms.length > 0){
+        var overrides = [];
+        for (var valarm of valarms){
+          var trigger = valarm.getFirstPropertyValue('trigger').toString();
+          try{
+            var alarmTime = new ICAL.Time.fromString(trigger);
+            trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
+          }catch(e){}
+          if (overrides.length < 5){ //Google supports max 5 reminder-overrides
+            var timer = parseNotificationTime(trigger);
+            if (0 <= timer && timer <= 40320)
+              overrides.push({'method' : 'popup', 'minutes' : timer});
+          }
+        }
+
+        if (overrides.length > 0){
+          newEvent.reminders = {
+            'useDefault' : false,
+            'overrides' : overrides
+          };
+        }
+      }
+      break;
+    case "no":
+      newEvent.reminders = {
+        'useDefault' : false,
+        'overrides' : []
+      };
+      break;
+    default:
+    case "default":
+      newEvent.reminders = {
+        'useDefault' : true,
+        'overrides' : []
+      };
+      break;
+  }
+
+  if (icalEvent.isRecurring()){
+    // Calculate targetTZ's UTC-Offset
+    var calendarUTCOffset = 0;
+    var jsTime = new Date();
+    var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
+    var tgtTime = new Date(Utilities.formatDate(jsTime, calendarTz, "HH:mm:ss MM/dd/yyyy"));
+    calendarUTCOffset = tgtTime - utcTime;
+    newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
+  }
+
+  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
+
+  if (event.hasProperty('recurrence-id')){
+    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
+    newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
+  }
+
+  if (event.hasProperty('color')){
+    let colorID = event.getFirstPropertyValue('color').toString();
+    if (Object.keys(CalendarApp.EventColor).includes(colorID)){
+      newEvent.colorId = CalendarApp.EventColor[colorID];
+    }else if(Object.values(CalendarApp.EventColor).includes(colorID)){
+      newEvent.colorId = colorID;
+    }; //else unsupported value
+  }
+
+  // --- Privacy logic to strip details ---
+  if (overrideEventDetails) {
+    Logger.log("ACTION: Stripping details for event and renaming to '" + overrideEventTitle + "'");
+    newEvent.summary = overrideEventTitle;
+    newEvent.description = "";
+    newEvent.location = "";
+    newEvent.attendees = [];
+    delete newEvent.organizer;
+    delete newEvent.source;
+  }
+
+  return newEvent;
+}
+
+/**
  * Patches an existing event instance with the provided Calendar.Event.
  * The instance that needs to be updated is identified by the recurrence-id of the provided event.
  *
@@ -1136,231 +1363,4 @@ function checkForUpdate(){
     var version = json_decoded[0]["tag_name"];
     return Number(version);
   }
-}
-
-/**
- * Creates a Google Calendar Event based on the specified ICALEvent.
- * Will return null if the event has not changed since the last sync.
- *
- * @param {ICAL.Component} event - The event to process
- * @param {string} calendarTz - The timezone of the target calendar
- * @return {?Calendar.Event} The Calendar.Event that will be added to the target calendar
- */
-function createEvent(event, calendarTz){
-  event.removeProperty('dtstamp');
-  var icalEvent = new ICAL.Event(event);
-
-  // --- Added so toggling the overrideEventDetails feature triggers an update ---
-  var signature = icalEvent.toString() + "|" + overrideEventDetails + "|" + overrideEventTitle;
-  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature, Utilities.Charset.UTF_8).toString();
-
-  if(calendarEventsMD5s.indexOf(digest) >= 0){
-    Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
-    return;
-  }
-
-  var newEvent =
-    callWithBackoff(function() {
-        return Calendar.newEvent();
-      }, defaultMaxRetries);
-  if(icalEvent.startDate.isDate){ //All-day event
-    if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
-      //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
-      icalEvent.endDate = icalEvent.endDate.adjust(1,0,0,0);
-    }
-
-    newEvent = {
-      start: { date : icalEvent.startDate.toString() },
-      end: { date : icalEvent.endDate.toString() }
-    };
-  }
-  else{ //Normal (not all-day) event
-    newEvent = {
-      start: {
-        dateTime : icalEvent.startDate.toString(),
-        timeZone : validateTimeZone(icalEvent.startDate.timezone || icalEvent.startDate.zone, calendarTz)
-      },
-      end: {
-        dateTime : icalEvent.endDate.toString(),
-        timeZone : validateTimeZone(icalEvent.endDate.timezone || icalEvent.endDate.zone, calendarTz)
-      },
-    };
-  }
-
-  if (addAttendees && event.hasProperty('attendee')){
-    newEvent.attendees = [];
-    for (var att of icalEvent.attendees){
-      var mail = parseAttendeeMail(att.toICALString());
-      if (mail != null){
-        var newAttendee = {'email' : mail };
-
-        var name = parseAttendeeName(att.toICALString());
-        if (name != null)
-          newAttendee['displayName'] = name;
-
-        var resp = parseAttendeeResp(att.toICALString());
-        if (resp != null)
-          newAttendee['responseStatus'] = resp;
-
-        newEvent.attendees.push(newAttendee);
-      }
-    }
-  }
-
-  if (event.hasProperty('status')){
-    var status = event.getFirstPropertyValue('status').toString().toLowerCase();
-    if (["confirmed", "tentative", "cancelled"].indexOf(status) > -1)
-      newEvent.status = status;
-  }
-
-  if (event.hasProperty('url') && event.getFirstPropertyValue('url').toString().substring(0,4) == 'http'){
-    newEvent.source = callWithBackoff(function() {
-          return Calendar.newEventSource();
-        }, defaultMaxRetries);
-    newEvent.source.url = event.getFirstPropertyValue('url').toString();
-    newEvent.source.title = 'link';
-  }
-
-  if (event.hasProperty('sequence')){
-    //newEvent.sequence = icalEvent.sequence; Currently disabled as it is causing issues with recurrence exceptions
-  }
-
-  if (descriptionAsTitles && event.hasProperty('description'))
-    newEvent.summary = icalEvent.description;
-  else if (event.hasProperty('summary'))
-    newEvent.summary = icalEvent.summary;
-
-  if (event.hasProperty('organizer')){
-    var organizerName = event.getFirstProperty('organizer').getParameter('cn');
-    var organizerMail = event.getFirstProperty('organizer').getParameter('mailto');
-    newEvent.organizer = callWithBackoff(function() {
-          return Calendar.newEventOrganizer();
-        }, defaultMaxRetries);
-    if (organizerName)
-      newEvent.organizer.displayName = organizerName.toString();
-    if (organizerMail)
-      newEvent.organizer.email = organizerMail.toString();
-
-    if (addOrganizerToTitle && organizerName){
-        newEvent.summary = organizerName + ": " + newEvent.summary;
-    }
-  }
-
-  if (addCalToTitle && event.hasProperty('parentCal')){
-    var calName = event.getFirstPropertyValue('parentCal');
-    newEvent.summary = "(" + calName + ") " + newEvent.summary;
-  }
-
-  if (event.hasProperty('description'))
-    newEvent.description = icalEvent.description;
-
-  if (event.hasProperty('location'))
-    newEvent.location = icalEvent.location;
-
-  var validVisibilityValues = ["default", "public", "private", "confidential"];
-  if ( validVisibilityValues.includes(overrideVisibility.toLowerCase()) ) {
-    newEvent.visibility = overrideVisibility.toLowerCase();
-  } else if (event.hasProperty('class')){
-    var classString = event.getFirstPropertyValue('class').toString().toLowerCase();
-    if (validVisibilityValues.includes(classString))
-      newEvent.visibility = classString;
-  }
-
-  if (event.hasProperty('transp')){
-    var transparency = event.getFirstPropertyValue('transp').toString().toLowerCase();
-    if(["opaque", "transparent"].indexOf(transparency) > -1)
-      newEvent.transparency = transparency;
-  }
-
-  if (icalEvent.startDate.isDate){
-    if (0 <= defaultAllDayReminder && defaultAllDayReminder <= 40320){
-      newEvent.reminders = { 'useDefault' : false, 'overrides' : [{'method' : 'popup', 'minutes' : defaultAllDayReminder}]};//reminder as defined by the user
-    }
-    else{
-      newEvent.reminders = { 'useDefault' : false, 'overrides' : []};//no reminder
-    }
-  }
-  else{
-    newEvent.reminders = { 'useDefault' : true, 'overrides' : []};//will set the default reminders as set at calendar.google.com
-  }
-
-  switch (addAlerts) {
-    case "yes":
-      var valarms = event.getAllSubcomponents('valarm');
-      if (valarms.length > 0){
-        var overrides = [];
-        for (var valarm of valarms){
-          var trigger = valarm.getFirstPropertyValue('trigger').toString();
-          try{
-            var alarmTime = new ICAL.Time.fromString(trigger);
-            trigger = alarmTime.subtractDateTz(icalEvent.startDate).toString();
-          }catch(e){}
-          if (overrides.length < 5){ //Google supports max 5 reminder-overrides
-            var timer = parseNotificationTime(trigger);
-            if (0 <= timer && timer <= 40320)
-              overrides.push({'method' : 'popup', 'minutes' : timer});
-          }
-        }
-
-        if (overrides.length > 0){
-          newEvent.reminders = {
-            'useDefault' : false,
-            'overrides' : overrides
-          };
-        }
-      }
-      break;
-    case "no":
-      newEvent.reminders = {
-        'useDefault' : false,
-        'overrides' : []
-      };
-      break;
-    default:
-    case "default":
-      newEvent.reminders = {
-        'useDefault' : true,
-        'overrides' : []
-      };
-      break;
-  }
-
-  if (icalEvent.isRecurring()){
-    // Calculate targetTZ's UTC-Offset
-    var calendarUTCOffset = 0;
-    var jsTime = new Date();
-    var utcTime = new Date(Utilities.formatDate(jsTime, "Etc/GMT", "HH:mm:ss MM/dd/yyyy"));
-    var tgtTime = new Date(Utilities.formatDate(jsTime, calendarTz, "HH:mm:ss MM/dd/yyyy"));
-    calendarUTCOffset = tgtTime - utcTime;
-    newEvent.recurrence = parseRecurrenceRule(event, calendarUTCOffset);
-  }
-
-  newEvent.extendedProperties = { private: { MD5 : digest, fromGAS : "true", id : icalEvent.uid } };
-
-  if (event.hasProperty('recurrence-id')){
-    newEvent.recurringEventId = event.getFirstPropertyValue('recurrence-id').toString();
-    newEvent.extendedProperties.private['rec-id'] = newEvent.extendedProperties.private['id'] + "_" + newEvent.recurringEventId;
-  }
-
-  if (event.hasProperty('color')){
-    let colorID = event.getFirstPropertyValue('color').toString();
-    if (Object.keys(CalendarApp.EventColor).includes(colorID)){
-      newEvent.colorId = CalendarApp.EventColor[colorID];
-    }else if(Object.values(CalendarApp.EventColor).includes(colorID)){
-      newEvent.colorId = colorID;
-    }; //else unsupported value
-  }
-
-  // --- Privacy logic to strip details ---
-  if (overrideEventDetails) {
-    Logger.log("ACTION: Stripping details for event and renaming to '" + overrideEventTitle + "'");
-    newEvent.summary = overrideEventTitle;
-    newEvent.description = "";
-    newEvent.location = "";
-    newEvent.attendees = [];
-    delete newEvent.organizer;
-    delete newEvent.source;
-  }
-
-  return newEvent;
 }
