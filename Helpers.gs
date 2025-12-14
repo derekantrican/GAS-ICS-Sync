@@ -322,7 +322,7 @@ function filterResults(events){
             events[indx].getFirstProperty('exdate').setValues(exdates);
           }
           return result;
-        } 
+        }
       }
       catch(e){
         Logger.log(e);
@@ -330,7 +330,7 @@ function filterResults(events){
       }
     });
   }
-  
+   
   Logger.log(`${events.length} events left.`);
   return events;
 }
@@ -496,7 +496,7 @@ function modifyRecurrenceStart(event, referenceDate, filterParameter) {
           continue;
         }
       } 
-      
+       
       newStartDate = next;
       break;
     }
@@ -656,7 +656,10 @@ function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event);
 
-  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString(), Utilities.Charset.UTF_8).toString();
+  // --- Added so toggling the overrideEventDetails feature triggers an update ---
+  var signature = icalEvent.toString() + "|" + overrideEventDetails + "|" + overrideEventTitle;
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, signature, Utilities.Charset.UTF_8).toString();
+
   if(calendarEventsMD5s.indexOf(digest) >= 0){
     Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
     return;
@@ -854,6 +857,17 @@ function createEvent(event, calendarTz){
     }; //else unsupported value
   }
 
+  // --- Privacy logic to strip details ---
+  if (overrideEventDetails) {
+    Logger.log("ACTION: Stripping details for event and renaming to '" + overrideEventTitle + "'");
+    newEvent.summary = overrideEventTitle;
+    newEvent.description = "";
+    newEvent.location = "";
+    newEvent.attendees = [];
+    delete newEvent.organizer;
+    delete newEvent.source;
+  }
+
   return newEvent;
 }
 
@@ -920,12 +934,12 @@ function processEventCleanup(){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
 
-      if(feedIndex  == -1                                             // Event is no longer in source
-        && calendarEvents[i].recurringEventId == null                 // And it's not a recurring event
-        && (                                                          // And one of:
-          removePastEventsFromCalendar                                // We want to remove past events
-          || new Date(calendarEvents[i].start.dateTime) > new Date()  // Or the event is in the future
-          || new Date(calendarEvents[i].start.date) > new Date()      // (2 different ways event start can be stored)
+      if(feedIndex  == -1                                                 // Event is no longer in source
+        && calendarEvents[i].recurringEventId == null                     // And it's not a recurring event
+        && (                                                              // And one of:
+          removePastEventsFromCalendar                                    // We want to remove past events
+          || new Date(calendarEvents[i].start.dateTime) > new Date()      // Or the event is in the future
+          || new Date(calendarEvents[i].start.date) > new Date()          // (2 different ways event start can be stored)
         )
       )
       {
@@ -1312,7 +1326,7 @@ function callWithBackoff(func, maxRetries) {
       } else {
         Logger.log( "Error, Retrying... [" + err  +"]");
         Utilities.sleep (Math.pow(2,tries)*100) +
-                            (Math.round(Math.random() * 100));
+                        (Math.round(Math.random() * 100));
       }
     }
   }
