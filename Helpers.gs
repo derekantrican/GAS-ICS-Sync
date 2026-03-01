@@ -1350,3 +1350,28 @@ function checkForUpdate(){
     return Number(version);
   }
 }
+
+/**
+ * Filter out calendar events that should never be sent to Calendar.Events.update.
+ *
+ * Edge cases handled:
+ *  - missing/empty input list
+ *  - null entries in paginated results
+ *  - cancelled events returned despite showDeleted=false
+ *  - status casing differences
+ */
+function filterProcessableCalendarEvents(events){
+  if (!events || !events.length)
+    return [];
+
+  return events.filter(function(event){
+    if (!event)
+      return false;
+
+    var status = event.status;
+    if (typeof status === 'string' && status.toLowerCase() === 'cancelled')
+      return false;
+
+    return true;
+  });
+}

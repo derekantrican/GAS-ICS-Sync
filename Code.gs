@@ -185,7 +185,7 @@ function startSync(){
         callWithBackoff(function(){
             return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
         }, defaultMaxRetries);
-      calendarEvents = [].concat(calendarEvents, eventList.items);
+      calendarEvents = [].concat(calendarEvents, eventList.items || []);
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
         eventList = callWithBackoff(function(){
@@ -193,9 +193,12 @@ function startSync(){
         }, defaultMaxRetries);
 
         if (eventList != null)
-          calendarEvents = [].concat(calendarEvents, eventList.items);
+          calendarEvents = [].concat(calendarEvents, eventList.items || []);
       }
-      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+
+      var fetchedEventsCount = calendarEvents.length;
+      calendarEvents = filterProcessableCalendarEvents(calendarEvents);
+      Logger.log("Fetched " + fetchedEventsCount + " existing events from " + targetCalendarName + ", using " + calendarEvents.length + " processable events");
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
