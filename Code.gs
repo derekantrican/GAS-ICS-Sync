@@ -196,6 +196,18 @@ function startSync(){
           calendarEvents = [].concat(calendarEvents, eventList.items);
       }
       Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+
+      // Guard against edge cases where cancelled recurring instances are still returned
+      // and later cause `calendar.events.update` to fail with "Invalid start time".
+      // See: https://github.com/derekantrican/GAS-ICS-Sync/issues/315
+      var beforeCancelledFilter = calendarEvents.length;
+      calendarEvents = calendarEvents.filter(function(e) {
+        return e.status !== "cancelled";
+      });
+      if (beforeCancelledFilter !== calendarEvents.length) {
+        Logger.log("Filtered out " + (beforeCancelledFilter - calendarEvents.length) + " cancelled existing events");
+      }
+
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
