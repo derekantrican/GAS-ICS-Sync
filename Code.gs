@@ -195,7 +195,12 @@ function startSync(){
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
       }
-      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+      var fetchedEventsCount = calendarEvents.length;
+      calendarEvents = calendarEvents.filter(function(event) {
+        return event != null && event.status !== "cancelled";
+      });
+      Logger.log("Fetched " + fetchedEventsCount + " existing events from " + targetCalendarName + ", using " + calendarEvents.length + " non-cancelled events for sync/update");
+
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
