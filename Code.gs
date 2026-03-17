@@ -196,6 +196,8 @@ function startSync(){
           calendarEvents = [].concat(calendarEvents, eventList.items);
       }
       Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+      // Filter out cancelled events to prevent "Invalid start time" errors
+      calendarEvents = calendarEvents.filter(e => e.status !== "cancelled");
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
