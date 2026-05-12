@@ -757,7 +757,7 @@ function createEvent(event, calendarTz){
   if (event.hasProperty('description'))
     newEvent.description = icalEvent.description;
 
-  if (event.hasProperty('location'))
+  if (!removeLocationFromCalendar && event.hasProperty('location'))
     newEvent.location = icalEvent.location;
 
   var validVisibilityValues = ["default", "public", "private", "confidential"];
