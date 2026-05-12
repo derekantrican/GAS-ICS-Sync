@@ -195,7 +195,12 @@ function startSync(){
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
       }
-      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
+      var fetchedCalendarEventsCount = calendarEvents.length;
+      calendarEvents = calendarEvents.filter(function(event){
+        return event != null && (event.status == null || event.status.toString().toLowerCase() != "cancelled");
+      });
+      var skippedCancelledEventsCount = fetchedCalendarEventsCount - calendarEvents.length;
+      Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName + (skippedCancelledEventsCount > 0 ? " (" + skippedCancelledEventsCount + " cancelled skipped)" : ""));
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
           calendarEventsIds[i] = calendarEvents[i].extendedProperties.private["rec-id"] || calendarEvents[i].extendedProperties.private["id"];
