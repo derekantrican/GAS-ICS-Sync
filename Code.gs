@@ -41,6 +41,7 @@ var addAlerts = "yes";                    // Whether to add the ics/ical alerts 
 var addOrganizerToTitle = false;          // Whether to prefix the event name with the event organiser for further clarity
 var descriptionAsTitles = false;          // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
 var addCalToTitle = false;                // Whether to add the source calendar to title
+var removeLocationFromCalendar = false;   // Whether to remove the location from synced events
 var addAttendees = false;                 // Whether to add the attendee list. If true, duplicate events will be automatically added to the attendees' calendar.
 var defaultAllDayReminder = -1;           // Default reminder for all day events in minutes before the day of the event (-1 = no reminder, the value has to be between 0 and 40320)
                                           // See https://github.com/derekantrican/GAS-ICS-Sync/issues/75 for why this is neccessary.
