@@ -195,6 +195,18 @@ function startSync(){
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
       }
+      // Some recurring-event edge cases can still return cancelled events even
+      // with showDeleted=false; these cannot be updated and may throw
+      // "Invalid start time" when treated as active events.
+      var activeCalendarEvents = calendarEvents.filter(function(event){
+        return event.status !== "cancelled";
+      });
+      if (activeCalendarEvents.length !== calendarEvents.length) {
+        Logger.log(
+          "Filtered " + (calendarEvents.length - activeCalendarEvents.length) + " cancelled existing events before sync"
+        );
+      }
+      calendarEvents = activeCalendarEvents;
       Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
