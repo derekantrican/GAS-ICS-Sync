@@ -608,6 +608,10 @@ function processEvent(event, calendarTz){
     //------------------------ Send event object to gcal ------------------------
     if (needsUpdate){
       if (modifyExistingEvents){
+        if (calendarEvents[index].status && calendarEvents[index].status.toLowerCase() === "cancelled"){
+          Logger.log("Skipping update for cancelled existing event " + calendarEvents[index].id);
+          return;
+        }
         oldEvent = calendarEvents[index]
         Logger.log("Updating existing event " + newEvent.extendedProperties.private["id"]);
         try{
