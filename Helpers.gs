@@ -222,6 +222,12 @@ function parseResponses(responses){
     }
 
     var allEvents = component.getAllSubcomponents("vevent");
+    // Some restricted calendar feeds publish availability as VFREEBUSY blocks
+    // without any VEVENTs. Convert those busy periods into synthetic VEVENTs so
+    // they can flow through the normal sync logic.
+    if (allEvents.length == 0){
+      allEvents = convertFreeBusyToEvents(component);
+    }
     if (colorId != undefined)
       allEvents.forEach(function(event){event.addPropertyWithValue("color", colorId);});
 
@@ -270,6 +276,91 @@ function parseResponses(responses){
   });
 
   return result;
+}
+
+/**
+ * Converts VFREEBUSY busy periods into synthetic VEVENTs.
+ *
+ * @param {ICAL.Component} component - The VCALENDAR component to inspect
+ * @return {Array.ICALComponent} Array with synthetic VEVENTs
+ */
+function convertFreeBusyToEvents(component){
+  var result = [];
+  var freeBusyComponents = component.getAllSubcomponents("vfreebusy");
+
+  for (var freeBusyComponent of freeBusyComponents){
+    var freeBusyProperties = freeBusyComponent.getAllProperties("freebusy");
+    if (freeBusyProperties.length == 0)
+      continue;
+
+    var baseUid = getFreeBusyUIDBase(freeBusyComponent);
+    var summary = getFreeBusySummary(freeBusyComponent);
+
+    for (var freeBusyProperty of freeBusyProperties){
+      var freeBusyType = (freeBusyProperty.getParameter("fbtype") || "BUSY").toString().toUpperCase();
+      if (freeBusyType == "FREE")
+        continue;
+
+      for (var period of freeBusyProperty.getValues()){
+        var freeBusyEvent = new ICAL.Component("vevent");
+        freeBusyEvent.addPropertyWithValue("uid", buildFreeBusyUID(baseUid, period, freeBusyType));
+        freeBusyEvent.addPropertyWithValue("summary", summary);
+        freeBusyEvent.addPropertyWithValue("dtstart", period.start);
+        freeBusyEvent.addPropertyWithValue("dtend", period.getEnd());
+        freeBusyEvent.addPropertyWithValue("transp", "OPAQUE");
+        result.push(freeBusyEvent);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Builds a stable UID seed for synthetic VFREEBUSY events.
+ *
+ * @param {ICAL.Component} freeBusyComponent - The VFREEBUSY component to inspect
+ * @return {string} UID seed
+ */
+function getFreeBusyUIDBase(freeBusyComponent){
+  if (freeBusyComponent.hasProperty("uid"))
+    return freeBusyComponent.getFirstPropertyValue("uid").toString();
+
+  return Utilities.computeDigest(
+    Utilities.DigestAlgorithm.MD5,
+    freeBusyComponent.toString(),
+    Utilities.Charset.UTF_8
+  ).toString();
+}
+
+/**
+ * Builds a stable synthetic UID for a single busy period.
+ *
+ * @param {string} baseUid - The UID seed for the source VFREEBUSY component
+ * @param {ICAL.Period} period - The busy period to encode
+ * @param {string} freeBusyType - The FBTYPE value for the period
+ * @return {string} Synthetic UID
+ */
+function buildFreeBusyUID(baseUid, period, freeBusyType){
+  return Utilities.computeDigest(
+    Utilities.DigestAlgorithm.MD5,
+    ["freebusy", baseUid, freeBusyType, period.start.toString(), period.getEnd().toString()].join("|"),
+    Utilities.Charset.UTF_8
+  ).toString();
+}
+
+/**
+ * Gets the summary to use for synthetic VFREEBUSY events.
+ *
+ * @param {ICAL.Component} freeBusyComponent - The VFREEBUSY component to inspect
+ * @return {string} Synthetic event summary
+ */
+function getFreeBusySummary(freeBusyComponent){
+  var summary = freeBusyComponent.getFirstPropertyValue("summary");
+  if (summary != null && summary.toString().trim() != "")
+    return summary.toString();
+
+  return "Busy";
 }
 
 /**
