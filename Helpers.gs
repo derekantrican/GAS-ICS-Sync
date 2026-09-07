@@ -183,8 +183,9 @@ function fetchSourceCalendars(sourceCalendarURLs){
  */
 function setupTargetCalendar(targetCalendarName){
   var targetCalendar = Calendar.CalendarList.list({showHidden: true, maxResults: 250}).items.filter(function(cal) {
-    return ((cal.summaryOverride || cal.summary) == targetCalendarName) &&
-                (cal.accessRole == "owner" || cal.accessRole == "writer");
+    //add Cal.id check for family calendars 
+    return (cal.id == targetCalendarName || (cal.summaryOverride || cal.summary) == targetCalendarName) &&
+            (cal.accessRole == "owner" || cal.accessRole == "writer");
   })[0];
 
   if(targetCalendar == null){
