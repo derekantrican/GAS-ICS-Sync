@@ -185,6 +185,18 @@ function startSync(){
         callWithBackoff(function(){
             return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500});
         }, defaultMaxRetries);
+
+      if (eventList == null){
+        // callWithBackoff gives up and returns null after exhausting retries
+        // instead of throwing (see Helpers.gs), so unlike the try/catch
+        // pattern used elsewhere in this file (#467) for calls that throw,
+        // this needs an explicit null check. Continuing here would crash on
+        // eventList.items with "Cannot read properties of null".
+        Logger.log(`Operation failed with error "Failed to fetch existing events for ${targetCalendarName} after ${defaultMaxRetries} retries"`);
+        reportOverallFailure = true;
+        continue;
+      }
+
       calendarEvents = [].concat(calendarEvents, eventList.items);
       //loop until we received all events
       while(typeof eventList.nextPageToken !== 'undefined'){
@@ -192,8 +204,15 @@ function startSync(){
           return Calendar.Events.list(targetCalendarId, {showDeleted: false, privateExtendedProperty: "fromGAS=true", maxResults: 2500, pageToken: eventList.nextPageToken});
         }, defaultMaxRetries);
 
-        if (eventList != null)
-          calendarEvents = [].concat(calendarEvents, eventList.items);
+        if (eventList == null){
+          // Same failure mode mid-pagination: stop paging instead of crashing
+          // on eventList.nextPageToken on the next loop check.
+          Logger.log(`Operation failed with error "Failed to fetch a page of existing events for ${targetCalendarName} after ${defaultMaxRetries} retries"`);
+          reportOverallFailure = true;
+          break;
+        }
+
+        calendarEvents = [].concat(calendarEvents, eventList.items);
       }
       Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
       for (var i = 0; i < calendarEvents.length; i++){
