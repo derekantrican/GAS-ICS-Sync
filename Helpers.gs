@@ -656,7 +656,24 @@ function createEvent(event, calendarTz){
   event.removeProperty('dtstamp');
   var icalEvent = new ICAL.Event(event);
 
-  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, icalEvent.toString(), Utilities.Charset.UTF_8).toString();
+  var description = icalEvent.description;
+  var descriptionProperty = event.getFirstProperty('description');
+  var altrep = descriptionProperty && descriptionProperty.getParameter('altrep');
+  var html = typeof altrep === 'string' && /^data:text\/html(?:;charset=utf-8)?,(.+)$/i.exec(altrep);
+  if (html){
+    try{
+      description = decodeURIComponent(html[1]);
+    }
+    catch (e){
+      Logger.log("Unable to decode HTML ALTREP; using the default description.");
+    }
+  }
+
+  // Include the converted description so existing plain-text copies are updated.
+  var digestSource = icalEvent.toString();
+  if (description !== icalEvent.description)
+    digestSource += "\n" + description;
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, digestSource, Utilities.Charset.UTF_8).toString();
   if(calendarEventsMD5s.indexOf(digest) >= 0){
     Logger.log("Skipping unchanged Event " + event.getFirstPropertyValue('uid').toString());
     return;
@@ -755,7 +772,7 @@ function createEvent(event, calendarTz){
   }
 
   if (event.hasProperty('description'))
-    newEvent.description = icalEvent.description;
+    newEvent.description = description;
 
   if (event.hasProperty('location'))
     newEvent.location = icalEvent.location;
