@@ -37,6 +37,13 @@ var addEventsToCalendar = true;           // If you turn this to "false", you ca
 var modifyExistingEvents = true;          // If you turn this to "false", any event in the feed that was modified after being added to the calendar will not update
 var removeEventsFromCalendar = true;      // If you turn this to "true", any event created by the script that is not found in the feed will be removed.
 var removePastEventsFromCalendar = true;  // If you turn this to "false", any event that is in the past will not be removed.
+var keepEventsIfSourceFails = true;       // If "true", a target calendar is left untouched when any of its ics/ical urls cannot be read (outage, HTTP error), or when the feed comes back empty while the calendar has events. Prevents an outage from wiping the calendar.
+var maxRemovalFraction = 0.5;             // Safety net: skip the removal step if it would remove more than this share of the existing events (and more than 5). 1 = no limit.
+var statusEventTitle = "";                // OPTIONAL: if set (e.g. "Last synced at {time}"), one all-day event with this title, no reminders and shown as free, is kept on today's date in each target calendar and updated after every sync that read its source. {time} = HH:mm in the calendar's time zone.
+var statusEventFailTitle = "Not synced since {last}"; // Title of that event while the source cannot be read. {last} = date and time of the last good sync.
+var sourceFetchRetries = 2;               // Retries when an ics/ical url cannot be read. Low keeps runs short during an outage (each retry can wait up to a minute).
+var skipUnchangedFeed = true;             // If "true", a run whose feed is the same as last run's (ignoring DTSTAMP) only updates the status event. A full sync still runs at least every fullSyncMinutes.
+var fullSyncMinutes = 60;
 var addAlerts = "yes";                    // Whether to add the ics/ical alerts as notifications on the Google Calendar events or revert to the calendar's default reminders ("yes", "no", "default").
 var addOrganizerToTitle = false;          // Whether to prefix the event name with the event organiser for further clarity
 var descriptionAsTitles = false;          // Whether to use the ics/ical descriptions as titles (true) or to use the normal titles as titles (false)
@@ -172,12 +179,33 @@ function startSync(){
 
     //------------------------ Fetch URL items ------------------------
     var responses = fetchSourceCalendars(sourceCalendarURLs);
-    Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
+    var sourceFailed = keepEventsIfSourceFails && responses.length < sourceCalendarURLs.length;
+    if (sourceFailed){
+      Logger.log("[WARNING] Read " + responses.length + " of " + sourceCalendarURLs.length + " sources for " + targetCalendarName + ". Leaving this calendar unchanged until a later run can read all of them.");
+      reportOverallFailure = true;
+    }
+    else{
+      Logger.log("Syncing " + responses.length + " calendars to " + targetCalendarName);
+    }
 
     //------------------------ Get target calendar information------------------------
     var targetCalendar = setupTargetCalendar(targetCalendarName);
     targetCalendarId = targetCalendar.id;
     Logger.log("Working on calendar: " + targetCalendarId);
+    var calendarTz = null;
+
+    if (sourceFailed){
+      if (statusEventTitle) updateStatusEvent(targetCalendarId, calendarTz, false);
+      continue;
+    }
+
+    //------------------------ Skip if the feed has not changed ------------------------
+    var feedHash = feedFingerprint(responses);
+    if (skipUnchangedFeed && isUnchangedFeed(targetCalendarId, feedHash)){
+      Logger.log("Feed unchanged since the last full sync of " + targetCalendarName + ". Skipping.");
+      if (statusEventTitle) updateStatusEvent(targetCalendarId, calendarTz, true);
+      continue;
+    }
 
     //------------------------ Parse existing events --------------------------
     if(addEventsToCalendar || modifyExistingEvents || removeEventsFromCalendar){
@@ -206,12 +234,19 @@ function startSync(){
       //------------------------ Parse ical events --------------------------
       vevents = parseResponses(responses, icsEventsIds);
       Logger.log("Parsed " + vevents.length + " events from ical sources");
+
+      if (keepEventsIfSourceFails && vevents.length == 0 && calendarEvents.length > 0){
+        Logger.log("[WARNING] The feed for " + targetCalendarName + " is empty but the calendar has " + calendarEvents.length + " synced events. Assuming a source problem and leaving the calendar unchanged.");
+        reportOverallFailure = true;
+        if (statusEventTitle) updateStatusEvent(targetCalendarId, calendarTz, false);
+        continue;
+      }
     }
 
     //------------------------ Process ical events ------------------------
     if (addEventsToCalendar || modifyExistingEvents){
       Logger.log("Processing " + vevents.length + " events");
-      var calendarTz =
+      calendarTz =
         callWithBackoff(function(){
           return Calendar.Settings.get("timezone").value;
         }, defaultMaxRetries);
@@ -226,7 +261,7 @@ function startSync(){
     //------------------------ Remove old events from calendar ------------------------
     if(removeEventsFromCalendar){
       Logger.log("Checking " + calendarEvents.length + " events for removal");
-      processEventCleanup();
+      processEventCleanup(maxRemovalFraction);
       Logger.log("Done checking events for removal");
     }
 
@@ -239,6 +274,14 @@ function startSync(){
     Logger.log("Processing " + recurringEvents.length + " Recurrence Instances!");
     for (var recEvent of recurringEvents){
       processEventInstance(recEvent);
+    }
+
+    //------------------------ Remember this feed and the status event ------------------------
+    if (!reportOverallFailure){
+      rememberFeed(targetCalendarId, feedHash);
+    }
+    if (statusEventTitle){
+      updateStatusEvent(targetCalendarId, calendarTz, true);
     }
   }
 
