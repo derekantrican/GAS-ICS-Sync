@@ -115,7 +115,7 @@ function condenseCalendarMap(calendarMap){
 function deleteAllTriggers(){
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++){
-    if (["startSync","install","main","checkForUpdate"].includes(triggers[i].getHandlerFunction())){
+    if (["startSync","install","main","checkForUpdate","syncWatch"].includes(triggers[i].getHandlerFunction())){
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
@@ -135,7 +135,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
 
     try {
       callWithBackoff(function() {
-        var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : false, 'muteHttpExceptions' : true });
+        var urlResponse = UrlFetchApp.fetch(url, { 'validateHttpsCertificates' : true, 'muteHttpExceptions' : true });
         if (urlResponse.getResponseCode() == 200){
           var icsContent = urlResponse.getContentText()
           const icsRegex = RegExp("(BEGIN:VCALENDAR.*?END:VCALENDAR)", "s")
@@ -154,6 +154,7 @@ function fetchSourceCalendars(sourceCalendarURLs){
             if (urlContent == null){
               Logger.log("[ERROR] Incorrect ics/ical URL: " + url)
               reportOverallFailure = true;
+              lastFetchError = "not a calendar file";
               return
             }
             Logger.log("[WARNING] Microsoft is incorrectly formatting ics/ical at: " + url)
@@ -162,12 +163,15 @@ function fetchSourceCalendars(sourceCalendarURLs){
           return;
         }
         else{ //Throw here to make callWithBackoff run again
+          lastFetchError = "HTTP " + urlResponse.getResponseCode();
           throw "Error: Encountered HTTP error " + urlResponse.getResponseCode() + " when accessing " + url;
         }
-      }, defaultMaxRetries);
+      }, sourceFetchRetries);
     }
     catch (e) {
+      Logger.log("[ERROR] Could not read " + url + ": " + e);
       reportOverallFailure = true;
+      if (!lastFetchError) lastFetchError = String(e).replace(/^(Exception|Error): /, "").split(":")[0].substring(0, 40);
     }
   }
 
@@ -662,10 +666,7 @@ function createEvent(event, calendarTz){
     return;
   }
 
-  var newEvent =
-    callWithBackoff(function() {
-        return Calendar.newEvent();
-      }, defaultMaxRetries);
+  var newEvent;
   if(icalEvent.startDate.isDate){ //All-day event
     if (icalEvent.startDate.compare(icalEvent.endDate) == 0){
       //Adjust dtend in case dtstart equals dtend as this is not valid for allday events
@@ -915,7 +916,21 @@ function processEventInstance(recEvent){
  * Deletes all events from the target calendar that no longer exist in the source calendars.
  * If removePastEventsFromCalendar is set to false, events that have taken place will not be removed.
  */
-function processEventCleanup(){
+function processEventCleanup(maxFraction){
+  if (maxFraction != undefined && maxFraction < 1){
+    var toRemove = 0;
+    for (var j = 0; j < calendarEvents.length; j++){
+      if (icsEventsIds.indexOf(calendarEventsIds[j]) == -1 && calendarEvents[j].recurringEventId == null)
+        toRemove++;
+    }
+    if (toRemove > 5 && toRemove > calendarEvents.length * maxFraction){
+      Logger.log("[WARNING] Removal would delete " + toRemove + " of " + calendarEvents.length + " events (limit " + Math.round(maxFraction * 100) + "%). Skipping removal this run.");
+      reportOverallFailure = true;
+      statusReason = "removal of " + toRemove + " of " + calendarEvents.length + " events skipped";
+      return;
+    }
+  }
+
   for (var i = 0; i < calendarEvents.length; i++){
       var currentID = calendarEventsIds[i];
       var feedIndex = icsEventsIds.indexOf(currentID);
@@ -945,6 +960,182 @@ function processEventCleanup(){
         }
       }
     }
+}
+
+/**
+ * Whether the status event is used at all.
+ */
+function statusEventEnabled(){
+  return !!statusEventTitle || statusEventOnlyOnProblem;
+}
+
+/**
+ * Keeps the all-day status event on today's date in the target calendar.
+ * It has no reminders, shows as free and is not marked fromGAS, so the sync never removes it.
+ * Normal mode: after a good sync its title is statusEventTitle, otherwise statusEventFailTitle.
+ * statusEventOnlyOnProblem: a good sync deletes it; it exists only while something is wrong.
+ * The event is written only when its title or date changes, so a long outage gives one update a day.
+ *
+ * @param {string} calendarId - The target calendar
+ * @param {?string} calendarTz - The calendar's time zone (looked up if missing)
+ * @param {boolean} ok - Whether this run was good
+ * @param {string=} reason - What went wrong (for {reason} in statusEventFailTitle)
+ */
+function updateStatusEvent(calendarId, calendarTz, ok, reason, onlyIfStaleMs){
+  var lock = LockService.getScriptLock(); // startSync and syncWatch can run at the same time
+  if (!lock.tryLock(30000)){
+    Logger.log("[WARNING] Status event busy, not updated this run");
+    return;
+  }
+  try{
+    var props = PropertiesService.getScriptProperties();
+    var key = "statusLastGood:" + calendarId;
+    var shownKey = "statusShown:" + calendarId;
+    var now = new Date();
+    if (ok) props.setProperty(key, String(now.getTime()));
+    if (!ok && onlyIfStaleMs && now.getTime() - (Number(props.getProperty(key)) || 0) <= onlyIfStaleMs) return; // a good sync just happened
+
+    var listStatus = function(){
+      var found = callWithBackoff(function(){
+        return Calendar.Events.list(calendarId, {showDeleted: false, privateExtendedProperty: "gasStatus=true", maxResults: 10});
+      }, defaultMaxRetries);
+      if (!found) throw "could not list status events";
+      return found.items || [];
+    };
+
+    if (ok && statusEventOnlyOnProblem){
+      if (props.getProperty(shownKey) == "0") return; // nothing to delete, no API call
+      var oldItems = listStatus();
+      for (var j = 0; j < oldItems.length; j++){
+        callWithBackoff(function(){
+          return Calendar.Events.remove(calendarId, oldItems[j].id);
+        }, defaultMaxRetries);
+      }
+      if (oldItems.length && listStatus().length) throw "status event still there after removal"; // try again next run
+      props.setProperty(shownKey, "0");
+      Logger.log("Status event: all good" + (oldItems.length ? ", removed" : ""));
+      return;
+    }
+
+    var tz = calendarTz || callWithBackoff(function(){
+      return Calendar.Settings.get("timezone").value;
+    }, defaultMaxRetries);
+    var summary;
+    if (ok){
+      summary = statusEventTitle.replace("{time}", Utilities.formatDate(now, tz, "HH:mm"));
+    }
+    else{
+      var last = Number(props.getProperty(key));
+      summary = statusEventFailTitle
+        .replace("{last}", last ? Utilities.formatDate(new Date(last), tz, "MMM d HH:mm") : "unknown")
+        .replace("{reason}", reason || "unknown problem");
+    }
+    var today = Utilities.formatDate(now, tz, "yyyy-MM-dd");
+    var p = today.split("-");
+    var tomorrow = Utilities.formatDate(new Date(Date.UTC(+p[0], +p[1] - 1, +p[2] + 1)), "UTC", "yyyy-MM-dd");
+    var resource = {
+      summary: summary,
+      start: {date: today},
+      end: {date: tomorrow},
+      transparency: "transparent",
+      reminders: {useDefault: false, overrides: []},
+      extendedProperties: {private: {gasStatus: "true"}}
+    };
+    var items = listStatus();
+    props.setProperty(shownKey, "1"); // before writing: a half-done write must still be cleaned by the next good run
+    if (items.length == 0){
+      callWithBackoff(function(){
+        return Calendar.Events.insert(resource, calendarId);
+      }, defaultMaxRetries);
+    }
+    else if (items[0].summary != summary || items[0].start.date != today){
+      callWithBackoff(function(){
+        return Calendar.Events.update(resource, calendarId, items[0].id);
+      }, defaultMaxRetries);
+    }
+    for (var k = 1; k < items.length; k++){
+      Calendar.Events.remove(calendarId, items[k].id);
+    }
+    Logger.log("Status event: " + summary);
+  }
+  catch(e){
+    Logger.log("[WARNING] Could not update the status event: " + e);
+  }
+  finally{
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Remembers which calendars get a status event, for syncWatch.
+ */
+function rememberStatusCalendar(calendarId){
+  var props = PropertiesService.getScriptProperties();
+  var ids = JSON.parse(props.getProperty("statusCalendars") || "[]");
+  if (ids.indexOf(calendarId) == -1){
+    ids.push(calendarId);
+    props.setProperty("statusCalendars", JSON.stringify(ids));
+  }
+}
+
+/**
+ * Hourly check (installSyncWatch). With statusEventOnlyOnProblem, silence means all good, so a sync that stopped
+ * running or keeps crashing must still show up: if there has been no good sync for syncWatchMinutes, put up the
+ * status event. A reason already shown by startSync is kept.
+ */
+function syncWatch(){
+  if (!statusEventOnlyOnProblem) return;
+  var props = PropertiesService.getScriptProperties();
+  var ids = JSON.parse(props.getProperty("statusCalendars") || "[]");
+  var now = new Date().getTime();
+  var lastStart = Number(props.getProperty("syncLastStart")) || 0;
+  var limit = syncWatchMinutes * 60000;
+  for (var i = 0; i < ids.length; i++){
+    var lastGood = Number(props.getProperty("statusLastGood:" + ids[i])) || 0;
+    if (now - lastGood <= limit) continue;
+    if (now - lastStart > limit){
+      var tz = callWithBackoff(function(){ return Calendar.Settings.get("timezone").value; }, defaultMaxRetries);
+      updateStatusEvent(ids[i], tz, false, "the sync has not run since " + (lastStart ? Utilities.formatDate(new Date(lastStart), tz, "MMM d HH:mm") : "unknown") + ", check its trigger", limit);
+    }
+    else{
+      var id = ids[i];
+      var found = callWithBackoff(function(){
+        return Calendar.Events.list(id, {showDeleted: false, privateExtendedProperty: "gasStatus=true", maxResults: 1});
+      }, defaultMaxRetries);
+      if (found && !(found.items || []).length){ // keep a reason startSync already shows
+        updateStatusEvent(id, null, false, "the sync runs but keeps failing (see Executions)", limit);
+      }
+    }
+  }
+}
+
+/**
+ * Fingerprint of the fetched feeds, ignoring DTSTAMP lines (they change on every download).
+ *
+ * @param {Array} responses - Result of fetchSourceCalendars
+ * @return {string} MD5 of the feeds and the settings that shape the events
+ */
+function feedFingerprint(responses){
+  var text = responses.map(function(r){ return r[0].replace(/^DTSTAMP[^\r\n]*\r?\n/gm, "") + "|" + r[1]; }).join("\n");
+  text += JSON.stringify([filters, addAlerts, addOrganizerToTitle, descriptionAsTitles, addCalToTitle, addAttendees, defaultAllDayReminder, overrideVisibility, removePastEventsFromCalendar]);
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, text, Utilities.Charset.UTF_8).toString();
+}
+
+/**
+ * True when the feed equals the one stored at the last full sync and that sync is under fullSyncMinutes old.
+ */
+function isUnchangedFeed(calendarId, feedHash){
+  var saved = PropertiesService.getScriptProperties().getProperty("feed:" + calendarId);
+  if (!saved) return false;
+  saved = JSON.parse(saved);
+  return saved.hash == feedHash && (new Date().getTime() - saved.time) < fullSyncMinutes * 60000;
+}
+
+/**
+ * Stores the feed fingerprint after a full sync with no errors.
+ */
+function rememberFeed(calendarId, feedHash){
+  PropertiesService.getScriptProperties().setProperty("feed:" + calendarId, JSON.stringify({hash: feedHash, time: new Date().getTime()}));
 }
 
 /**
