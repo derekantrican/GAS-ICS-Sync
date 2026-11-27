@@ -195,6 +195,12 @@ function startSync(){
         if (eventList != null)
           calendarEvents = [].concat(calendarEvents, eventList.items);
       }
+      // Events.list can still return cancelled instances (e.g. of recurring
+      // events) even with showDeleted: false, and Events.update then fails
+      // on them with "Invalid start time".
+      calendarEvents = calendarEvents.filter(function(existingEvent){
+        return existingEvent.status !== "cancelled";
+      });
       Logger.log("Fetched " + calendarEvents.length + " existing events from " + targetCalendarName);
       for (var i = 0; i < calendarEvents.length; i++){
         if (calendarEvents[i].extendedProperties != null){
